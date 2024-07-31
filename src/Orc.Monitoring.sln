@@ -21,6 +21,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{7FC547A9-2
 		Directory.Build.shared.xamltools.props = Directory.Build.shared.xamltools.props
 		Directory.Build.targets = Directory.Build.targets
 		global.json = global.json
+		SolutionAssemblyInfo.cs = SolutionAssemblyInfo.cs
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Core", "Core", "{CF423A8F-0EB9-4BED-AED4-9C1E496C9A0C}"
@@ -29,7 +30,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Examples", "Examples", "{57
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{8944FE5C-47F5-4D89-B804-571E78C2E0C1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Tests", "Orc.Monitoring.Tests\Orc.Monitoring.Tests.csproj", "{76172641-DAAB-4807-9924-45F4B0A25680}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.Tests", "Orc.Monitoring.Tests\Orc.Monitoring.Tests.csproj", "{76172641-DAAB-4807-9924-45F4B0A25680}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
