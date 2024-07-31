@@ -16,7 +16,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-
+    <PackageReference Include="Catel.Core" Version="6.0.3" />
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
+    <PackageReference Include="System.Reactive.Linq" Version="6.0.1" />
   </ItemGroup>
 
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.nullable.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.nullable.props')" />
