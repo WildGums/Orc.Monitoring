@@ -5,8 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using CsvHelper;
-using CsvHelper.Configuration;
+
 
 public class MethodOverrideManager
 {
@@ -31,24 +30,31 @@ public class MethodOverrideManager
         }
 
         using var reader = new StreamReader(_overrideFilePath);
-        using var csv = new CsvReader(reader, new CsvConfiguration(System.Globalization.CultureInfo.InvariantCulture));
+        var headers = ParseCsvLine(reader.ReadLine() ?? string.Empty);
 
-        csv.Read();
-        csv.ReadHeader();
-
-        _customColumns = new HashSet<string>(csv.HeaderRecord?.Where(h => h != "FullName") ?? new List<string>());
-
-        while (csv.Read())
+        if (headers.Length == 0)
         {
-            var fullName = csv.GetField("FullName") ?? string.Empty;
+            return;
+        }
+
+        _customColumns = new HashSet<string>(headers.Where(h => h != "FullName"));
+
+        while (!reader.EndOfStream)
+        {
+            var values = ParseCsvLine(reader.ReadLine() ?? string.Empty);
+            if (values.Length != headers.Length)
+            {
+                continue;
+            }
+
+            var fullName = values[0];
             var methodOverrides = new Dictionary<string, string>();
 
-            foreach (var header in _customColumns)
+            for (int i = 1; i < headers.Length; i++)
             {
-                var value = csv.GetField(header);
-                if (!string.IsNullOrEmpty(value))
+                if (!string.IsNullOrEmpty(values[i]))
                 {
-                    methodOverrides[header] = value;
+                    methodOverrides[headers[i]] = values[i];
                 }
             }
 
@@ -73,49 +79,101 @@ public class MethodOverrideManager
             .ToList();
 
         using var writer = new StreamWriter(_overrideFilePath, false, Encoding.UTF8);
-        using var csv = new CsvWriter(writer, new CsvConfiguration(System.Globalization.CultureInfo.InvariantCulture));
 
-        csv.WriteField("FullName");
-        foreach (var column in allColumns.OrderBy(c => c))
-        {
-            csv.WriteField(column);
-        }
-        csv.NextRecord();
+        // Write header
+        writer.WriteLine(ToCsvLine(new[] { "FullName" }.Concat(allColumns.OrderBy(c => c)).ToArray()));
 
+        // Write data rows
         foreach (var item in uniqueReportItems)
         {
             var fullName = item.FullName ?? string.Empty;
-            csv.WriteField(fullName);
+            var row = new List<string> { fullName };
+
             foreach (var column in allColumns.OrderBy(c => c))
             {
                 if (_overrides.TryGetValue(fullName, out var methodOverrides) && methodOverrides.TryGetValue(column, out var overrideValue))
                 {
-                    csv.WriteField(overrideValue);
+                    row.Add(overrideValue);
                 }
                 else if (item.Parameters.TryGetValue(column, out var value) && item.AttributeParameters.Contains(column))
                 {
-                    csv.WriteField(value);
+                    row.Add(value);
                 }
                 else
                 {
-                    csv.WriteField(string.Empty);
+                    row.Add(string.Empty);
                 }
             }
-            csv.NextRecord();
+
+            writer.WriteLine(ToCsvLine(row.ToArray()));
         }
 
         // Preserve any existing rows that weren't in the reportItems
         foreach (var fullName in _overrides.Keys.Except(uniqueReportItems.Select(i => i.FullName)))
         {
-            csv.WriteField(fullName);
+            var row = new List<string> { fullName ?? string.Empty };
+
             foreach (var column in allColumns.OrderBy(c => c))
             {
-                csv.WriteField(_overrides[fullName ?? string.Empty].TryGetValue(column, out var value) 
-                    ? value 
-                    : string.Empty);
+                row.Add(_overrides[fullName ?? string.Empty].TryGetValue(column, out var value) ? value : string.Empty);
             }
-            csv.NextRecord();
+
+            writer.WriteLine(ToCsvLine(row.ToArray()));
         }
+    }
+
+    private string[] ParseCsvLine(string line)
+    {
+        var result = new List<string>();
+        var currentValue = new StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            if (line[i] == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    // Escaped quote
+                    currentValue.Append('"');
+                    i++;
+                }
+                else
+                {
+                    // Toggle quote mode
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (line[i] == ',' && !inQuotes)
+            {
+                // End of field
+                result.Add(currentValue.ToString());
+                currentValue.Clear();
+            }
+            else
+            {
+                currentValue.Append(line[i]);
+            }
+        }
+
+        // Add the last field
+        result.Add(currentValue.ToString());
+
+        return result.ToArray();
+    }
+
+    private string ToCsvLine(string[] values)
+    {
+        return string.Join(",", values.Select(EscapeCsvValue));
+    }
+
+    private string EscapeCsvValue(string value)
+    {
+        if (value.Contains(",") || value.Contains("\"") || value.Contains("\n"))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+        return value;
     }
 
     public Dictionary<string, string> GetOverridesForMethod(string fullName)
