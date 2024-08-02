@@ -24,25 +24,24 @@ public class CallStack : IObservable<ICallStackItem>
 
     private int _idCounter = 0;
 
-    public CallStack()
-    {
-        
-    }
-
     public MethodCallInfo Push(IClassMonitor classMonitor, Type callerType, MethodCallContextConfig config)
     {
+        Console.WriteLine($"CallStack.Push called for {callerType.Name}.{config.CallerMethodName}");
+
+        if (!MonitoringManager.IsEnabled)
+        {
+            return MethodCallInfo.CreateNull();
+        }
+
         var threadId = Environment.CurrentManagedThreadId;
         var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
-
-        var callerMethodName = config.CallerMethodName;
-        var genericArguments = config.GenericArguments;
 
         var methodInfo = FindMatchingMethod(config);
 
         if (methodInfo is null)
         {
             var classTypeName = config.ClassType?.Name ?? string.Empty;
-            throw new InvalidOperationException($"Method {callerMethodName} not found in {classTypeName} with the specified parameter types");
+            throw new InvalidOperationException($"Method {config.CallerMethodName} not found in {classTypeName} with the specified parameter types");
         }
 
         var attributeParameters = methodInfo.GetCustomAttributes<MethodCallParameterAttribute>()
@@ -63,10 +62,13 @@ public class CallStack : IObservable<ICallStackItem>
                 parentMethodCallInfo = globalParent;
             }
 
-            var methodCallInfo = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, genericArguments, level, id, parentMethodCallInfo, attributeParameters);
+            var methodCallInfo = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, level, id, parentMethodCallInfo, attributeParameters);
 
-            threadStack.Push(methodCallInfo);
-            _globalCallStack.Push(methodCallInfo);
+            if (!methodCallInfo.IsNull)
+            {
+                threadStack.Push(methodCallInfo);
+                _globalCallStack.Push(methodCallInfo);
+            }
 
             return methodCallInfo;
         }
@@ -74,7 +76,12 @@ public class CallStack : IObservable<ICallStackItem>
 
     public void Pop(MethodCallInfo methodCallInfo)
     {
-        ArgumentNullException.ThrowIfNull(methodCallInfo);
+        Console.WriteLine($"CallStack.Pop called for {methodCallInfo}");
+
+        if (methodCallInfo.IsNull)
+        {
+            return;
+        }
 
         var threadId = methodCallInfo.ThreadId;
 
@@ -88,42 +95,50 @@ public class CallStack : IObservable<ICallStackItem>
 
                     if (poppedContext != methodCallInfo)
                     {
-                        Log.Warning($"Thread CallStack mismatch: popped context is not the same as the method call info.");
+                        Console.WriteLine($"Thread CallStack mismatch: popped context is not the same as the method call info.");
                     }
                 }
                 else
                 {
-                    Log.Warning($"Thread CallStack mismatch: no context found for thread {threadId}.");
+                    Console.WriteLine($"Thread CallStack mismatch: no context found for thread {threadId}.");
                 }
             }
         }
         else
         {
-            Log.Warning($"Thread CallStack mismatch: no stack found for thread {threadId}.");
+            Console.WriteLine($"Thread CallStack mismatch: no stack found for thread {threadId}.");
         }
 
-        // Always try to pop from the global stack
         if (_globalCallStack.TryPop(out var globalPoppedContext))
         {
             if (globalPoppedContext != methodCallInfo)
             {
-                Log.Warning("Global CallStack mismatch: popped context is not the same as the method call info.");
+                Console.WriteLine("Global CallStack mismatch: popped context is not the same as the method call info.");
             }
         }
         else
         {
-            Log.Warning("Global CallStack mismatch: failed to pop method call info.");
+            Console.WriteLine("Global CallStack mismatch: failed to pop method call info.");
         }
     }
 
     public void LogStatus(IMethodLifeCycleItem status)
     {
+        Console.WriteLine($"CallStack.LogStatus called with {status.GetType().Name}");
+        if (!MonitoringManager.ShouldTrack(status.MethodCallInfo.MonitoringVersion))
+        {
+            Console.WriteLine("Monitoring is disabled or version mismatch, not logging status");
+            return;
+        }
+
         ArgumentNullException.ThrowIfNull(status);
 
+        Console.WriteLine($"Notifying observers: {status}");
         NotifyObservers(status);
 
         if (status is MethodCallEnd && IsEmpty())
         {
+            Console.WriteLine("Call stack is empty, notifying with CallStackItem.Empty");
             NotifyObservers(CallStackItem.Empty);
         }
     }
@@ -269,6 +284,7 @@ public class CallStack : IObservable<ICallStackItem>
 
     private void NotifyObservers(ICallStackItem value)
     {
+        Console.WriteLine($"Notifying observers: {value}");
         foreach (var observer in _observers.ToArray())
         {
             observer.OnNext(value);

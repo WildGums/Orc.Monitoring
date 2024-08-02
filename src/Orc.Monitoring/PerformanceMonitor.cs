@@ -15,10 +15,15 @@ public static class PerformanceMonitor
 
     public static void Configure(Action<GlobalConfigurationBuilder> configAction)
     {
+        Console.WriteLine("PerformanceMonitor.Configure called");
         var builder = new GlobalConfigurationBuilder();
         configAction(builder);
         _globalConfig = builder.Build();
         ApplyGlobalConfiguration(_globalConfig);
+
+        // Enable monitoring by default when configured
+        MonitoringManager.Enable();
+        Console.WriteLine("Monitoring enabled after configuration");
     }
 
     private static void ApplyGlobalConfiguration(GlobalConfiguration config)
@@ -53,30 +58,61 @@ public static class PerformanceMonitor
 
     public static IClassMonitor ForCurrentClass()
     {
+        if (!MonitoringManager.IsEnabled)
+        {
+            return new NullClassMonitor();
+        }
+
         var callingType = GetCallingType();
         return CreateClassMonitor(callingType);
     }
 
     public static IClassMonitor ForClass<T>()
     {
-        return CreateClassMonitor(typeof(T));
+        Console.WriteLine($"PerformanceMonitor.ForClass<{typeof(T).Name}> called");
+        if (!MonitoringManager.IsEnabled)
+        {
+            Console.WriteLine($"Monitoring is disabled. Returning NullClassMonitor for {typeof(T).Name}");
+            return new NullClassMonitor();
+        }
+
+        var monitor = CreateClassMonitor(typeof(T));
+        Console.WriteLine($"Created monitor of type: {monitor.GetType().Name}");
+        return monitor;
+    }
+
+    public static void AddTrackedMethod(Type type, MethodInfo method)
+    {
+        if (!TargetMethods.TryGetValue(type, out var methods))
+        {
+            methods = new HashSet<MethodInfo>();
+            TargetMethods[type] = methods;
+        }
+        methods.Add(method);
+        Console.WriteLine($"Added tracked method: {type.Name}.{method.Name}");
     }
 
     private static IClassMonitor CreateClassMonitor(Type? callingType)
     {
         ArgumentNullException.ThrowIfNull(callingType);
 
+        Console.WriteLine($"CreateClassMonitor called for {callingType.Name}");
+
         if (_callStack is null)
         {
-            return new ClassMonitor(callingType, null, new HashSet<string>());
+            Console.WriteLine("CallStack is null. Returning NullClassMonitor");
+            return new NullClassMonitor();
         }
 
         if (!TargetMethods.TryGetValue(callingType, out var methods))
         {
+            Console.WriteLine($"No tracked methods found for {callingType.Name}. Creating empty set.");
             methods = new HashSet<MethodInfo>();
         }
 
-        return new ClassMonitor(callingType, _callStack, methods.Select(m => m.Name).ToHashSet());
+        var trackedMethodNames = methods.Select(m => m.Name).ToHashSet();
+        Console.WriteLine($"Creating ClassMonitor for {callingType.Name} with tracked methods: {string.Join(", ", trackedMethodNames)}");
+        return new ClassMonitor(callingType, _callStack, trackedMethodNames);
     }
 
     private static Type? GetCallingType()

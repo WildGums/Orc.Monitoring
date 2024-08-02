@@ -3,60 +3,61 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive.Disposables;
 using System.Reflection;
-using Reporters;
+using Orc.Monitoring.Reporters;
 
 public class MethodCallInfo
 {
-    private readonly MethodCallInfoPool _pool;
+    private readonly MethodCallInfoPool? _pool;
 
     private IClassMonitor? _classMonitor;
     private int _usageCounter;
     private bool _readyToReturn;
+    
+    public bool IsNull { get; private set; }
 
-    public MethodCallInfo(MethodCallInfoPool pool, IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
+    public Dictionary<string, string>? Parameters { get; set; }
+    public MethodInfo? MethodInfo { get; set; }
+    public Type? ClassType { get; set; }
+    public string? MethodName { get; set; }
+    public int ThreadId { get; set; }
+    public DateTime StartTime { get; set; }
+    public int Level { get; set; }
+    public string? Id { get; set; }
+    public TimeSpan Elapsed { get; set; }
+    public MethodCallInfo? Parent { get; set; }
+    public int ParentThreadId { get; set; }
+    public HashSet<string>? AttributeParameters { get; private set; }
+    public int MonitoringVersion { get; private set; }
+
+    private MethodCallInfo(MethodCallInfoPool? pool)
+    {
+        _pool = pool;
+    }
+
+    public static MethodCallInfo CreateNull()
+    {
+        return new MethodCallInfo(null)
+        {
+            IsNull = true
+        };
+    }
+
+    public static MethodCallInfo Create(MethodCallInfoPool pool, IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, int level, string id, MethodCallInfo? parent,
         Dictionary<string, string> attributeParameters)
     {
-        ArgumentNullException.ThrowIfNull(pool);
-        ArgumentNullException.ThrowIfNull(classType);
-
-        _pool = pool;
-
-        Reset(classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
+        var info = new MethodCallInfo(pool);
+        info.Reset(classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
+        return info;
     }
-
-    public Dictionary<string, string>? Parameters { get; set; }
-
-    public MethodInfo? MethodInfo { get; set; }
-
-    public Type? ClassType { get; set; }
-
-    public string? MethodName { get; set; }
-
-    public int ThreadId { get; set; }
-
-    public DateTime StartTime { get; set; }
-
-    public int Level { get; set; }
-
-    public string? Id { get; set; }
-
-    public TimeSpan Elapsed { get; set; }
-
-    public MethodCallInfo? Parent { get; set; }
-
-    public int ParentThreadId { get; set; }
-
-    public HashSet<string>? AttributeParameters { get; private set; }
-
 
     public void Reset(IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, int level, string id, MethodCallInfo? parent,
         Dictionary<string, string> attributeParameters)
     {
-        // Reset all properties
+        if (IsNull) return;
+
         _readyToReturn = false;
         _classMonitor = classMonitor;
         ClassType = classType;
@@ -72,11 +73,13 @@ public class MethodCallInfo
 
         AttributeParameters = new HashSet<string>(attributeParameters.Keys);
         Parameters = new Dictionary<string, string>(attributeParameters);
+        MonitoringVersion = MonitoringManager.GetCurrentVersion();
     }
 
     public void Clear()
     {
-        // Clear all properties to default values
+        if (IsNull) return;
+
         _readyToReturn = false;
         _classMonitor = null;
         ClassType = null;
@@ -93,19 +96,27 @@ public class MethodCallInfo
         Elapsed = TimeSpan.Zero;
         Parent = null;
         ParentThreadId = -1;
+        MonitoringVersion = 0;
     }
 
     public void TryReturnToPool()
     {
+        if (IsNull) return;
+
         _readyToReturn = true;
         if (_usageCounter == 0)
         {
-            _pool.Return(this);
+            _pool?.Return(this);
         }
     }
 
     public IAsyncDisposable Use()
     {
+        if (IsNull)
+        {
+            return new AsyncDisposable(async () => { });
+        }
+
         _usageCounter++;
 
         return new AsyncDisposable(async () =>
@@ -113,16 +124,24 @@ public class MethodCallInfo
             _usageCounter--;
             if (_usageCounter == 0 && _readyToReturn)
             {
-                _pool.Return(this);
+                _pool?.Return(this);
             }
         });
     }
 
-    public MethodCallContext Start(List<IAsyncDisposable> disposables) => new(_classMonitor, this, disposables);
-    public AsyncMethodCallContext StartAsync(List<IAsyncDisposable> disposables) => new(_classMonitor, this, disposables);
+    public MethodCallContext Start(List<IAsyncDisposable> disposables)
+    {
+        return IsNull ? MethodCallContext.Dummy : new MethodCallContext(_classMonitor, this, disposables);
+    }
+
+    public AsyncMethodCallContext StartAsync(List<IAsyncDisposable> disposables)
+    {
+        return IsNull ? AsyncMethodCallContext.Dummy : new AsyncMethodCallContext(_classMonitor, this, disposables);
+    }
 
     public override string ToString()
     {
+        if (IsNull) return "Null MethodCallInfo";
         var classTypeName = ClassType?.Name ?? string.Empty;
         return $"{classTypeName}.{MethodName}";
     }
