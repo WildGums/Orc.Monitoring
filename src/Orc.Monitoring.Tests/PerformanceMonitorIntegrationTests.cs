@@ -1,4 +1,7 @@
-﻿#pragma warning disable CA1822
+﻿// ReSharper disable NotNullOrRequiredMemberIsNotInitialized
+// ReSharper disable InconsistentNaming
+#pragma warning disable IDE1006
+#pragma warning disable CA1822
 #pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
@@ -96,6 +99,7 @@ public class PerformanceMonitorIntegrationTests
     public void Setup()
     {
         Console.WriteLine("Setup started");
+        MonitoringManager.ResetForTesting();  // Add this line to reset the state
         PerformanceMonitor.Configure(builder => {
             Console.WriteLine($"Configuring assembly: {typeof(TestClass).Assembly.FullName}");
             builder.TrackAssembly(typeof(TestClass).Assembly);
@@ -105,6 +109,7 @@ public class PerformanceMonitorIntegrationTests
         MonitoringManager.Enable();
         Console.WriteLine($"Monitoring enabled: {MonitoringManager.IsEnabled}");
         _testReporter = new TestReporter();
+        MonitoringManager.EnableReporter(typeof(TestReporter));  // Add this line to enable the TestReporter
         Console.WriteLine("Setup completed");
 
         // Force re-creation of TestClass monitor
@@ -173,9 +178,9 @@ public class PerformanceMonitorIntegrationTests
         testClass.TestMethod();
 
         Console.WriteLine("Setting up callback");
-        MonitoringManager.AddStateChangedCallback((isEnabled, version) =>
+        MonitoringManager.AddStateChangedCallback((componentType, componentName, isEnabled, version) =>
         {
-            Console.WriteLine($"State changed callback. Enabled: {isEnabled}, Version: {version}");
+            Console.WriteLine($"State changed callback. Component: {componentType}, Name: {componentName}, Enabled: {isEnabled}, Version: {version}");
             if (!isEnabled)
             {
                 Console.WriteLine("Calling TestMethod from callback");

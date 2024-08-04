@@ -9,24 +9,33 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime;
 using System.Text;
-using Catel.Logging;
 using MethodLifeCycleItems;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Filters;
 
 public class CallStack : IObservable<ICallStackItem>
 {
-    private static readonly ILog Log = LogManager.GetCurrentClassLogger();
+    private readonly ILogger<CallStack> _logger = MonitoringManager.CreateLogger<CallStack>();
 
     private readonly MethodCallInfoPool _methodCallInfoPool = new();
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
     private readonly ConcurrentStack<MethodCallInfo> _globalCallStack = new();
     private readonly object _idLock = new();
     private readonly List<IObserver<ICallStackItem>> _observers = new();
+    private readonly MonitoringConfiguration _monitoringConfig;
 
     private int _idCounter = 0;
 
+    public CallStack(MonitoringConfiguration monitoringConfig)
+    {
+        ArgumentNullException.ThrowIfNull(monitoringConfig);
+
+        _monitoringConfig = monitoringConfig;
+    }
+
     public MethodCallInfo Push(IClassMonitor classMonitor, Type callerType, MethodCallContextConfig config)
     {
-        Console.WriteLine($"CallStack.Push called for {callerType.Name}.{config.CallerMethodName}");
+        _logger.LogDebug($"CallStack.Push called for {callerType.Name}.{config.CallerMethodName}");
 
         if (!MonitoringManager.IsEnabled)
         {
@@ -76,7 +85,7 @@ public class CallStack : IObservable<ICallStackItem>
 
     public void Pop(MethodCallInfo methodCallInfo)
     {
-        Console.WriteLine($"CallStack.Pop called for {methodCallInfo}");
+        _logger.LogDebug($"CallStack.Pop called for {methodCallInfo}");
 
         if (methodCallInfo.IsNull)
         {
@@ -95,52 +104,88 @@ public class CallStack : IObservable<ICallStackItem>
 
                     if (poppedContext != methodCallInfo)
                     {
-                        Console.WriteLine($"Thread CallStack mismatch: popped context is not the same as the method call info.");
+                        _logger.LogWarning($"Thread CallStack mismatch: popped context is not the same as the method call info.");
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"Thread CallStack mismatch: no context found for thread {threadId}.");
+                    _logger.LogWarning($"Thread CallStack mismatch: no context found for thread {threadId}.");
                 }
             }
         }
         else
         {
-            Console.WriteLine($"Thread CallStack mismatch: no stack found for thread {threadId}.");
+            _logger.LogWarning($"Thread CallStack mismatch: no stack found for thread {threadId}.");
         }
 
         if (_globalCallStack.TryPop(out var globalPoppedContext))
         {
             if (globalPoppedContext != methodCallInfo)
             {
-                Console.WriteLine("Global CallStack mismatch: popped context is not the same as the method call info.");
+                _logger.LogWarning("Global CallStack mismatch: popped context is not the same as the method call info.");
             }
         }
         else
         {
-            Console.WriteLine("Global CallStack mismatch: failed to pop method call info.");
+            _logger.LogWarning("Global CallStack mismatch: failed to pop method call info.");
         }
     }
 
     public void LogStatus(IMethodLifeCycleItem status)
     {
-        Console.WriteLine($"CallStack.LogStatus called with {status.GetType().Name}");
+        _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
         if (!MonitoringManager.ShouldTrack(status.MethodCallInfo.MonitoringVersion))
         {
-            Console.WriteLine("Monitoring is disabled or version mismatch, not logging status");
+            _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
             return;
         }
 
         ArgumentNullException.ThrowIfNull(status);
 
-        Console.WriteLine($"Notifying observers: {status}");
-        NotifyObservers(status);
-
-        if (status is MethodCallEnd && IsEmpty())
+        if (ShouldLogStatus(status))  // Add this check
         {
-            Console.WriteLine("Call stack is empty, notifying with CallStackItem.Empty");
-            NotifyObservers(CallStackItem.Empty);
+            _logger.LogDebug($"Notifying observers: {status}");
+            NotifyObservers(status);
+
+            if (status is MethodCallEnd && IsEmpty())
+            {
+                _logger.LogDebug("Call stack is empty, notifying with CallStackItem.Empty");
+                NotifyObservers(CallStackItem.Empty);
+            }
         }
+        else
+        {
+            _logger.LogDebug($"Skipping status logging: {status}");
+        }
+    }
+
+    private bool ShouldLogStatus(IMethodLifeCycleItem status)
+    {
+        var methodInfo = status.MethodCallInfo.MethodInfo;
+        if (methodInfo is null)
+        {
+            return false;
+        }
+
+        var applicableReporters = _monitoringConfig.GetReportersForMethod(methodInfo);
+        var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
+
+        // Check if any enabled reporter is interested in this status
+        bool anyEnabledReporterInterested = applicableReporters.Any(reporter =>
+            MonitoringManager.IsReporterEnabled(reporter));
+
+        // Check if any enabled filter allows this status
+        bool anyEnabledFilterAllows = applicableFilters.Any(filter =>
+        {
+            if (MonitoringManager.IsFilterEnabled(filter))
+            {
+                var filterInstance = (IMethodFilter)Activator.CreateInstance(filter)!;
+                return filterInstance.ShouldInclude(status.MethodCallInfo);
+            }
+            return false;
+        });
+
+        return anyEnabledReporterInterested && anyEnabledFilterAllows;
     }
 
     private MethodInfo? FindMatchingMethod(MethodCallContextConfig config)

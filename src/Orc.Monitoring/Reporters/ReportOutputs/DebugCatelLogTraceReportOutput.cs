@@ -2,13 +2,13 @@
 
 using System;
 using System.Reactive.Disposables;
-using Catel.Logging;
 using MethodLifeCycleItems;
+using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters;
 
 public sealed class DebugCatelLogTraceReportOutput : IReportOutput
 {
-    private static readonly ILog Log = LogManager.GetCurrentClassLogger();
+    private readonly ILogger<DebugCatelLogTraceReportOutput> _logger = MonitoringManager.CreateLogger<DebugCatelLogTraceReportOutput>();
     private readonly ReportOutputHelper _helper = new();
 
     private string? _prefix;
@@ -27,19 +27,19 @@ public sealed class DebugCatelLogTraceReportOutput : IReportOutput
 
     public void WriteSummary(string message)
     {
-        Log.Debug($"{GetPrefix()}{message}");
+        _logger.LogDebug($"{GetPrefix()}{message}");
     }
 
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
     {
         _helper.ProcessCallStackItem(callStackItem);
         var messageToLog = message ?? callStackItem.ToString();
-        Log.Debug($"{GetPrefix()}{messageToLog}");
+        _logger.LogDebug($"{GetPrefix()}{messageToLog}");
     }
 
     public void WriteError(Exception exception)
     {
-        Log.Error($"{GetPrefix()}{exception.Message}");
+        _logger.LogDebug($"{GetPrefix()}{exception.Message}");
     }
 
     private string GetPrefix()

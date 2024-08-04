@@ -1,10 +1,13 @@
-﻿namespace Orc.Monitoring;
+﻿// ReSharper disable InconsistentNaming
+#pragma warning disable IDE1006
+namespace Orc.Monitoring;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Filters;
+using Reporters;
 
 public static class PerformanceMonitor
 {
@@ -12,6 +15,7 @@ public static class PerformanceMonitor
 
     private static GlobalConfiguration? _globalConfig;
     private static CallStack? _callStack;
+    private static MonitoringConfiguration? _monitoringConfig;
 
     public static void Configure(Action<GlobalConfigurationBuilder> configAction)
     {
@@ -19,6 +23,7 @@ public static class PerformanceMonitor
         var builder = new GlobalConfigurationBuilder();
         configAction(builder);
         _globalConfig = builder.Build();
+        _monitoringConfig = new MonitoringConfiguration();
         ApplyGlobalConfiguration(_globalConfig);
 
         // Enable monitoring by default when configured
@@ -28,7 +33,13 @@ public static class PerformanceMonitor
 
     private static void ApplyGlobalConfiguration(GlobalConfiguration config)
     {
-        _callStack = new();
+        if (_monitoringConfig is null)
+        {
+            Console.WriteLine("MonitoringConfiguration is null. Returning");
+            return;
+        }
+
+        _callStack = new CallStack(_monitoringConfig);
 
         foreach (var assembly in config.TrackedAssemblies)
         {
@@ -49,20 +60,40 @@ public static class PerformanceMonitor
                 }
             }
         }
+
+        // Configure reporters and filters
+        foreach (var reporter in config.Reporters)
+        {
+            if (reporter.Value)
+            {
+                MonitoringManager.EnableReporter(reporter.Key);
+            }
+            else
+            {
+                MonitoringManager.DisableReporter(reporter.Key);
+            }
+        }
+
+        foreach (var filter in config.Filters)
+        {
+            if (filter.Value)
+            {
+                MonitoringManager.EnableFilter(filter.Key);
+            }
+            else
+            {
+                MonitoringManager.DisableFilter(filter.Key);
+            }
+        }
     }
 
-    private static bool ShouldIncludeMethod(MethodInfo method, List<IMethodFilter> filters)
+    private static bool ShouldIncludeMethod(MethodInfo method, Dictionary<Type, bool> filters)
     {
-        return filters.Any(filter => filter.ShouldInclude(method));
+        return filters.Where(f => f.Value).Any(filter => ((IMethodFilter)Activator.CreateInstance(filter.Key)!).ShouldInclude(method));
     }
 
     public static IClassMonitor ForCurrentClass()
     {
-        if (!MonitoringManager.IsEnabled)
-        {
-            return new NullClassMonitor();
-        }
-
         var callingType = GetCallingType();
         return CreateClassMonitor(callingType);
     }
@@ -70,12 +101,6 @@ public static class PerformanceMonitor
     public static IClassMonitor ForClass<T>()
     {
         Console.WriteLine($"PerformanceMonitor.ForClass<{typeof(T).Name}> called");
-        if (!MonitoringManager.IsEnabled)
-        {
-            Console.WriteLine($"Monitoring is disabled. Returning NullClassMonitor for {typeof(T).Name}");
-            return new NullClassMonitor();
-        }
-
         var monitor = CreateClassMonitor(typeof(T));
         Console.WriteLine($"Created monitor of type: {monitor.GetType().Name}");
         return monitor;
@@ -96,6 +121,12 @@ public static class PerformanceMonitor
     {
         ArgumentNullException.ThrowIfNull(callingType);
 
+        if (_monitoringConfig is null)
+        {
+            Console.WriteLine("MonitoringConfiguration is null. Returning NullClassMonitor");
+            return new NullClassMonitor();
+        }
+
         Console.WriteLine($"CreateClassMonitor called for {callingType.Name}");
 
         if (_callStack is null)
@@ -112,12 +143,22 @@ public static class PerformanceMonitor
 
         var trackedMethodNames = methods.Select(m => m.Name).ToHashSet();
         Console.WriteLine($"Creating ClassMonitor for {callingType.Name} with tracked methods: {string.Join(", ", trackedMethodNames)}");
-        return new ClassMonitor(callingType, _callStack, trackedMethodNames);
+        return new ClassMonitor(callingType, _callStack, trackedMethodNames, _monitoringConfig);
     }
 
     private static Type? GetCallingType()
     {
         var frame = new System.Diagnostics.StackFrame(2, false);
         return frame.GetMethod()?.DeclaringType;
+    }
+
+    public static void AddReporterForClass<TClass, TReporter>() where TReporter : IMethodCallReporter
+    {
+        _monitoringConfig?.AddReporterForClass<TClass, TReporter>();
+    }
+
+    public static void AddFilterForClass<TClass, TFilter>() where TFilter : IMethodFilter
+    {
+        _monitoringConfig?.AddFilterForClass<TClass, TFilter>();
     }
 }

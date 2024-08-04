@@ -1,200 +1,194 @@
 ﻿namespace Orc.Monitoring.Tests;
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using NUnit.Framework;
+using System;
+using Orc.Monitoring.Reporters;
+using Orc.Monitoring.Filters;
 
 
 [TestFixture]
 public class MonitoringManagerTests
 {
     [SetUp]
-    public void SetUp()
+    public void Setup()
     {
-        // Ensure monitoring is disabled before each test
+        MonitoringManager.ResetForTesting();
         MonitoringManager.Disable();
     }
 
     [Test]
-    public void IsEnabled_DefaultState_IsFalse()
+    public void EnableReporter_WhenCalled_EnablesReporter()
     {
-        Assert.That(MonitoringManager.IsEnabled, Is.False);
+        MonitoringManager.EnableReporter(typeof(WorkflowReporter));
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
     }
 
     [Test]
-    public void Enable_WhenCalled_EnablesMonitoring()
+    public void DisableReporter_WhenCalled_DisablesReporter()
     {
-        MonitoringManager.Enable();
-        Assert.That(MonitoringManager.IsEnabled, Is.True);
+        MonitoringManager.EnableReporter(typeof(WorkflowReporter));
+        MonitoringManager.DisableReporter(typeof(WorkflowReporter));
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
     }
 
     [Test]
-    public void Disable_WhenCalled_DisablesMonitoring()
+    public void EnableFilter_WhenCalled_EnablesFilter()
+    {
+        MonitoringManager.EnableFilter(typeof(WorkflowItemFilter));
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+    }
+
+    [Test]
+    public void DisableFilter_WhenCalled_DisablesFilter()
+    {
+        MonitoringManager.EnableFilter(typeof(WorkflowItemFilter));
+        MonitoringManager.DisableFilter(typeof(WorkflowItemFilter));
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+    }
+
+    [Test]
+    public void ShouldTrack_WhenMonitoringEnabledAndReporterEnabled_ReturnsTrue()
     {
         MonitoringManager.Enable();
+        MonitoringManager.EnableReporter(typeof(WorkflowReporter));
+        Assert.That(MonitoringManager.ShouldTrack(MonitoringManager.CurrentVersion, typeof(WorkflowReporter)), Is.True);
+    }
+
+    [Test]
+    public void ShouldTrack_WhenMonitoringDisabled_ReturnsFalse()
+    {
         MonitoringManager.Disable();
-        Assert.That(MonitoringManager.IsEnabled, Is.False);
+        MonitoringManager.EnableReporter(typeof(WorkflowReporter));
+        Assert.That(MonitoringManager.ShouldTrack(MonitoringManager.CurrentVersion, typeof(WorkflowReporter)), Is.False);
     }
 
     [Test]
-    public void AddStateChangedCallback_WhenStateChanges_InvokesCallback()
+    public void TemporarilyEnableReporter_EnablesReporterAndRevertOnDispose()
     {
-        bool callbackInvoked = false;
-        bool callbackState = false;
-        int callbackVersion = 0;
+        MonitoringManager.DisableReporter(typeof(WorkflowReporter));
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
 
-        MonitoringManager.AddStateChangedCallback((state, version) =>
+        using (var temp = MonitoringManager.TemporarilyEnableReporter(typeof(WorkflowReporter)))
         {
-            callbackInvoked = true;
-            callbackState = state;
-            callbackVersion = version;
-        });
+            Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+        }
 
-        MonitoringManager.Enable();
-
-        Assert.That(callbackInvoked, Is.True);
-        Assert.That(callbackState, Is.True);
-        Assert.That(callbackVersion, Is.GreaterThan(0));
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
     }
 
     [Test]
-    public void Enable_WhenAlreadyEnabled_DoesNotInvokeCallback()
+    public void TemporarilyEnableFilter_EnablesFilterAndRevertOnDispose()
     {
-        MonitoringManager.Enable();
+        MonitoringManager.DisableFilter(typeof(WorkflowItemFilter));
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
 
-        int callbackCount = 0;
-        MonitoringManager.AddStateChangedCallback((_, _) => callbackCount++);
-
-        MonitoringManager.Enable();
-
-        Assert.That(callbackCount, Is.Zero);
-    }
-
-    [Test]
-    public void Disable_WhenAlreadyDisabled_DoesNotInvokeCallback()
-    {
-        int callbackCount = 0;
-        MonitoringManager.AddStateChangedCallback((_, _) => callbackCount++);
-
-        MonitoringManager.Disable();
-
-        Assert.That(callbackCount, Is.Zero);
-    }
-
-    [Test]
-    public void GetCurrentVersion_WhenCalled_ReturnsCurrentVersion()
-    {
-        int initialVersion = MonitoringManager.GetCurrentVersion();
-        MonitoringManager.Enable();
-        int newVersion = MonitoringManager.GetCurrentVersion();
-
-        Assert.That(newVersion, Is.GreaterThan(initialVersion));
-    }
-
-    [Test]
-    public async Task IsEnabled_UnderConcurrentAccess_MaintainsConsistencyAsync()
-    {
-        const int iterations = 10000;
-        var tasks = new Task[iterations];
-
-        for (int i = 0; i < iterations; i++)
+        using (var temp = MonitoringManager.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
         {
-            tasks[i] = Task.Run(() =>
+            Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+        }
+
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+    }
+
+    [Test]
+    public void TemporarilyEnableReporter_DoesNotAffectOtherReporters()
+    {
+        MonitoringManager.DisableReporter(typeof(WorkflowReporter));
+        MonitoringManager.EnableReporter(typeof(PerformanceReporter));
+
+        using (var temp = MonitoringManager.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+        {
+            Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            Assert.That(MonitoringManager.IsReporterEnabled(typeof(PerformanceReporter)), Is.True);
+        }
+
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(PerformanceReporter)), Is.True);
+    }
+
+    [Test]
+    public void TemporarilyEnableFilter_DoesNotAffectOtherFilters()
+    {
+        MonitoringManager.DisableFilter(typeof(WorkflowItemFilter));
+        MonitoringManager.EnableFilter(typeof(PerformanceFilter));
+
+        using (var temp = MonitoringManager.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
+        {
+            Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+            Assert.That(MonitoringManager.IsFilterEnabled(typeof(PerformanceFilter)), Is.True);
+        }
+
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(PerformanceFilter)), Is.True);
+    }
+
+    [Test]
+    public void TemporarilyEnableReporter_NestedCalls_WorkCorrectly()
+    {
+        MonitoringManager.DisableReporter(typeof(WorkflowReporter));
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+
+        using (var outer = MonitoringManager.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+        {
+            Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+
+            using (var inner = MonitoringManager.TemporarilyEnableReporter(typeof(WorkflowReporter)))
             {
-                if (i % 2 == 0)
-                    MonitoringManager.Enable();
-                else
-                    MonitoringManager.Disable();
+                Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            }
 
-                // Read the state
-                _ = MonitoringManager.IsEnabled;
-            });
+            Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
         }
 
-        await Task.WhenAll(tasks);
-
-        // The final state should be consistent
-        bool finalState = MonitoringManager.IsEnabled;
-        Assert.That(finalState, Is.AnyOf(true, false));
+        Assert.That(MonitoringManager.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
     }
 
     [Test]
-    public void AddStateChangedCallback_MultipleTimes_AllCallbacksInvoked()
+    public void TemporarilyEnableFilter_NestedCalls_WorkCorrectly()
     {
-        int callbackCount1 = 0;
-        int callbackCount2 = 0;
+        MonitoringManager.DisableFilter(typeof(WorkflowItemFilter));
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
 
-        MonitoringManager.AddStateChangedCallback((_, _) => callbackCount1++);
-        MonitoringManager.AddStateChangedCallback((_, _) => callbackCount2++);
-
-        MonitoringManager.Enable();
-        MonitoringManager.Disable();
-
-        Assert.That(callbackCount1, Is.EqualTo(2));
-        Assert.That(callbackCount2, Is.EqualTo(2));
-    }
-
-    [Test]
-    public void CurrentVersion_WhenStateChanges_Increments()
-    {
-        int initialVersion = MonitoringManager.CurrentVersion;
-        MonitoringManager.Enable();
-        int versionAfterEnable = MonitoringManager.CurrentVersion;
-        MonitoringManager.Disable();
-        int versionAfterDisable = MonitoringManager.CurrentVersion;
-
-        Assert.That(versionAfterEnable, Is.GreaterThan(initialVersion));
-        Assert.That(versionAfterDisable, Is.GreaterThan(versionAfterEnable));
-    }
-
-    [Test]
-    public void ShouldTrack_WhenEnabledAndVersionMatches_ReturnsTrue()
-    {
-        MonitoringManager.Enable();
-        int currentVersion = MonitoringManager.GetCurrentVersion();
-
-        Assert.That(MonitoringManager.ShouldTrack(currentVersion), Is.True);
-    }
-
-    [Test]
-    public void ShouldTrack_WhenDisabledAndVersionMatches_ReturnsFalse()
-    {
-        MonitoringManager.Disable();
-        int currentVersion = MonitoringManager.GetCurrentVersion();
-
-        Assert.That(MonitoringManager.ShouldTrack(currentVersion), Is.False);
-    }
-
-    [Test]
-    public void ShouldTrack_WhenEnabledAndVersionMismatches_ReturnsTrue()
-    {
-        MonitoringManager.Enable();
-        int oldVersion = MonitoringManager.GetCurrentVersion();
-        MonitoringManager.Disable();
-        MonitoringManager.Enable();
-
-        Assert.That(MonitoringManager.ShouldTrack(oldVersion), Is.True);
-    }
-
-    [Test]
-    public void ShouldTrack_WhenDisabledAndVersionMismatches_ReturnsFalse()
-    {
-        MonitoringManager.Enable();
-        int oldVersion = MonitoringManager.GetCurrentVersion();
-        MonitoringManager.Disable();
-
-        Assert.That(MonitoringManager.ShouldTrack(oldVersion), Is.False);
-    }
-
-    [Test]
-    public void BeginOperation_IncreasesActiveOperationsCount()
-    {
-        MonitoringManager.Disable();
-        using (MonitoringManager.BeginOperation())
+        using (var outer = MonitoringManager.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
         {
-            Assert.That(MonitoringManager.ShouldTrack(MonitoringManager.GetCurrentVersion()), Is.True);
+            Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+
+            using (var inner = MonitoringManager.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
+            {
+                Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+            }
+
+            Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
         }
-        Assert.That(MonitoringManager.ShouldTrack(MonitoringManager.GetCurrentVersion()), Is.False);
+
+        Assert.That(MonitoringManager.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+    }
+
+    [Test]
+    public void ShouldTrack_WhenReporterDisabledButFilterEnabled_ReturnsFalse()
+    {
+        MonitoringManager.Enable();
+        MonitoringManager.DisableReporter(typeof(WorkflowReporter));
+        MonitoringManager.EnableFilter(typeof(WorkflowItemFilter));
+        Assert.That(MonitoringManager.ShouldTrack(MonitoringManager.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+    }
+
+    [Test]
+    public void ShouldTrack_WhenReporterEnabledButFilterDisabled_ReturnsFalse()
+    {
+        MonitoringManager.Enable();
+        MonitoringManager.EnableReporter(typeof(WorkflowReporter));
+        MonitoringManager.DisableFilter(typeof(WorkflowItemFilter));
+        Assert.That(MonitoringManager.ShouldTrack(MonitoringManager.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+    }
+
+    [Test]
+    public void GetCurrentVersion_IncreasesAfterStateChange()
+    {
+        MonitoringManager.ResetForTesting();
+        int initialVersion = MonitoringManager.GetCurrentVersion();
+        MonitoringManager.EnableReporter(typeof(WorkflowReporter));
+        int newVersion = MonitoringManager.GetCurrentVersion();
+        Assert.That(newVersion, Is.GreaterThan(initialVersion));
     }
 }

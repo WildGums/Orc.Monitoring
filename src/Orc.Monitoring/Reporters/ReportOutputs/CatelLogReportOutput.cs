@@ -3,14 +3,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Catel.Logging;
 using MethodLifeCycleItems;
+using Microsoft.Extensions.Logging;
 using Monitoring;
 using Reporters;
 
 public sealed class CatelLogReportOutput : IReportOutput
 {
-    private static readonly ILog Log = LogManager.GetCurrentClassLogger();
+    private readonly ILogger<CatelLogReportOutput> _logger = MonitoringManager.CreateLogger<CatelLogReportOutput>();
+
     private readonly ReportOutputHelper _helper = new();
     private readonly Dictionary<string, string> _prefixByWorkflowItemName = new();
     private readonly List<int> _threads = new();
@@ -46,7 +47,7 @@ public sealed class CatelLogReportOutput : IReportOutput
     public void WriteSummary(string message)
     {
         var prefix = GetPrefix();
-        Log.Info($"{prefix} {message}");
+        _logger.LogInformation($"{prefix} {message}");
     }
 
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
@@ -56,13 +57,13 @@ public sealed class CatelLogReportOutput : IReportOutput
         var prefix = GetPrefix(callStackItem as IMethodLifeCycleItem);
         var messageToLog = message ?? callStackItem.ToString();
 
-        Log.Info($"{prefix} {messageToLog}");
+        _logger.LogInformation($"{prefix} {messageToLog}");
     }
 
     public void WriteError(Exception exception)
     {
         var prefix = GetPrefix();
-        Log.Error($"{prefix} {exception.Message}");
+        _logger.LogError($"{prefix} {exception.Message}");
     }
 
     private string GetPrefix(IMethodLifeCycleItem? methodLifeCycleItem = null)
@@ -82,7 +83,7 @@ public sealed class CatelLogReportOutput : IReportOutput
             var threadIndex = _threads.IndexOf(thread);
             var threadPrefix = GetThreadPrefix(threadIndex);
 
-            Log.Info($"{prefix} {threadPrefix} Thread{threadIndex}");
+            _logger.LogInformation($"{prefix} {threadPrefix} Thread{threadIndex}");
         }
         else
         {

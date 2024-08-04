@@ -1,10 +1,12 @@
-﻿namespace Orc.Monitoring;
+﻿#pragma warning disable CS0414 // Field is assigned but its value is never used
+#pragma warning disable CS0169 // Field is never used
+namespace Orc.Monitoring;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Orc.Monitoring.Reporters;
+using Reporters;
 
 public class MethodCallInfo
 {
@@ -13,7 +15,7 @@ public class MethodCallInfo
     private IClassMonitor? _classMonitor;
     private int _usageCounter;
     private bool _readyToReturn;
-    
+
     public bool IsNull { get; private set; }
 
     public Dictionary<string, string>? Parameters { get; set; }
@@ -76,7 +78,7 @@ public class MethodCallInfo
         MonitoringVersion = MonitoringManager.GetCurrentVersion();
     }
 
-    public void Clear()
+        public void Clear()
     {
         if (IsNull) return;
 

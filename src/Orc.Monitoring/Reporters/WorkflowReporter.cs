@@ -9,17 +9,17 @@ using System.Reactive.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using Catel.Logging;
 using MethodLifeCycleItems;
 using Monitoring;
 using Filters;
 using ReportOutputs;
+using Microsoft.Extensions.Logging;
 
 public sealed class WorkflowReporter : IMethodCallReporter
 {
     private const int BatchSize = 100;
 
-    private static readonly ILog Log = LogManager.GetCurrentClassLogger();
+    private readonly ILogger<WorkflowReporter> _logger;
 
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
@@ -43,6 +43,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     public WorkflowReporter()
     {
+        _logger = MonitoringManager.CreateLogger<WorkflowReporter>();
+
         // Add default WorkflowItemFilter
         _filters.Add(new WorkflowItemFilter());
     }
@@ -79,6 +81,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
         {
             throw new InvalidOperationException("Unable to start reporting when root method is not set");
         }
+
+        _logger.LogInformation("WorkflowReporter started reporting");
 
         _disposables?.DisposeAsync().AsTask().Wait();
         _disposables = new AsyncCompositeDisposable();
@@ -165,7 +169,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             .Where(x => ShouldIncludeMethodCall(x.MethodCallInfo))
             .Subscribe(
                 ProcessMethodLifeCycleItem,
-                ex => Log.Error($"Error during summary reporting: {ex.Message}")
+                ex => _logger.LogError($"Error during summary reporting: {ex.Message}")
             );
 
         return new AsyncDisposable(async () => disposable.Dispose());
