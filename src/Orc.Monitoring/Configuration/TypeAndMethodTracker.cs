@@ -6,10 +6,7 @@ using System.Linq;
 using System.Reflection;
 using Orc.Monitoring.Filters;
 
-/// <summary>
-/// Provides a way to configure the performance monitor.
-/// </summary>
-public class MonitorConfiguration
+public class TypeAndMethodTracker
 {
     private readonly HashSet<Type> _trackedTypes = new();
     private readonly Dictionary<Type, HashSet<MethodInfo>> _targetMethods = new();
@@ -18,7 +15,7 @@ public class MonitorConfiguration
     public IReadOnlyDictionary<Type, HashSet<MethodInfo>> TargetMethods => _targetMethods;
     public IReadOnlyList<IMethodFilter> Filters => _filters;
 
-    public MonitorConfiguration TrackNamespace(Type typeInNamespace)
+    public TypeAndMethodTracker TrackNamespace(Type typeInNamespace)
     {
         var namespaceName = typeInNamespace.Namespace;
         var assemblyTypes = typeInNamespace.Assembly.GetTypes();
@@ -35,12 +32,7 @@ public class MonitorConfiguration
         return this;
     }
 
-    /// <summary>
-    /// Tracks all types in the specified assembly.
-    /// </summary>
-    /// <param name="assembly">The assembly to track.</param>
-    /// <returns>The current <see cref="MonitorConfiguration"/> instance.</returns>
-    public MonitorConfiguration TrackAssembly(Assembly assembly)
+    public TypeAndMethodTracker TrackAssembly(Assembly assembly)
     {
         foreach (var type in assembly.GetTypes())
         {
@@ -50,7 +42,7 @@ public class MonitorConfiguration
         return this;
     }
 
-    public MonitorConfiguration TrackType(Type type)
+    public TypeAndMethodTracker TrackType(Type type)
     {
         if (!_trackedTypes.Add(type))
         {
@@ -61,7 +53,7 @@ public class MonitorConfiguration
         return this;
     }
 
-    public MonitorConfiguration AddFilter(IMethodFilter filter)
+    public TypeAndMethodTracker AddFilter(IMethodFilter filter)
     {
         _filters.Add(filter);
 
@@ -77,7 +69,7 @@ public class MonitorConfiguration
     {
         if (!_targetMethods.TryGetValue(type, out var methods))
         {
-            methods = [];
+            methods = new HashSet<MethodInfo>();
             _targetMethods.Add(type, methods);
         }
 
@@ -87,13 +79,12 @@ public class MonitorConfiguration
         }
     }
 
+    public static MethodInfo[] GetAllMonitoringMethods(Type type) =>
+        type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static |
+                        BindingFlags.NonPublic);
+
     private bool ShouldIncludeMethod(MethodInfo methodInfo)
     {
         return _filters.Any(filter => filter.ShouldInclude(methodInfo));
     }
-
-    public static MethodInfo[] GetAllMonitoringMethods(Type type) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static |
-                        BindingFlags.NonPublic);
 }
-

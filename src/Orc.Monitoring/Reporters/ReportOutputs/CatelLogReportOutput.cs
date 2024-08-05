@@ -10,7 +10,7 @@ using Reporters;
 
 public sealed class CatelLogReportOutput : IReportOutput
 {
-    private readonly ILogger<CatelLogReportOutput> _logger = MonitoringManager.CreateLogger<CatelLogReportOutput>();
+    private readonly ILogger<CatelLogReportOutput> _logger = MonitoringController.CreateLogger<CatelLogReportOutput>();
 
     private readonly ReportOutputHelper _helper = new();
     private readonly Dictionary<string, string> _prefixByWorkflowItemName = new();

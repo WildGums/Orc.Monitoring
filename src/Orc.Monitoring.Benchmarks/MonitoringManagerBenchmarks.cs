@@ -16,47 +16,47 @@ public class MonitoringManagerBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        MonitoringManager.Enable();
-        MonitoringManager.EnableReporter(ReporterType);
-        MonitoringManager.EnableFilter(FilterType);
+        MonitoringController.Enable();
+        MonitoringController.EnableReporter(ReporterType);
+        MonitoringController.EnableFilter(FilterType);
     }
 
     [Benchmark]
     public bool ShouldTrackBenchmark()
     {
-        return MonitoringManager.ShouldTrack(MonitoringManager.CurrentVersion, ReporterType, FilterType);
+        return MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, ReporterType, FilterType);
     }
 
     [Benchmark]
     public void EnableReporterBenchmark()
     {
-        MonitoringManager.EnableReporter(ReporterType);
+        MonitoringController.EnableReporter(ReporterType);
     }
 
     [Benchmark]
     public void DisableReporterBenchmark()
     {
-        MonitoringManager.DisableReporter(ReporterType);
+        MonitoringController.DisableReporter(ReporterType);
     }
 
     [Benchmark]
     public void TemporarilyEnableReporterBenchmark()
     {
-        using (MonitoringManager.TemporarilyEnableReporter(ReporterType))
+        using (MonitoringController.TemporarilyEnableReporter(ReporterType))
         {
-            MonitoringManager.ShouldTrack(MonitoringManager.CurrentVersion, ReporterType, FilterType);
+            MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, ReporterType, FilterType);
         }
     }
 
     [Benchmark]
     public void EnableFilterBenchmark()
     {
-        MonitoringManager.EnableFilter(FilterType);
+        MonitoringController.EnableFilter(FilterType);
     }
 
     [Benchmark]
     public void DisableFilterBenchmark()
     {
-        MonitoringManager.DisableFilter(FilterType);
+        MonitoringController.DisableFilter(FilterType);
     }
 }

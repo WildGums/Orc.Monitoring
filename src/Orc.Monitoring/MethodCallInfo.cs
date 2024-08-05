@@ -75,7 +75,7 @@ public class MethodCallInfo
 
         AttributeParameters = new HashSet<string>(attributeParameters.Keys);
         Parameters = new Dictionary<string, string>(attributeParameters);
-        MonitoringVersion = MonitoringManager.GetCurrentVersion();
+        MonitoringVersion = MonitoringController.GetCurrentVersion();
     }
 
         public void Clear()

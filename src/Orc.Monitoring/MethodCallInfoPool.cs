@@ -12,7 +12,7 @@ public class MethodCallInfoPool
     public MethodCallInfo Rent(IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, int level, string id, MethodCallInfo? parent, Dictionary<string, string> attributeParameters)
     {
-        if (!MonitoringManager.IsEnabled)
+        if (!MonitoringController.IsEnabled)
         {
             return MethodCallInfo.CreateNull();
         }

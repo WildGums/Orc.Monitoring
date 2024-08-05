@@ -43,7 +43,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     public WorkflowReporter()
     {
-        _logger = MonitoringManager.CreateLogger<WorkflowReporter>();
+        _logger = MonitoringController.CreateLogger<WorkflowReporter>();
 
         // Add default WorkflowItemFilter
         _filters.Add(new WorkflowItemFilter());

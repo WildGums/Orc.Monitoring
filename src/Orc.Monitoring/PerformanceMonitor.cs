@@ -13,35 +13,27 @@ public static class PerformanceMonitor
 {
     private static readonly Dictionary<Type, HashSet<MethodInfo>> TargetMethods = new();
 
-    private static GlobalConfiguration? _globalConfig;
     private static CallStack? _callStack;
-    private static MonitoringConfiguration? _monitoringConfig;
 
     public static void Configure(Action<GlobalConfigurationBuilder> configAction)
     {
         Console.WriteLine("PerformanceMonitor.Configure called");
         var builder = new GlobalConfigurationBuilder();
         configAction(builder);
-        _globalConfig = builder.Build();
-        _monitoringConfig = new MonitoringConfiguration();
-        ApplyGlobalConfiguration(_globalConfig);
+        var config = builder.Build();
+        MonitoringController.Configuration = config;
+        ApplyGlobalConfiguration(config);
 
         // Enable monitoring by default when configured
-        MonitoringManager.Enable();
+        MonitoringController.Enable();
         Console.WriteLine("Monitoring enabled after configuration");
     }
 
-    private static void ApplyGlobalConfiguration(GlobalConfiguration config)
+    private static void ApplyGlobalConfiguration(MonitoringConfiguration config)
     {
-        if (_monitoringConfig is null)
-        {
-            Console.WriteLine("MonitoringConfiguration is null. Returning");
-            return;
-        }
+        _callStack = new CallStack(config);
 
-        _callStack = new CallStack(_monitoringConfig);
-
-        foreach (var assembly in config.TrackedAssemblies)
+        foreach (var assembly in config.GetTrackedAssemblies())
         {
             foreach (var type in assembly.GetTypes())
             {
@@ -53,7 +45,7 @@ public static class PerformanceMonitor
 
                 foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
                 {
-                    if (ShouldIncludeMethod(method, config.Filters))
+                    if (ShouldIncludeMethod(method, config))
                     {
                         methods.Add(method);
                     }
@@ -62,34 +54,20 @@ public static class PerformanceMonitor
         }
 
         // Configure reporters and filters
-        foreach (var reporter in config.Reporters)
+        foreach (var reporter in config.GetReporters())
         {
-            if (reporter.Value)
-            {
-                MonitoringManager.EnableReporter(reporter.Key);
-            }
-            else
-            {
-                MonitoringManager.DisableReporter(reporter.Key);
-            }
+            MonitoringController.EnableReporter(reporter);
         }
 
-        foreach (var filter in config.Filters)
+        foreach (var filter in config.GetFilters())
         {
-            if (filter.Value)
-            {
-                MonitoringManager.EnableFilter(filter.Key);
-            }
-            else
-            {
-                MonitoringManager.DisableFilter(filter.Key);
-            }
+            MonitoringController.EnableFilter(filter.GetType());
         }
     }
 
-    private static bool ShouldIncludeMethod(MethodInfo method, Dictionary<Type, bool> filters)
+    private static bool ShouldIncludeMethod(MethodInfo method, MonitoringConfiguration config)
     {
-        return filters.Where(f => f.Value).Any(filter => ((IMethodFilter)Activator.CreateInstance(filter.Key)!).ShouldInclude(method));
+        return config.GetFilters().Any(filter => filter.ShouldInclude(method));
     }
 
     public static IClassMonitor ForCurrentClass()
@@ -121,7 +99,7 @@ public static class PerformanceMonitor
     {
         ArgumentNullException.ThrowIfNull(callingType);
 
-        if (_monitoringConfig is null)
+        if (MonitoringController.Configuration is null)
         {
             Console.WriteLine("MonitoringConfiguration is null. Returning NullClassMonitor");
             return new NullClassMonitor();
@@ -143,7 +121,7 @@ public static class PerformanceMonitor
 
         var trackedMethodNames = methods.Select(m => m.Name).ToHashSet();
         Console.WriteLine($"Creating ClassMonitor for {callingType.Name} with tracked methods: {string.Join(", ", trackedMethodNames)}");
-        return new ClassMonitor(callingType, _callStack, trackedMethodNames, _monitoringConfig);
+        return new ClassMonitor(callingType, _callStack, trackedMethodNames, MonitoringController.Configuration);
     }
 
     private static Type? GetCallingType()
@@ -152,13 +130,14 @@ public static class PerformanceMonitor
         return frame.GetMethod()?.DeclaringType;
     }
 
+    // These methods can be kept for backwards compatibility
     public static void AddReporterForClass<TClass, TReporter>() where TReporter : IMethodCallReporter
     {
-        _monitoringConfig?.AddReporterForClass<TClass, TReporter>();
+        MonitoringController.Configuration?.AddReporterForClass<TClass, TReporter>();
     }
 
     public static void AddFilterForClass<TClass, TFilter>() where TFilter : IMethodFilter
     {
-        _monitoringConfig?.AddFilterForClass<TClass, TFilter>();
+        MonitoringController.Configuration?.AddFilterForClass<TClass, TFilter>();
     }
 }

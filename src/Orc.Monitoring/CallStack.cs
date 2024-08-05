@@ -15,7 +15,7 @@ using Orc.Monitoring.Filters;
 
 public class CallStack : IObservable<ICallStackItem>
 {
-    private readonly ILogger<CallStack> _logger = MonitoringManager.CreateLogger<CallStack>();
+    private readonly ILogger<CallStack> _logger = MonitoringController.CreateLogger<CallStack>();
 
     private readonly MethodCallInfoPool _methodCallInfoPool = new();
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
@@ -37,7 +37,7 @@ public class CallStack : IObservable<ICallStackItem>
     {
         _logger.LogDebug($"CallStack.Push called for {callerType.Name}.{config.CallerMethodName}");
 
-        if (!MonitoringManager.IsEnabled)
+        if (!MonitoringController.IsEnabled)
         {
             return MethodCallInfo.CreateNull();
         }
@@ -134,7 +134,7 @@ public class CallStack : IObservable<ICallStackItem>
     public void LogStatus(IMethodLifeCycleItem status)
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
-        if (!MonitoringManager.ShouldTrack(status.MethodCallInfo.MonitoringVersion))
+        if (!MonitoringController.ShouldTrack(status.MethodCallInfo.MonitoringVersion))
         {
             _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
             return;
@@ -172,12 +172,12 @@ public class CallStack : IObservable<ICallStackItem>
 
         // Check if any enabled reporter is interested in this status
         bool anyEnabledReporterInterested = applicableReporters.Any(reporter =>
-            MonitoringManager.IsReporterEnabled(reporter));
+            MonitoringController.IsReporterEnabled(reporter));
 
         // Check if any enabled filter allows this status
         bool anyEnabledFilterAllows = applicableFilters.Any(filter =>
         {
-            if (MonitoringManager.IsFilterEnabled(filter))
+            if (MonitoringController.IsFilterEnabled(filter))
             {
                 var filterInstance = (IMethodFilter)Activator.CreateInstance(filter)!;
                 return filterInstance.ShouldInclude(status.MethodCallInfo);

@@ -99,17 +99,17 @@ public class PerformanceMonitorIntegrationTests
     public void Setup()
     {
         Console.WriteLine("Setup started");
-        MonitoringManager.ResetForTesting();  // Add this line to reset the state
+        MonitoringController.ResetForTesting();  // Add this line to reset the state
         PerformanceMonitor.Configure(builder => {
             Console.WriteLine($"Configuring assembly: {typeof(TestClass).Assembly.FullName}");
             builder.TrackAssembly(typeof(TestClass).Assembly);
         });
         PerformanceMonitor.AddTrackedMethod(typeof(TestClass), typeof(TestClass).GetMethod("TestMethod")!);
         PerformanceMonitor.AddTrackedMethod(typeof(TestClass), typeof(TestClass).GetMethod("TestAsyncMethod")!);
-        MonitoringManager.Enable();
-        Console.WriteLine($"Monitoring enabled: {MonitoringManager.IsEnabled}");
+        MonitoringController.Enable();
+        Console.WriteLine($"Monitoring enabled: {MonitoringController.IsEnabled}");
         _testReporter = new TestReporter();
-        MonitoringManager.EnableReporter(typeof(TestReporter));  // Add this line to enable the TestReporter
+        MonitoringController.EnableReporter(typeof(TestReporter));  // Add this line to enable the TestReporter
         Console.WriteLine("Setup completed");
 
         // Force re-creation of TestClass monitor
@@ -137,7 +137,7 @@ public class PerformanceMonitorIntegrationTests
     [Test]
     public void WhenMonitoringIsDisabled_MethodsAreNotTracked()
     {
-        MonitoringManager.Disable();
+        MonitoringController.Disable();
         var testClass = new TestClass();
         testClass.TestMethod();
         Assert.That(_testReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
@@ -146,7 +146,7 @@ public class PerformanceMonitorIntegrationTests
     [Test]
     public async Task WhenMonitoringIsDisabled_AsyncMethodsAreNotTracked()
     {
-        MonitoringManager.Disable();
+        MonitoringController.Disable();
         var testClass = new TestClass();
         await testClass.TestAsyncMethod();
         Assert.That(_testReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
@@ -159,11 +159,11 @@ public class PerformanceMonitorIntegrationTests
         testClass.TestMethod();
         Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected 1 call when monitoring is enabled");
 
-        MonitoringManager.Disable();
+        MonitoringController.Disable();
         testClass.TestMethod();
         Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected no additional calls when monitoring is disabled");
 
-        MonitoringManager.Enable();
+        MonitoringController.Enable();
         testClass.TestMethod();
         Assert.That(_testReporter.CallCount, Is.EqualTo(2), "Expected 1 additional call when monitoring is re-enabled");
     }
@@ -178,7 +178,7 @@ public class PerformanceMonitorIntegrationTests
         testClass.TestMethod();
 
         Console.WriteLine("Setting up callback");
-        MonitoringManager.AddStateChangedCallback((componentType, componentName, isEnabled, version) =>
+        MonitoringController.AddStateChangedCallback((componentType, componentName, isEnabled, version) =>
         {
             Console.WriteLine($"State changed callback. Component: {componentType}, Name: {componentName}, Enabled: {isEnabled}, Version: {version}");
             if (!isEnabled)
@@ -192,7 +192,7 @@ public class PerformanceMonitorIntegrationTests
         testClass.TestMethod();
 
         Console.WriteLine("Disabling monitoring");
-        MonitoringManager.Disable();
+        MonitoringController.Disable();
 
         Console.WriteLine($"Final CallCount: {_testReporter.CallCount}");
         Assert.That(_testReporter.CallCount, Is.EqualTo(2), "Expected 2 calls: 1 before disabling, 1 after disabling");
@@ -210,7 +210,7 @@ public class PerformanceMonitorIntegrationTests
         await Task.Delay(5);
 
         Console.WriteLine("Disabling monitoring");
-        MonitoringManager.Disable();
+        MonitoringController.Disable();
 
         await task;
 

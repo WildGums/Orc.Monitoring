@@ -26,7 +26,7 @@ internal class ClassMonitor : IClassMonitor
         _callStack = callStack;
         _trackedMethodNames = trackedMethodNames;
         _monitoringConfig = monitoringConfig;
-        _logger = MonitoringManager.CreateLogger<ClassMonitor>();
+        _logger = MonitoringController.CreateLogger<ClassMonitor>();
         _logger.LogInformation($"ClassMonitor created for {classType.Name}. Tracked methods: {string.Join(", ", trackedMethodNames)}");
     }
 
@@ -44,14 +44,14 @@ internal class ClassMonitor : IClassMonitor
 
     private object StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
     {
-        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringManager.IsEnabled}, Method tracked: {_trackedMethodNames.Contains(callerMethod)}");
+        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}, Method tracked: {_trackedMethodNames.Contains(callerMethod)}");
 
         if (!IsMonitoringEnabled(callerMethod))
         {
             return GetDummyContext(async);
         }
 
-        using var operation = MonitoringManager.BeginOperation();
+        using var operation = MonitoringController.BeginOperation();
 
         var methodCallInfo = PushMethodCallInfo(config, callerMethod);
         if (methodCallInfo.IsNull)
@@ -88,7 +88,7 @@ internal class ClassMonitor : IClassMonitor
 
     private bool IsMonitoringEnabled(string callerMethod)
     {
-        return MonitoringManager.IsEnabled && _trackedMethodNames.Contains(callerMethod);
+        return MonitoringController.IsEnabled && _trackedMethodNames.Contains(callerMethod);
     }
 
     private object GetDummyContext(bool async)
@@ -113,7 +113,7 @@ internal class ClassMonitor : IClassMonitor
 
     private bool ShouldReturnDummyContext(MethodCallInfo methodCallInfo)
     {
-        return methodCallInfo.IsNull || !MonitoringManager.ShouldTrack(methodCallInfo.MonitoringVersion);
+        return methodCallInfo.IsNull || !MonitoringController.ShouldTrack(methodCallInfo.MonitoringVersion);
     }
 
     private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MethodCallInfo methodCallInfo)
@@ -121,7 +121,7 @@ internal class ClassMonitor : IClassMonitor
         var disposables = new List<IAsyncDisposable>();
         foreach (var reporter in config.Reporters)
         {
-            if (MonitoringManager.IsReporterEnabled(reporter.GetType()))
+            if (MonitoringController.IsReporterEnabled(reporter.GetType()))
             {
                 _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
                 reporter.RootMethod = methodCallInfo.MethodInfo;
@@ -143,7 +143,7 @@ internal class ClassMonitor : IClassMonitor
     {
         return applicableFilters.Any(filterType =>
         {
-            if (MonitoringManager.IsFilterEnabled(filterType))
+            if (MonitoringController.IsFilterEnabled(filterType))
             {
                 var filter = (IMethodFilter)Activator.CreateInstance(filterType)!;
                 return filter.ShouldInclude(methodCallInfo);
@@ -155,7 +155,7 @@ internal class ClassMonitor : IClassMonitor
     public void LogStatus(IMethodLifeCycleItem status)
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
-        if (!MonitoringManager.IsEnabled)
+        if (!MonitoringController.IsEnabled)
         {
             _logger.LogDebug("Monitoring is disabled, not logging status");
             return;

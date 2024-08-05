@@ -71,7 +71,7 @@ public abstract class MethodCallContextBase
         _stopwatch.Stop();
         MethodCallInfo.Elapsed = _stopwatch.Elapsed;
         var endStatus = new MethodCallEnd(MethodCallInfo);
-        if (MonitoringManager.ShouldTrack(MethodCallInfo.MonitoringVersion))
+        if (MonitoringController.ShouldTrack(MethodCallInfo.MonitoringVersion))
         {
             (_classMonitor as ClassMonitor)?.LogStatus(endStatus);
         }

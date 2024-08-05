@@ -8,7 +8,7 @@ using Orc.Monitoring.Reporters;
 
 public sealed class DebugCatelLogTraceReportOutput : IReportOutput
 {
-    private readonly ILogger<DebugCatelLogTraceReportOutput> _logger = MonitoringManager.CreateLogger<DebugCatelLogTraceReportOutput>();
+    private readonly ILogger<DebugCatelLogTraceReportOutput> _logger = MonitoringController.CreateLogger<DebugCatelLogTraceReportOutput>();
     private readonly ReportOutputHelper _helper = new();
 
     private string? _prefix;
