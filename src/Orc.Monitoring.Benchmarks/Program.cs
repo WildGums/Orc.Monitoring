@@ -8,7 +8,7 @@
     {
         public static void Main(string[] args)
         {
-            var summary = BenchmarkRunner.Run<MonitoringManagerBenchmarks>();
+            var summary = BenchmarkRunner.Run<MonitoringControllerBenchmarks>();
         }
     }
 }

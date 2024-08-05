@@ -434,8 +434,8 @@ public static class MonitoringController
             _trueStates = trueStates;
             _effectiveStates = effectiveStates;
             _type = type;
-            _originalTrueState = trueStates.TryGetValue(type, out var trueState) ? trueState : false;
-            _originalEffectiveState = effectiveStates.TryGetValue(type, out var effectiveState) ? effectiveState : false;
+            _originalTrueState = trueStates.GetValueOrDefault(type, false);
+            _originalEffectiveState = effectiveStates.GetValueOrDefault(type, false);
 
             EnableComponent(componentType, trueStates, effectiveStates, type);
         }

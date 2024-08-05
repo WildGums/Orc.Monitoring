@@ -8,7 +8,7 @@ using Orc.Monitoring.Filters;
 
 
 [MemoryDiagnoser]
-public class MonitoringManagerBenchmarks
+public class MonitoringControllerBenchmarks
 {
     private static readonly Type ReporterType = typeof(WorkflowReporter);
     private static readonly Type FilterType = typeof(WorkflowItemFilter);
@@ -58,5 +58,18 @@ public class MonitoringManagerBenchmarks
     public void DisableFilterBenchmark()
     {
         MonitoringController.DisableFilter(FilterType);
+    }
+
+    [Benchmark]
+    public void GlobalEnableDisableBenchmark()
+    {
+        MonitoringController.Enable();
+        MonitoringController.Disable();
+    }
+
+    [Benchmark]
+    public void GetCurrentVersionBenchmark()
+    {
+        _ = MonitoringController.GetCurrentVersion();
     }
 }
