@@ -10,7 +10,43 @@ using System.Threading;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 
-
+/// <summary>
+/// Provides centralized control for the monitoring system, including hierarchical control of reporters and filters.
+/// </summary>
+/// <remarks>
+/// Usage examples:
+/// 
+/// 1. Enabling and disabling global monitoring:
+/// <code>
+/// MonitoringController.Enable();
+/// // Monitoring is now globally enabled
+/// MonitoringController.Disable();
+/// // Monitoring is now globally disabled
+/// </code>
+/// 
+/// 2. Enabling and disabling specific reporters or filters:
+/// <code>
+/// MonitoringController.EnableReporter(typeof(PerformanceReporter));
+/// MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
+/// </code>
+/// 
+/// 3. Using temporary state changes:
+/// <code>
+/// using (MonitoringController.TemporarilyEnableReporter(typeof(PerformanceReporter)))
+/// {
+///     // PerformanceReporter is temporarily enabled here
+/// }
+/// // PerformanceReporter returns to its previous state
+/// </code>
+/// 
+/// 4. Checking if monitoring should occur:
+/// <code>
+/// if (MonitoringController.ShouldTrack(operationVersion, typeof(PerformanceReporter), typeof(WorkflowItemFilter)))
+/// {
+///     // Perform monitoring
+/// }
+/// </code>
+/// </remarks>
 public static class MonitoringController
 {
     private static int _isEnabled = 0;
@@ -27,6 +63,7 @@ public static class MonitoringController
 
     private static readonly ReaderWriterLockSlim _globalLock = new ReaderWriterLockSlim();
     private static readonly ConcurrentDictionary<Type, ReaderWriterLockSlim> _componentLocks = new ConcurrentDictionary<Type, ReaderWriterLockSlim>();
+    private static readonly ConcurrentDictionary<Type, bool> _componentStateCache = new ConcurrentDictionary<Type, bool>();
 
     private static MonitoringConfiguration _configuration = new MonitoringConfiguration();
 
@@ -101,10 +138,12 @@ public static class MonitoringController
         foreach (var kvp in _reporterTrueStates)
         {
             _reporterEffectiveStates[kvp.Key] = kvp.Value;
+            InvalidateCache(kvp.Key);
         }
         foreach (var kvp in _filterTrueStates)
         {
             _filterEffectiveStates[kvp.Key] = kvp.Value;
+            InvalidateCache(kvp.Key);
         }
     }
 
@@ -183,19 +222,19 @@ public static class MonitoringController
 
     private static void EnableComponent(MonitoringComponentType componentType, ConcurrentDictionary<Type, bool> trueStates, ConcurrentDictionary<Type, bool> effectiveStates, Type type)
     {
-        var componentLock = GetComponentLock(type);
-        componentLock.EnterWriteLock();
+        _stateLock.EnterWriteLock();
         try
         {
             trueStates[type] = true;
             effectiveStates[type] = IsEnabled;
+            InvalidateCache(type);
             int newVersion = Interlocked.Increment(ref _version);
             _logger.LogDebug($"{componentType} {type.Name} enabled. New version: {newVersion}");
             StateChanged?.Invoke(componentType, type.Name, effectiveStates[type], newVersion);
         }
         finally
         {
-            componentLock.ExitWriteLock();
+            _stateLock.ExitWriteLock();
         }
     }
 
@@ -218,7 +257,16 @@ public static class MonitoringController
 
     private static bool IsComponentEnabled(ConcurrentDictionary<Type, bool> statesDictionary, Type type)
     {
-        return statesDictionary.TryGetValue(type, out bool isEnabled) && isEnabled;
+        return _componentStateCache.GetOrAdd(type, _ =>
+        {
+            var isEnabled = statesDictionary.TryGetValue(type, out bool state) && state && IsEnabled;
+            return isEnabled;
+        });
+    }
+
+    private static void InvalidateCache(Type type)
+    {
+        _componentStateCache.TryRemove(type, out _);
     }
 
     /// <summary>
@@ -301,16 +349,29 @@ public static class MonitoringController
             return false;
         }
 
-        if (reporterType is not null && !IsComponentEnabled(_reporterEffectiveStates, reporterType))
+        // If both reporter and filter are specified, both must be enabled
+        if (reporterType is not null && filterType is not null)
         {
-            return false;
+            return IsComponentEnabled(_reporterEffectiveStates, reporterType) &&
+                   IsComponentEnabled(_filterEffectiveStates, filterType) &&
+                   operationVersion == CurrentVersion;
         }
 
-        if (filterType is not null && !IsComponentEnabled(_filterEffectiveStates, filterType))
+        // If only reporter is specified, it must be enabled
+        if (reporterType is not null)
         {
-            return false;
+            return IsComponentEnabled(_reporterEffectiveStates, reporterType) &&
+                   operationVersion == CurrentVersion;
         }
 
+        // If only filter is specified, it must be enabled
+        if (filterType is not null)
+        {
+            return IsComponentEnabled(_filterEffectiveStates, filterType) &&
+                   operationVersion == CurrentVersion;
+        }
+
+        // If neither is specified, just check the version
         return operationVersion == CurrentVersion;
     }
 
@@ -408,10 +469,7 @@ public static class MonitoringController
             _originalTrueState = trueStates.TryGetValue(type, out var trueState) ? trueState : false;
             _originalEffectiveState = effectiveStates.TryGetValue(type, out var effectiveState) ? effectiveState : false;
 
-            _trueStates[_type] = true;
-            _effectiveStates[_type] = IsEnabled;
-            int newVersion = Interlocked.Increment(ref _version);
-            StateChanged?.Invoke(_componentType, _type.Name, _effectiveStates[_type], newVersion);
+            EnableComponent(componentType, trueStates, effectiveStates, type);
         }
 
         public void Dispose()
@@ -420,7 +478,8 @@ public static class MonitoringController
             try
             {
                 _trueStates[_type] = _originalTrueState;
-                _effectiveStates[_type] = _originalEffectiveState;
+                _effectiveStates[_type] = IsEnabled && _originalTrueState;
+                InvalidateCache(_type);
                 int newVersion = Interlocked.Increment(ref _version);
                 StateChanged?.Invoke(_componentType, _type.Name, _effectiveStates[_type], newVersion);
             }

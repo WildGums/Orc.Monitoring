@@ -37,11 +37,6 @@ public class CallStack : IObservable<ICallStackItem>
     {
         _logger.LogDebug($"CallStack.Push called for {callerType.Name}.{config.CallerMethodName}");
 
-        if (!MonitoringController.IsEnabled)
-        {
-            return MethodCallInfo.CreateNull();
-        }
-
         var threadId = Environment.CurrentManagedThreadId;
         var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
 
@@ -73,10 +68,12 @@ public class CallStack : IObservable<ICallStackItem>
 
             var methodCallInfo = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, level, id, parentMethodCallInfo, attributeParameters);
 
-            if (!methodCallInfo.IsNull)
+            threadStack.Push(methodCallInfo);
+            _globalCallStack.Push(methodCallInfo);
+
+            if (MonitoringController.IsEnabled)
             {
-                threadStack.Push(methodCallInfo);
-                _globalCallStack.Push(methodCallInfo);
+                NotifyObservers(new MethodCallStart(methodCallInfo));
             }
 
             return methodCallInfo;
@@ -129,20 +126,25 @@ public class CallStack : IObservable<ICallStackItem>
         {
             _logger.LogWarning("Global CallStack mismatch: failed to pop method call info.");
         }
+
+        if (MonitoringController.IsEnabled)
+        {
+            NotifyObservers(new MethodCallEnd(methodCallInfo));
+        }
     }
 
     public void LogStatus(IMethodLifeCycleItem status)
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
-        if (!MonitoringController.ShouldTrack(status.MethodCallInfo.MonitoringVersion))
+        if (!MonitoringController.IsEnabled)
         {
-            _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
+            _logger.LogDebug("Monitoring is disabled, not logging status");
             return;
         }
 
         ArgumentNullException.ThrowIfNull(status);
 
-        if (ShouldLogStatus(status))  // Add this check
+        if (ShouldLogStatus(status))
         {
             _logger.LogDebug($"Notifying observers: {status}");
             NotifyObservers(status);
@@ -158,7 +160,6 @@ public class CallStack : IObservable<ICallStackItem>
             _logger.LogDebug($"Skipping status logging: {status}");
         }
     }
-
     private bool ShouldLogStatus(IMethodLifeCycleItem status)
     {
         var methodInfo = status.MethodCallInfo.MethodInfo;

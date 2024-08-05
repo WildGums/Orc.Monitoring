@@ -172,6 +172,7 @@ public class MonitoringControllerTests
         MonitoringController.Enable();
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
+
         Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
     }
 
@@ -181,6 +182,7 @@ public class MonitoringControllerTests
         MonitoringController.Enable();
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
+
         Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
     }
 
