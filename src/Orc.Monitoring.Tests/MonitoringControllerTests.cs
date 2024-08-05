@@ -2,6 +2,8 @@
 
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Filters;
 
@@ -13,7 +15,7 @@ public class MonitoringControllerTests
     public void Setup()
     {
         MonitoringController.ResetForTesting();
-        MonitoringController.Disable();
+        MonitoringController.Enable(); // Enable monitoring by default for tests
     }
 
     [Test]
@@ -190,5 +192,58 @@ public class MonitoringControllerTests
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         int newVersion = MonitoringController.GetCurrentVersion();
         Assert.That(newVersion, Is.GreaterThan(initialVersion));
+    }
+
+    [Test]
+    public void GlobalDisableEnable_RestoresCorrectComponentStates()
+    {
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
+        MonitoringController.Disable();
+        MonitoringController.Enable();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+        });
+    }
+
+    [Test]
+    public void ConcurrentEnableDisable_MaintainsConsistentState()
+    {
+        var tasks = new List<Task>();
+        for (int i = 0; i < 100; i++)
+        {
+            tasks.Add(Task.Run(() =>
+            {
+                MonitoringController.EnableReporter(typeof(WorkflowReporter));
+                MonitoringController.DisableReporter(typeof(WorkflowReporter));
+            }));
+        }
+
+        Task.WaitAll(tasks.ToArray());
+
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+    }
+
+    [Test]
+    public void NestedTemporaryEnables_WorkCorrectly()
+    {
+        MonitoringController.DisableReporter(typeof(WorkflowReporter));
+
+        using (MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+        {
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+
+            using (MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+            {
+                Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            }
+
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+        }
+
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
     }
 }
