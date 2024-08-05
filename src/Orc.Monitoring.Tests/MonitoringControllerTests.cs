@@ -3,10 +3,12 @@
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
+using MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Filters;
-
+using Reporters.ReportOutputs;
 
 [TestFixture]
 public class MonitoringControllerTests
@@ -205,6 +207,22 @@ public class MonitoringControllerTests
     }
 
     [Test]
+    public void ShouldTrack_ConsidersAllFactors()
+    {
+        MonitoringController.Enable();
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
+
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.True);
+
+        MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+
+        MonitoringController.Disable();
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+    }
+
+    [Test]
     public void GetCurrentVersion_IncreasesAfterStateChange()
     {
         MonitoringController.ResetForTesting();
@@ -308,6 +326,32 @@ public class MonitoringControllerTests
     }
 
     [Test]
+    public void HierarchicalControl_GlobalStateOverridesComponentStates()
+    {
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
+
+        MonitoringController.Disable();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MonitoringController.IsEnabled, Is.False);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+        });
+
+        MonitoringController.Enable();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MonitoringController.IsEnabled, Is.True);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+        });
+    }
+
+
+    [Test]
     public void TemporaryStateChanges_NestedScenarios_WorkCorrectly()
     {
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
@@ -373,5 +417,65 @@ public class MonitoringControllerTests
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
 
         Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+    }
+
+    [Test]
+    public void GetAllComponentStates_ReturnsCorrectStates()
+    {
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
+
+        var states = MonitoringController.GetAllComponentStates();
+
+        Assert.That(states["Reporter:WorkflowReporter"], Is.True);
+        Assert.That(states["Filter:WorkflowItemFilter"], Is.False);
+    }
+
+    [Test]
+    public void RegisterCustomComponent_AddsComponentCorrectly()
+    {
+        var customReporterType = typeof(CustomReporter);
+        MonitoringController.RegisterCustomComponent(customReporterType, MonitoringController.MonitoringComponentType.Reporter);
+
+        MonitoringController.EnableReporter(customReporterType);
+        Assert.That(MonitoringController.IsReporterEnabled(customReporterType), Is.True);
+    }
+
+    [Test]
+    public void NonExistentComponents_DoNotCauseErrors()
+    {
+        Assert.DoesNotThrow(() => MonitoringController.EnableReporter(typeof(string)));
+        Assert.DoesNotThrow(() => MonitoringController.DisableFilter(typeof(int)));
+    }
+
+    [Test]
+    public void StateChange_CompletesWithinAcceptableTime()
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+
+        stopwatch.Stop();
+
+        Assert.That(stopwatch.ElapsedMilliseconds, Is.LessThan(10), "State change took too long");
+    }
+
+    private class CustomReporter : IMethodCallReporter
+    {
+        public string Name => "CustomReporter";
+        public string FullName => "Orc.Monitoring.Tests.CustomReporter";
+        public MethodInfo? RootMethod { get; set; }
+
+        public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
+        {
+            // For testing purposes, we'll just return a simple AsyncDisposable
+            return new AsyncDisposable(async () => { });
+        }
+
+        public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
+        {
+            // For testing, we'll just return this instance
+            return this;
+        }
     }
 }
