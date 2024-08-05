@@ -70,7 +70,7 @@ public class MonitoringControllerTests
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
         Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
 
-        using (var temp = MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+        using (var temp = MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
         {
             Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
         }
@@ -84,7 +84,7 @@ public class MonitoringControllerTests
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
         Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
 
-        using (var temp = MonitoringController.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
+        using (var temp = MonitoringController.TemporarilyEnableFilter<WorkflowItemFilter>())
         {
             Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
         }
@@ -98,7 +98,7 @@ public class MonitoringControllerTests
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
         MonitoringController.EnableReporter(typeof(PerformanceReporter));
 
-        using (var temp = MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+        using (var temp = MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
         {
             Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
             Assert.That(MonitoringController.IsReporterEnabled(typeof(PerformanceReporter)), Is.True);
@@ -114,7 +114,7 @@ public class MonitoringControllerTests
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
         MonitoringController.EnableFilter(typeof(PerformanceFilter));
 
-        using (var temp = MonitoringController.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
+        using (var temp = MonitoringController.TemporarilyEnableFilter<WorkflowItemFilter>())
         {
             Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
             Assert.That(MonitoringController.IsFilterEnabled(typeof(PerformanceFilter)), Is.True);
@@ -130,11 +130,11 @@ public class MonitoringControllerTests
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
         Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
 
-        using (var outer = MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+        using (var outer = MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
         {
             Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
 
-            using (var inner = MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+            using (var inner = MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
             {
                 Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
             }
@@ -151,11 +151,11 @@ public class MonitoringControllerTests
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
         Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
 
-        using (var outer = MonitoringController.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
+        using (var outer = MonitoringController.TemporarilyEnableFilter<WorkflowItemFilter>())
         {
             Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
 
-            using (var inner = MonitoringController.TemporarilyEnableFilter(typeof(WorkflowItemFilter)))
+            using (var inner = MonitoringController.TemporarilyEnableFilter<WorkflowItemFilter>())
             {
                 Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
             }
@@ -173,7 +173,16 @@ public class MonitoringControllerTests
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+        // Add debugging output
+        Console.WriteLine($"Is Enabled: {MonitoringController.IsEnabled}");
+        Console.WriteLine($"Reporter Enabled: {MonitoringController.IsReporterEnabled(typeof(WorkflowReporter))}");
+        Console.WriteLine($"Filter Enabled: {MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter))}");
+        Console.WriteLine($"Current Version: {MonitoringController.CurrentVersion}");
+
+        var result = MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter));
+        Console.WriteLine($"ShouldTrack Result: {result}");
+
+        Assert.That(result, Is.False);
     }
 
     [Test]
@@ -183,7 +192,16 @@ public class MonitoringControllerTests
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+        // Add debugging output
+        Console.WriteLine($"Is Enabled: {MonitoringController.IsEnabled}");
+        Console.WriteLine($"Reporter Enabled: {MonitoringController.IsReporterEnabled(typeof(WorkflowReporter))}");
+        Console.WriteLine($"Filter Enabled: {MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter))}");
+        Console.WriteLine($"Current Version: {MonitoringController.CurrentVersion}");
+
+        var result = MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter));
+        Console.WriteLine($"ShouldTrack Result: {result}");
+
+        Assert.That(result, Is.False);
     }
 
     [Test]
@@ -234,11 +252,11 @@ public class MonitoringControllerTests
     {
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
 
-        using (MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+        using (MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
         {
             Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
 
-            using (MonitoringController.TemporarilyEnableReporter(typeof(WorkflowReporter)))
+            using (MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
             {
                 Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
             }

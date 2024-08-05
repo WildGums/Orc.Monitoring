@@ -159,61 +159,67 @@ public static class MonitoringController
         }
     }
 
+    private static void SetComponentState(MonitoringComponentType componentType, Type type, bool enabled)
+    {
+        _stateLock.EnterWriteLock();
+        try
+        {
+            var trueStates = componentType == MonitoringComponentType.Reporter ? _reporterTrueStates : _filterTrueStates;
+            var effectiveStates = componentType == MonitoringComponentType.Reporter ? _reporterEffectiveStates : _filterEffectiveStates;
+
+            trueStates[type] = enabled;
+            effectiveStates[type] = enabled && IsEnabled;
+            InvalidateCache(type);
+            int newVersion = Interlocked.Increment(ref _version);
+            _logger.LogDebug($"{componentType} {type.Name} {(enabled ? "enabled" : "disabled")}. New version: {newVersion}");
+            StateChanged?.Invoke(componentType, type.Name, effectiveStates[type], newVersion);
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
+    }
+
     /// <summary>
     /// Enables a specific reporter.
     /// </summary>
     /// <param name="reporterType">The type of the reporter to enable.</param>
-    public static void EnableReporter(Type reporterType)
-    {
-        EnableComponent(MonitoringComponentType.Reporter, _reporterTrueStates, _reporterEffectiveStates, reporterType);
-    }
+    public static void EnableReporter(Type reporterType) => SetComponentState(MonitoringComponentType.Reporter, reporterType, true);
+
 
     /// <summary>
     /// Disables a specific reporter.
     /// </summary>
     /// <param name="reporterType">The type of the reporter to disable.</param>
-    public static void DisableReporter(Type reporterType)
-    {
-        DisableComponent(MonitoringComponentType.Reporter, _reporterTrueStates, _reporterEffectiveStates, reporterType);
-    }
+    public static void DisableReporter(Type reporterType) => SetComponentState(MonitoringComponentType.Reporter, reporterType, false);
 
     /// <summary>
     /// Checks if a specific reporter is enabled.
     /// </summary>
     /// <param name="reporterType">The type of the reporter to check.</param>
     /// <returns>True if the reporter is enabled, false otherwise.</returns>
-    public static bool IsReporterEnabled(Type reporterType)
-    {
-        return IsComponentEnabled(_reporterEffectiveStates, reporterType);
-    }
+    public static bool IsReporterEnabled(Type reporterType) => IsComponentEnabled(_reporterEffectiveStates, reporterType);
 
     /// <summary>
     /// Enables a specific filter.
     /// </summary>
     /// <param name="filterType">The type of the filter to enable.</param>
-    public static void EnableFilter(Type filterType)
-    {
-        EnableComponent(MonitoringComponentType.Filter, _filterTrueStates, _filterEffectiveStates, filterType);
-    }
+    public static void EnableFilter(Type filterType) => SetComponentState(MonitoringComponentType.Filter, filterType, true);
+
 
     /// <summary>
     /// Disables a specific filter.
     /// </summary>
     /// <param name="filterType">The type of the filter to disable.</param>
-    public static void DisableFilter(Type filterType)
-    {
-        DisableComponent(MonitoringComponentType.Filter, _filterTrueStates, _filterEffectiveStates, filterType);
-    }
+    public static void DisableFilter(Type filterType) => SetComponentState(MonitoringComponentType.Filter, filterType, false);
+
 
     /// <summary>
     /// Checks if a specific filter is enabled.
     /// </summary>
     /// <param name="filterType">The type of the filter to check.</param>
     /// <returns>True if the filter is enabled, false otherwise.</returns>
-    public static bool IsFilterEnabled(Type filterType)
-    {
-        return IsComponentEnabled(_filterEffectiveStates, filterType);
-    }
+    public static bool IsFilterEnabled(Type filterType) => IsComponentEnabled(_filterEffectiveStates, filterType);
 
     private static ReaderWriterLockSlim GetComponentLock(Type componentType)
     {
@@ -257,11 +263,7 @@ public static class MonitoringController
 
     private static bool IsComponentEnabled(ConcurrentDictionary<Type, bool> statesDictionary, Type type)
     {
-        return _componentStateCache.GetOrAdd(type, _ =>
-        {
-            var isEnabled = statesDictionary.TryGetValue(type, out bool state) && state && IsEnabled;
-            return isEnabled;
-        });
+        return _componentStateCache.GetOrAdd(type, _ => statesDictionary.TryGetValue(type, out bool state) && state && IsEnabled);
     }
 
     private static void InvalidateCache(Type type)
@@ -304,26 +306,17 @@ public static class MonitoringController
         }
     }
 
-    /// <summary>
-    /// Temporarily enables a reporter for the duration of the returned IDisposable.
-    /// The reporter will revert to its previous state when the IDisposable is disposed.
-    /// </summary>
-    /// <param name="reporterType">The type of the reporter to temporarily enable.</param>
-    /// <returns>An IDisposable that will revert the reporter's state when disposed.</returns>
-    public static IDisposable TemporarilyEnableReporter(Type reporterType)
+    private static IDisposable TemporarilyEnableComponent<T>(MonitoringComponentType componentType, ConcurrentDictionary<Type, bool> trueStates, ConcurrentDictionary<Type, bool> effectiveStates)
+        where T : class
     {
-        return new TemporaryStateChange(MonitoringComponentType.Reporter, _reporterTrueStates, _reporterEffectiveStates, reporterType);
+        return new TemporaryStateChange(componentType, trueStates, effectiveStates, typeof(T));
     }
 
-    /// <summary>
-    /// Temporarily enables a filter for the duration of the returned IDisposable.
-    /// </summary>
-    /// <param name="filterType">The type of the filter to temporarily enable.</param>
-    /// <returns>An IDisposable that will revert the filter's state when disposed.</returns>
-    public static IDisposable TemporarilyEnableFilter(Type filterType)
-    {
-        return new TemporaryStateChange(MonitoringComponentType.Filter, _filterTrueStates, _filterEffectiveStates, filterType);
-    }
+    public static IDisposable TemporarilyEnableReporter<T>() where T : class => TemporarilyEnableComponent<T>(MonitoringComponentType.Reporter, _reporterTrueStates, _reporterEffectiveStates);
+
+
+    public static IDisposable TemporarilyEnableFilter<T>() where T : class => TemporarilyEnableComponent<T>(MonitoringComponentType.Filter, _filterTrueStates, _filterEffectiveStates);
+
 
     /// <summary>
     /// Begins a new monitoring operation.
@@ -344,35 +337,10 @@ public static class MonitoringController
     /// <returns>True if the operation should be tracked, false otherwise.</returns>
     public static bool ShouldTrack(int operationVersion, Type? reporterType = null, Type? filterType = null)
     {
-        if (!IsEnabled)
-        {
-            return false;
-        }
-
-        // If both reporter and filter are specified, both must be enabled
-        if (reporterType is not null && filterType is not null)
-        {
-            return IsComponentEnabled(_reporterEffectiveStates, reporterType) &&
-                   IsComponentEnabled(_filterEffectiveStates, filterType) &&
-                   operationVersion == CurrentVersion;
-        }
-
-        // If only reporter is specified, it must be enabled
-        if (reporterType is not null)
-        {
-            return IsComponentEnabled(_reporterEffectiveStates, reporterType) &&
-                   operationVersion == CurrentVersion;
-        }
-
-        // If only filter is specified, it must be enabled
-        if (filterType is not null)
-        {
-            return IsComponentEnabled(_filterEffectiveStates, filterType) &&
-                   operationVersion == CurrentVersion;
-        }
-
-        // If neither is specified, just check the version
-        return operationVersion == CurrentVersion;
+        return IsEnabled
+               && operationVersion == CurrentVersion
+               && (reporterType is null || IsReporterEnabled(reporterType))
+               && (filterType is null || IsFilterEnabled(filterType));
     }
 
     /// <summary>

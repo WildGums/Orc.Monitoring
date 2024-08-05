@@ -42,7 +42,7 @@ public class MonitoringManagerBenchmarks
     [Benchmark]
     public void TemporarilyEnableReporterBenchmark()
     {
-        using (MonitoringController.TemporarilyEnableReporter(ReporterType))
+        using (MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
         {
             MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, ReporterType, FilterType);
         }
