@@ -1,4 +1,6 @@
-﻿namespace Orc.Monitoring;
+﻿#pragma warning disable IDISP015
+#pragma warning disable IDISP005
+namespace Orc.Monitoring;
 
 using System;
 using System.Collections.Generic;
@@ -44,25 +46,59 @@ internal class ClassMonitor : IClassMonitor
     {
         _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringManager.IsEnabled}, Method tracked: {_trackedMethodNames.Contains(callerMethod)}");
 
-        if (!MonitoringManager.IsEnabled || !_trackedMethodNames.Contains(callerMethod))
+        if (!IsMonitoringEnabled(callerMethod))
         {
-            _logger.LogDebug("Returning Dummy context");
-            return async
-                ? AsyncMethodCallContext.Dummy
-                : MethodCallContext.Dummy;
+            return GetDummyContext(async);
         }
 
         using var operation = MonitoringManager.BeginOperation();
 
-        var methodInfo = _classType.GetMethod(callerMethod, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
-        if (methodInfo is null)
+        var methodCallInfo = PushMethodCallInfo(config, callerMethod);
+        if (methodCallInfo.IsNull)
         {
-            throw new InvalidOperationException($"Method {callerMethod} not found in {_classType.Name}");
+            _logger.LogDebug("MethodCallInfo is null, returning Dummy context");
+            return GetDummyContext(async);
+        }
+        
+        var methodInfo = methodCallInfo.MethodInfo;
+        if (methodInfo is null) 
+        {
+            _logger.LogDebug("MethodInfo is null, returning Dummy context");
+            return GetDummyContext(async);
         }
 
-        var applicableReporters = _monitoringConfig.GetReportersForMethod(methodInfo);
         var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
 
+        if (ShouldReturnDummyContext(methodCallInfo))
+        {
+            return GetDummyContext(async);
+        }
+
+        var disposables = StartReporters(config, methodCallInfo);
+
+        if (!ShouldTrackMethod(methodCallInfo, applicableFilters))
+        {
+            _logger.LogDebug("Method filtered out, returning Dummy context");
+            return GetDummyContext(async);
+        }
+
+        _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
+        return CreateMethodCallContext(async, methodCallInfo, disposables);
+    }
+
+    private bool IsMonitoringEnabled(string callerMethod)
+    {
+        return MonitoringManager.IsEnabled && _trackedMethodNames.Contains(callerMethod);
+    }
+
+    private object GetDummyContext(bool async)
+    {
+        _logger.LogDebug("Returning Dummy context");
+        return async ? AsyncMethodCallContext.Dummy : MethodCallContext.Dummy;
+    }
+
+    private MethodCallInfo PushMethodCallInfo(MethodConfiguration config, string callerMethod)
+    {
         var methodCallInfo = _callStack.Push(this, _classType, new MethodCallContextConfig
         {
             ClassType = _classType,
@@ -72,15 +108,16 @@ internal class ClassMonitor : IClassMonitor
         });
 
         _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.MonitoringVersion}");
+        return methodCallInfo;
+    }
 
-        if (methodCallInfo.IsNull || !MonitoringManager.ShouldTrack(methodCallInfo.MonitoringVersion))
-        {
-            _logger.LogDebug("Returning Dummy context due to null MethodCallInfo or outdated version");
-            return async
-                ? AsyncMethodCallContext.Dummy
-                : MethodCallContext.Dummy;
-        }
+    private bool ShouldReturnDummyContext(MethodCallInfo methodCallInfo)
+    {
+        return methodCallInfo.IsNull || !MonitoringManager.ShouldTrack(methodCallInfo.MonitoringVersion);
+    }
 
+    private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MethodCallInfo methodCallInfo)
+    {
         var disposables = new List<IAsyncDisposable>();
         foreach (var reporter in config.Reporters)
         {
@@ -92,16 +129,11 @@ internal class ClassMonitor : IClassMonitor
                 disposables.Add(reporterDisposable);
             }
         }
+        return disposables;
+    }
 
-        bool shouldTrack = ShouldTrackMethod(methodCallInfo, applicableFilters);
-
-        if (!shouldTrack)
-        {
-            _logger.LogDebug("Method filtered out, returning Dummy context");
-            return async ? AsyncMethodCallContext.Dummy : MethodCallContext.Dummy;
-        }
-
-        _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
+    private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)
+    {
         return async
             ? new AsyncMethodCallContext(this, methodCallInfo, disposables)
             : new MethodCallContext(this, methodCallInfo, disposables);
@@ -131,7 +163,7 @@ internal class ClassMonitor : IClassMonitor
 
         ArgumentNullException.ThrowIfNull(status);
 
-        if (status is MethodCallEnd endStatus && !endStatus.MethodCallInfo.IsNull)
+        if (status is MethodCallEnd { MethodCallInfo.IsNull: false } endStatus)
         {
             _logger.LogDebug($"Popping MethodCallInfo for {endStatus.MethodCallInfo}");
             _callStack.Pop(endStatus.MethodCallInfo);
