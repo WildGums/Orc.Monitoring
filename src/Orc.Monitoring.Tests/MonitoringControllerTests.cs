@@ -20,36 +20,55 @@ public class MonitoringControllerTests
         MonitoringController.Enable(); // Enable monitoring by default for tests
     }
 
+    private void EnableReporter(Type reporterType)
+    {
+        MonitoringController.EnableReporter(reporterType);
+        Assert.That(MonitoringController.IsReporterEnabled(reporterType), Is.True);
+    }
+
+    private void DisableReporter(Type reporterType)
+    {
+        MonitoringController.DisableReporter(reporterType);
+        Assert.That(MonitoringController.IsReporterEnabled(reporterType), Is.False);
+    }
+
+    private void EnableFilter(Type filterType)
+    {
+        MonitoringController.EnableFilter(filterType);
+        Assert.That(MonitoringController.IsFilterEnabled(filterType), Is.True);
+    }
+
+    private void DisableFilter(Type filterType)
+    {
+        MonitoringController.DisableFilter(filterType);
+        Assert.That(MonitoringController.IsFilterEnabled(filterType), Is.False);
+    }
+
     [Test]
     public void EnableReporter_WhenCalled_EnablesReporter()
     {
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+        EnableReporter(typeof(WorkflowReporter));
     }
 
     [Test]
     public void DisableReporter_WhenCalled_DisablesReporter()
     {
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        MonitoringController.DisableReporter(typeof(WorkflowReporter));
-        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+        EnableReporter(typeof(WorkflowReporter));
+        DisableReporter(typeof(WorkflowReporter));
     }
 
     [Test]
     public void EnableFilter_WhenCalled_EnablesFilter()
     {
-        MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
-        Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+        EnableFilter(typeof(WorkflowItemFilter));
     }
 
     [Test]
     public void DisableFilter_WhenCalled_DisablesFilter()
     {
-        MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
-        MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
-        Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+        EnableFilter(typeof(WorkflowItemFilter));
+        DisableFilter(typeof(WorkflowItemFilter));
     }
-
     [Test]
     public void ShouldTrack_WhenMonitoringEnabledAndReporterEnabled_ReturnsTrue()
     {
@@ -175,15 +194,7 @@ public class MonitoringControllerTests
         MonitoringController.DisableReporter(typeof(WorkflowReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
 
-        // Add debugging output
-        Console.WriteLine($"Is Enabled: {MonitoringController.IsEnabled}");
-        Console.WriteLine($"Reporter Enabled: {MonitoringController.IsReporterEnabled(typeof(WorkflowReporter))}");
-        Console.WriteLine($"Filter Enabled: {MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter))}");
-        Console.WriteLine($"Current Version: {MonitoringController.CurrentVersion}");
-
         var result = MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter));
-        Console.WriteLine($"ShouldTrack Result: {result}");
-
         Assert.That(result, Is.False);
     }
 
@@ -194,15 +205,7 @@ public class MonitoringControllerTests
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
 
-        // Add debugging output
-        Console.WriteLine($"Is Enabled: {MonitoringController.IsEnabled}");
-        Console.WriteLine($"Reporter Enabled: {MonitoringController.IsReporterEnabled(typeof(WorkflowReporter))}");
-        Console.WriteLine($"Filter Enabled: {MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter))}");
-        Console.WriteLine($"Current Version: {MonitoringController.CurrentVersion}");
-
         var result = MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter));
-        Console.WriteLine($"ShouldTrack Result: {result}");
-
         Assert.That(result, Is.False);
     }
 
@@ -262,7 +265,26 @@ public class MonitoringControllerTests
 
         Task.WaitAll(tasks.ToArray());
 
+        // After all concurrent operations, the state should be consistent
+        // We expect it to be disabled because the last operation in each task is Disable
         Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+    }
+
+    [Test]
+    public void ConcurrentEnable_EnsuresReporterIsEnabled()
+    {
+        var tasks = new List<Task>();
+        for (int i = 0; i < 100; i++)
+        {
+            tasks.Add(Task.Run(() =>
+            {
+                MonitoringController.EnableReporter(typeof(WorkflowReporter));
+            }));
+        }
+
+        Task.WaitAll(tasks.ToArray());
+
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
     }
 
     [Test]
