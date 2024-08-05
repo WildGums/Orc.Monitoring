@@ -266,4 +266,112 @@ public class MonitoringControllerTests
 
         Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
     }
+
+    [Test]
+    public void GlobalStateChanges_AffectComponentStates()
+    {
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
+
+        MonitoringController.Disable();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MonitoringController.IsEnabled, Is.False);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+        });
+
+        MonitoringController.Enable();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MonitoringController.IsEnabled, Is.True);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+        });
+    }
+
+    [Test]
+    public void HierarchicalControl_ComponentStatesRespectGlobalState()
+    {
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
+
+        MonitoringController.Disable();
+
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+
+        MonitoringController.Enable();
+
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.True);
+    }
+
+    [Test]
+    public void TemporaryStateChanges_NestedScenarios_WorkCorrectly()
+    {
+        MonitoringController.DisableReporter(typeof(WorkflowReporter));
+
+        using (MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
+        {
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+
+            using (MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
+            {
+                Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            }
+
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+        }
+
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+    }
+
+    [Test]
+    public void CallbackSystem_NotifiesOnStateChanges()
+    {
+        var callbackCalled = false;
+        MonitoringController.AddStateChangedCallback((componentType, componentName, isEnabled, version) =>
+        {
+            callbackCalled = true;
+        });
+
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+
+        Assert.That(callbackCalled, Is.True);
+    }
+
+    [Test]
+    public void ConcurrentAccess_MaintainsConsistentState()
+    {
+        var tasks = new List<Task>();
+        for (int i = 0; i < 100; i++)
+        {
+            tasks.Add(Task.Run(() =>
+            {
+                MonitoringController.EnableReporter(typeof(WorkflowReporter));
+                MonitoringController.DisableReporter(typeof(WorkflowReporter));
+            }));
+        }
+
+        Task.WaitAll(tasks.ToArray());
+
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+    }
+
+    [Test]
+    public void RapidStateToggling_MaintainsCorrectFinalState()
+    {
+        for (int i = 0; i < 100; i++)
+        {
+            MonitoringController.EnableReporter(typeof(WorkflowReporter));
+            MonitoringController.DisableReporter(typeof(WorkflowReporter));
+        }
+
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+    }
 }
