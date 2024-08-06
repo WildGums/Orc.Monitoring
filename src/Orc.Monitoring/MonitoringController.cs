@@ -209,7 +209,16 @@ public static class MonitoringController
     {
         return new TemporaryStateChange(MonitoringComponentType.Filter, typeof(T));
     }
-    
+
+    /// <summary>
+    /// Generates a report of version changes in the monitoring system.
+    /// </summary>
+    /// <returns>A string containing the version change report.</returns>
+    public static string GenerateVersionReport()
+    {
+        return MonitoringDiagnostics.GenerateVersionReport();
+    }
+
     private static void UpdateVersion()
     {
         var oldVersion = _currentVersion;

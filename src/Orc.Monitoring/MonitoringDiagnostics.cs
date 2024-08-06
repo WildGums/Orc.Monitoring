@@ -8,13 +8,17 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 
-
 public static class MonitoringDiagnostics
 {
     private static readonly ConcurrentQueue<VersionChangeRecord> _versionHistory = new();
     private static readonly ILogger _logger = MonitoringController.CreateLogger(typeof(MonitoringDiagnostics));
     private const int MaxHistorySize = 1000; // Adjust as needed
 
+    /// <summary>
+    /// Logs a change in the monitoring version.
+    /// </summary>
+    /// <param name="oldVersion">The previous version.</param>
+    /// <param name="newVersion">The new version.</param>
     public static void LogVersionChange(MonitoringVersion oldVersion, MonitoringVersion newVersion)
     {
         var record = new VersionChangeRecord(oldVersion, newVersion, DateTime.UtcNow);
@@ -25,6 +29,10 @@ public static class MonitoringDiagnostics
         while (_versionHistory.Count > MaxHistorySize && _versionHistory.TryDequeue(out _)) { }
     }
 
+    /// <summary>
+    /// Retrieves the full history of version changes.
+    /// </summary>
+    /// <returns>A read-only list of version change records.</returns>
     public static IReadOnlyList<VersionChangeRecord> GetVersionHistory()
     {
         return _versionHistory.ToArray();
@@ -57,6 +65,10 @@ public static class MonitoringDiagnostics
         return totalDuration / (records.Length - 1);
     }
 
+    /// <summary>
+    /// Generates a detailed report of all version changes.
+    /// </summary>
+    /// <returns>A string containing the version change report.</returns>
     public static string GenerateVersionReport()
     {
         var report = new System.Text.StringBuilder();

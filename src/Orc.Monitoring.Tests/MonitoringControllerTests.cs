@@ -260,4 +260,18 @@ public class MonitoringControllerTests
         Assert.That(afterOverflow.MainVersion, Is.LessThan(beforeOverflow.MainVersion));
         Assert.That(afterOverflow.ChangeId, Is.Not.EqualTo(beforeOverflow.ChangeId));
     }
+
+    [Test]
+    public void VersionChange_LogsChangeAndGeneratesReport()
+    {
+        var initialVersion = MonitoringController.GetCurrentVersion();
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        var newVersion = MonitoringController.GetCurrentVersion();
+
+        Assert.That(newVersion, Is.Not.EqualTo(initialVersion));
+
+        var report = MonitoringController.GenerateVersionReport();
+        Assert.That(report, Does.Contain(initialVersion.ToString()));
+        Assert.That(report, Does.Contain(newVersion.ToString()));
+    }
 }
