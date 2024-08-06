@@ -3,6 +3,7 @@
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Filters;
@@ -14,7 +15,9 @@ public class MonitoringControllerTests
     [SetUp]
     public void Setup()
     {
+#if DEBUG || TEST
         MonitoringController.ResetForTesting();
+#endif
         MonitoringController.Enable(); // Enable monitoring by default for tests
     }
 
@@ -192,5 +195,69 @@ public class MonitoringControllerTests
         var newVersion = MonitoringController.GetCurrentVersion();
 
         Assert.That(newVersion, Is.GreaterThan(initialVersion));
+    }
+
+    [Test]
+    public void VersionChange_UpdatesCacheAndNotifiesListeners()
+    {
+        var versionChangeCount = 0;
+        MonitoringController.VersionChanged += (sender, version) => versionChangeCount++;
+
+        var initialVersion = MonitoringController.GetCurrentVersion();
+        var reporterType = typeof(WorkflowReporter);
+
+        MonitoringController.EnableReporter(reporterType);
+        var afterFirstEnableVersion = MonitoringController.GetCurrentVersion();
+
+        Assert.That(afterFirstEnableVersion, Is.Not.EqualTo(initialVersion));
+        Assert.That(MonitoringController.ShouldTrack(afterFirstEnableVersion, reporterType), Is.True);
+
+        MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        var finalVersion = MonitoringController.GetCurrentVersion();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(finalVersion, Is.Not.EqualTo(afterFirstEnableVersion));
+            Assert.That(MonitoringController.ShouldTrack(initialVersion, reporterType), Is.False);
+            Assert.That(MonitoringController.ShouldTrack(afterFirstEnableVersion, reporterType), Is.False);
+            Assert.That(MonitoringController.ShouldTrack(finalVersion, reporterType), Is.True);
+            Assert.That(versionChangeCount, Is.EqualTo(2));
+        });
+    }
+
+    [Test]
+    public async Task LongRunningOperation_HandlesVersionChangesAsync()
+    {
+        var initialVersion = MonitoringController.GetCurrentVersion();
+        var operationTask = Task.Run(async () =>
+        {
+            using (MonitoringController.BeginOperation(out var operationVersion))
+            {
+                Assert.That(initialVersion, Is.EqualTo(operationVersion));
+                await Task.Delay(1000); // Simulate long-running operation
+                return MonitoringController.ShouldTrack(operationVersion, typeof(WorkflowReporter));
+            }
+        });
+
+        await Task.Delay(200); // Give some time for the operation to start
+        MonitoringController.EnableReporter(typeof(PerformanceReporter)); // This should change the version
+
+        var result = await operationTask;
+        Assert.That(result, Is.False,  "Long-running operation should not track after version change");
+    }
+
+    [Test]
+    public void VersionOverflow_HandledGracefully()
+    {
+        // Set the version to the maximum value
+        typeof(MonitoringController).GetField("_currentVersion", BindingFlags.NonPublic | BindingFlags.Static)
+            .SetValue(null, new MonitoringVersion(long.MaxValue, Guid.NewGuid()));
+
+        var beforeOverflow = MonitoringController.GetCurrentVersion();
+        MonitoringController.EnableReporter(typeof(WorkflowReporter)); // This should increment the version
+        var afterOverflow = MonitoringController.GetCurrentVersion();
+
+        Assert.That(afterOverflow.MainVersion, Is.LessThan(beforeOverflow.MainVersion));
+        Assert.That(afterOverflow.ChangeId, Is.Not.EqualTo(beforeOverflow.ChangeId));
     }
 }

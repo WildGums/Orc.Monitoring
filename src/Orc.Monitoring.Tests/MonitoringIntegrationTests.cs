@@ -13,7 +13,9 @@ public class MonitoringIntegrationTests
     [SetUp]
     public void Setup()
     {
+#if DEBUG || TEST
         MonitoringController.ResetForTesting();
+#endif
         MonitoringController.Enable();
     }
 

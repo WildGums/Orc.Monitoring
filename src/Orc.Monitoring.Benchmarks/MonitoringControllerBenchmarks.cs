@@ -77,10 +77,10 @@ public class MonitoringControllerBenchmarks
     }
 
     [Benchmark]
-    public void VersionComparisonBenchmark()
+    public bool VersionComparisonBenchmark()
     {
         var currentVersion = MonitoringController.GetCurrentVersion();
-        _ = currentVersion == _testVersion;
+        return currentVersion == _testVersion;
     }
 
     [Benchmark]

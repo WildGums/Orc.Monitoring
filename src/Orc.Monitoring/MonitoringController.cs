@@ -150,6 +150,13 @@ public static class MonitoringController
     public static void DisableFilter(Type filterType) => SetComponentState(MonitoringComponentType.Filter, filterType, false);
     public static bool IsFilterEnabled(Type filterType) => IsComponentEnabled(_filterEffectiveStates, filterType);
 
+    /// <summary>
+    /// Determines whether monitoring should track the current operation based on the given version and component types.
+    /// </summary>
+    /// <param name="operationVersion">The version of the operation to check.</param>
+    /// <param name="reporterType">The type of the reporter to check, if any.</param>
+    /// <param name="filterType">The type of the filter to check, if any.</param>
+    /// <returns>True if the operation should be tracked, false otherwise.</returns>
     public static bool ShouldTrack(MonitoringVersion operationVersion, Type? reporterType = null, Type? filterType = null)
     {
         return _shouldTrackCache.GetOrAdd((operationVersion, reporterType, filterType), key =>
@@ -162,6 +169,11 @@ public static class MonitoringController
         });
     }
 
+    /// <summary>
+    /// Begins a new monitoring operation and returns the current version.
+    /// </summary>
+    /// <param name="operationVersion">When this method returns, contains the current monitoring version.</param>
+    /// <returns>An IDisposable that ends the operation when disposed.</returns>
     public static IDisposable BeginOperation(out MonitoringVersion operationVersion)
     {
         operationVersion = _currentVersion;
@@ -169,16 +181,30 @@ public static class MonitoringController
         return new OperationScope();
     }
 
+    /// <summary>
+    /// Registers a new monitoring context to receive version updates.
+    /// </summary>
+    /// <param name="context">The context to register.</param>
     public static void RegisterContext(VersionedMonitoringContext context)
     {
         _activeContexts.Add(new WeakReference<VersionedMonitoringContext>(context));
     }
 
+    /// <summary>
+    /// Temporarily enables the specified reporter and returns an IDisposable that reverts the change when disposed.
+    /// </summary>
+    /// <typeparam name="T">The type of the reporter to enable.</typeparam>
+    /// <returns>An IDisposable that reverts the change when disposed.</returns>
     public static IDisposable TemporarilyEnableReporter<T>() where T : class
     {
         return new TemporaryStateChange(MonitoringComponentType.Reporter, typeof(T));
     }
 
+    /// <summary>
+    /// Temporarily enables the specified filter and returns an IDisposable that reverts the change when disposed.
+    /// </summary>
+    /// <typeparam name="T">The type of the filter to enable.</typeparam>
+    /// <returns>An IDisposable that reverts the change when disposed.</returns>
     public static IDisposable TemporarilyEnableFilter<T>() where T : class
     {
         return new TemporaryStateChange(MonitoringComponentType.Filter, typeof(T));

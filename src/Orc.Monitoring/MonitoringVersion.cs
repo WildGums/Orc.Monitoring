@@ -3,11 +3,26 @@
 using System;
 
 
+/// <summary>
+/// Represents a version of the monitoring system state.
+/// </summary>
 public readonly struct MonitoringVersion : IEquatable<MonitoringVersion>, IComparable<MonitoringVersion>
 {
+    /// <summary>
+    /// Gets the main version number.
+    /// </summary>
     public long MainVersion { get; }
+
+    /// <summary>
+    /// Gets the unique identifier for this version change.
+    /// </summary>
     public Guid ChangeId { get; }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MonitoringVersion"/> struct.
+    /// </summary>
+    /// <param name="mainVersion">The main version number.</param>
+    /// <param name="changeId">The unique identifier for this version change.</param>
     public MonitoringVersion(long mainVersion, Guid changeId)
     {
         MainVersion = mainVersion;

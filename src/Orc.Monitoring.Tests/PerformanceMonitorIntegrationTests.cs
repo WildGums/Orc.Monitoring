@@ -99,7 +99,9 @@ public class PerformanceMonitorIntegrationTests
     public void Setup()
     {
         Console.WriteLine("Setup started");
-        MonitoringController.ResetForTesting();  // Add this line to reset the state
+#if DEBUG || TEST
+        MonitoringController.ResetForTesting();
+#endif
         PerformanceMonitor.Configure(builder => {
             Console.WriteLine($"Configuring assembly: {typeof(TestClass).Assembly.FullName}");
             builder.TrackAssembly(typeof(TestClass).Assembly);
