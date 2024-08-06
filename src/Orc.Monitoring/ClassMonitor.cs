@@ -55,7 +55,8 @@ internal class ClassMonitor : IClassMonitor
 
         using var operation = MonitoringController.BeginOperation(out var operationVersion);
 
-        var methodCallInfo = PushMethodCallInfo(config, callerMethod);
+        // Create MethodCallInfo without pushing it to the stack yet
+        var methodCallInfo = CreateMethodCallInfo(config, callerMethod);
         if (methodCallInfo.IsNull)
         {
             _logger.LogDebug("MethodCallInfo is null, returning Dummy context");
@@ -69,14 +70,24 @@ internal class ClassMonitor : IClassMonitor
             return GetDummyContext(async);
         }
 
+        // Set RootMethod on reporters before starting them
+        foreach (var reporter in config.Reporters)
+        {
+            reporter.RootMethod = methodInfo;
+        }
+
+        // Now start the reporters
+        var disposables = StartReporters(config, operationVersion);
+
+        // Push the method call to the stack after starting reporters
+        PushMethodCallInfoToStack(methodCallInfo);
+
         var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
 
         if (ShouldReturnDummyContext(methodCallInfo, operationVersion))
         {
             return GetDummyContext(async);
         }
-
-        var disposables = StartReporters(config, methodCallInfo, operationVersion);
 
         if (!ShouldTrackMethod(methodCallInfo, applicableFilters, operationVersion))
         {
@@ -86,6 +97,38 @@ internal class ClassMonitor : IClassMonitor
 
         _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
         return CreateMethodCallContext(async, methodCallInfo, disposables);
+    }
+
+    private MethodCallInfo CreateMethodCallInfo(MethodConfiguration config, string callerMethod)
+    {
+        return _callStack.CreateMethodCallInfo(this, _classType, new MethodCallContextConfig
+        {
+            ClassType = _classType,
+            CallerMethodName = callerMethod,
+            GenericArguments = config.GenericArguments,
+            ParameterTypes = config.ParameterTypes
+        });
+    }
+
+    private void PushMethodCallInfoToStack(MethodCallInfo methodCallInfo)
+    {
+        _callStack.Push(methodCallInfo);
+        _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.Version}");
+    }
+
+    private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MonitoringVersion operationVersion)
+    {
+        var disposables = new List<IAsyncDisposable>();
+        foreach (var reporter in config.Reporters)
+        {
+            if (MonitoringController.IsReporterEnabled(reporter.GetType()) && MonitoringController.ShouldTrack(operationVersion, reporter.GetType()))
+            {
+                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
+                var reporterDisposable = reporter.StartReporting(_callStack);
+                disposables.Add(reporterDisposable);
+            }
+        }
+        return disposables;
     }
 
     private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
@@ -99,39 +142,9 @@ internal class ClassMonitor : IClassMonitor
         return async ? AsyncMethodCallContext.Dummy : MethodCallContext.Dummy;
     }
 
-    private MethodCallInfo PushMethodCallInfo(MethodConfiguration config, string callerMethod)
-    {
-        var methodCallInfo = _callStack.Push(this, _classType, new MethodCallContextConfig
-        {
-            ClassType = _classType,
-            CallerMethodName = callerMethod,
-            GenericArguments = config.GenericArguments,
-            ParameterTypes = config.ParameterTypes
-        });
-
-        _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.Version}");
-        return methodCallInfo;
-    }
-
     private bool ShouldReturnDummyContext(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
     {
         return methodCallInfo.IsNull || !MonitoringController.ShouldTrack(operationVersion);
-    }
-
-    private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
-    {
-        var disposables = new List<IAsyncDisposable>();
-        foreach (var reporter in config.Reporters)
-        {
-            if (MonitoringController.IsReporterEnabled(reporter.GetType()) && MonitoringController.ShouldTrack(operationVersion, reporter.GetType()))
-            {
-                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
-                reporter.RootMethod = methodCallInfo.MethodInfo;
-                var reporterDisposable = reporter.StartReporting(_callStack);
-                disposables.Add(reporterDisposable);
-            }
-        }
-        return disposables;
     }
 
     private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)

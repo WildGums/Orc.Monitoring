@@ -72,21 +72,19 @@ public class GlobalConfigurationBuilder
         return this;
     }
 
+    public GlobalConfigurationBuilder AddReporter(Type reporterType, bool initialState = true) 
+    {
+        if (initialState)
+        {
+            MonitoringController.EnableReporter(reporterType);
+        }
+
+        return this;
+    }
+
     public GlobalConfigurationBuilder TrackAssembly(Assembly assembly)
     {
         _config.TrackAssembly(assembly);
-        return this;
-    }
-
-    public GlobalConfigurationBuilder AddReporterForClass<TClass, TReporter>() where TReporter : IMethodCallReporter
-    {
-        _config.AddReporterForClass<TClass, TReporter>();
-        return this;
-    }
-
-    public GlobalConfigurationBuilder AddFilterForClass<TClass, TFilter>() where TFilter : IMethodFilter
-    {
-        _config.AddFilterForClass<TClass, TFilter>();
         return this;
     }
 

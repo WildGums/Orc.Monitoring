@@ -6,10 +6,16 @@ using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 using System.Collections.Generic;
 using System;
+using System.Threading.Tasks;
+using Orc.Monitoring.Reporters.ReportOutputs;
+using System.Reflection;
+
 
 [TestFixture]
 public class MonitoringIntegrationTests
 {
+    private MockSequenceReporter _sequenceReporter;
+
     [SetUp]
     public void Setup()
     {
@@ -17,6 +23,7 @@ public class MonitoringIntegrationTests
         MonitoringController.ResetForTesting();
 #endif
         MonitoringController.Enable();
+        _sequenceReporter = new MockSequenceReporter();
     }
 
     [Test]
@@ -26,6 +33,7 @@ public class MonitoringIntegrationTests
         {
             config.AddReporter<PerformanceReporter>();
             config.AddFilter<PerformanceFilter>();
+            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
         });
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
@@ -43,16 +51,15 @@ public class MonitoringIntegrationTests
     [Test]
     public void CallStack_RespectsHierarchicalControl()
     {
-        MonitoringController.Enable(); // Ensure monitoring is enabled at the start
         var callStack = new CallStack(new MonitoringConfiguration());
         var observer = new TestObserver();
 
         using (callStack.Subscribe(observer))
         {
-            var methodInfo = typeof(MonitoringIntegrationTests).GetMethod(nameof(CallStack_RespectsHierarchicalControl));
             var config = new MethodCallContextConfig { ClassType = GetType(), CallerMethodName = nameof(CallStack_RespectsHierarchicalControl) };
 
-            var methodCallInfo = callStack.Push(null, GetType(), config);
+            var methodCallInfo = callStack.CreateMethodCallInfo(null, GetType(), config);
+            callStack.Push(methodCallInfo);
             Assert.That(observer.ReceivedItems, Is.Not.Empty, "Should receive items when monitoring is enabled");
 
             MonitoringController.Disable();
@@ -62,9 +69,56 @@ public class MonitoringIntegrationTests
             Assert.That(observer.ReceivedItems, Is.Empty, "Should not receive items when monitoring is disabled");
 
             MonitoringController.Enable();
-            methodCallInfo = callStack.Push(null, GetType(), config);
+            methodCallInfo = callStack.CreateMethodCallInfo(null, GetType(), config);
+            callStack.Push(methodCallInfo);
             Assert.That(observer.ReceivedItems, Is.Not.Empty, "Should receive items when monitoring is re-enabled");
         }
+    }
+
+    [Test]
+    public void RootMethod_SetsRootMethodBeforeStartingReporting()
+    {
+        PerformanceMonitor.Configure(config =>
+        {
+            config.AddReporter(_sequenceReporter.GetType());
+            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
+        });
+
+        MonitoringController.EnableReporter(_sequenceReporter.GetType());
+
+        var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
+
+        using (var context = monitor.Start(builder => builder.AddReporter(_sequenceReporter)))
+        {
+            // Simulate some work
+            System.Threading.Thread.Sleep(10);
+        }
+
+        Assert.That(_sequenceReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
+        Assert.That(_sequenceReporter.RootMethodName, Is.EqualTo(nameof(RootMethod_SetsRootMethodBeforeStartingReporting)));
+    }
+
+    [Test]
+    public async Task AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync()
+    {
+        PerformanceMonitor.Configure(config =>
+        {
+            config.AddReporter(_sequenceReporter.GetType());
+            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
+        });
+
+        MonitoringController.EnableReporter(_sequenceReporter.GetType());
+
+        var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
+
+        await using (var context = monitor.AsyncStart(builder => builder.AddReporter(_sequenceReporter)))
+        {
+            // Simulate some async work
+            await Task.Delay(10);
+        }
+
+        Assert.That(_sequenceReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
+        Assert.That(_sequenceReporter.RootMethodName, Is.EqualTo(nameof(AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync)));
     }
 
     private class TestObserver : IObserver<ICallStackItem>
@@ -74,5 +128,37 @@ public class MonitoringIntegrationTests
         public void OnCompleted() { }
         public void OnError(Exception error) { }
         public void OnNext(ICallStackItem value) => ReceivedItems.Add(value);
+    }
+
+    private class MockSequenceReporter : IMethodCallReporter
+    {
+        public List<string> OperationSequence { get; } = new List<string>();
+        public string RootMethodName { get; private set; }
+
+        public string Name => "MockSequenceReporter";
+        public string FullName => "MockSequenceReporter";
+
+        private MethodInfo _rootMethod;
+        public MethodInfo RootMethod
+        {
+            get => _rootMethod;
+            set
+            {
+                _rootMethod = value;
+                RootMethodName = value.Name;
+                OperationSequence.Add("SetRootMethod");
+            }
+        }
+
+        public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
+        {
+            OperationSequence.Add("StartReporting");
+            return new AsyncDisposable(async () => { });
+        }
+
+        public IOutputContainer AddOutput<TOutput>(object parameter = null) where TOutput : IReportOutput, new()
+        {
+            return this;
+        }
     }
 }

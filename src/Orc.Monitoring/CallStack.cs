@@ -32,15 +32,10 @@ public class CallStack : IObservable<ICallStackItem>
         _monitoringConfig = monitoringConfig;
     }
 
-    public MethodCallInfo Push(IClassMonitor classMonitor, Type callerType, MethodCallContextConfig config)
+    public MethodCallInfo CreateMethodCallInfo(IClassMonitor classMonitor, Type callerType, MethodCallContextConfig config)
     {
-        _logger.LogDebug($"CallStack.Push called for {callerType.Name}.{config.CallerMethodName}");
-
-        var threadId = Environment.CurrentManagedThreadId;
-        var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
-
+        // Create MethodCallInfo without pushing it to the stack
         var methodInfo = FindMatchingMethod(config);
-
         if (methodInfo is null)
         {
             var classTypeName = config.ClassType?.Name ?? string.Empty;
@@ -50,23 +45,20 @@ public class CallStack : IObservable<ICallStackItem>
         var attributeParameters = methodInfo.GetCustomAttributes<MethodCallParameterAttribute>()
             .ToDictionary(attr => attr.Name, attr => attr.Value);
 
+        var threadId = Environment.CurrentManagedThreadId;
+        var level = (_threadCallStacks.TryGetValue(threadId, out var stack) ? stack.Count : 0) + 1;
+        var id = GenerateId();
+
+        return _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, level, id, null, attributeParameters);
+    }
+
+    public void Push(MethodCallInfo methodCallInfo)
+    {
+        var threadId = methodCallInfo.ThreadId;
+        var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
+
         lock (threadStack)
         {
-            var level = threadStack.Count + 1;
-            var id = GenerateId();
-
-            MethodCallInfo? parentMethodCallInfo = null;
-            if (threadStack.Count > 0)
-            {
-                parentMethodCallInfo = threadStack.Peek();
-            }
-            else if (_globalCallStack.TryPeek(out var globalParent))
-            {
-                parentMethodCallInfo = globalParent;
-            }
-
-            var methodCallInfo = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, level, id, parentMethodCallInfo, attributeParameters);
-
             threadStack.Push(methodCallInfo);
             _globalCallStack.Push(methodCallInfo);
 
@@ -75,8 +67,6 @@ public class CallStack : IObservable<ICallStackItem>
             {
                 NotifyObservers(new MethodCallStart(methodCallInfo), currentVersion);
             }
-
-            return methodCallInfo;
         }
     }
 

@@ -132,17 +132,6 @@ public static class PerformanceMonitor
         return frame.GetMethod()?.DeclaringType;
     }
 
-    // These methods can be kept for backwards compatibility
-    public static void AddReporterForClass<TClass, TReporter>() where TReporter : IMethodCallReporter
-    {
-        MonitoringController.Configuration?.AddReporterForClass<TClass, TReporter>();
-    }
-
-    public static void AddFilterForClass<TClass, TFilter>() where TFilter : IMethodFilter
-    {
-        MonitoringController.Configuration?.AddFilterForClass<TClass, TFilter>();
-    }
-
     public static MonitoringVersion GetCurrentVersion()
     {
         return MonitoringController.GetCurrentVersion();

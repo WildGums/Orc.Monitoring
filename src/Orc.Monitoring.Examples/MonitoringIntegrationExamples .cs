@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Examples;
+namespace Orc.Monitoring.Examples;
 
 using System;
 using System.Threading.Tasks;
@@ -85,7 +85,8 @@ public class MonitoringIntegrationExamples
                 CallerMethodName = nameof(CallStackIntegrationAsync)
             };
 
-            var methodCallInfo = callStack.Push(classMonitor, typeof(MonitoringIntegrationExamples), config);
+            var methodCallInfo = callStack.CreateMethodCallInfo(classMonitor, typeof(MonitoringIntegrationExamples), config);
+            callStack.Push(methodCallInfo);
             Console.WriteLine("Root method started");
 
             await SimulateWorkAsync(200);
@@ -112,7 +113,8 @@ public class MonitoringIntegrationExamples
             CallerMethodName = nameof(NestedMethodAsync)
         };
 
-        var methodCallInfo = callStack.Push(classMonitor, typeof(MonitoringIntegrationExamples), config);
+        var methodCallInfo = callStack.CreateMethodCallInfo(classMonitor, typeof(MonitoringIntegrationExamples), config);
+        callStack.Push(methodCallInfo);
         Console.WriteLine("Nested method started");
 
         await SimulateWorkAsync(100);
