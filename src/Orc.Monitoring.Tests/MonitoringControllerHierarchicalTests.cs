@@ -57,11 +57,11 @@ public class MonitoringControllerHierarchicalTests
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.True);
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.True);
 
         MonitoringController.Disable();
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False);
     }
 
     [Test]

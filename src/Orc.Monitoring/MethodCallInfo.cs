@@ -6,18 +6,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Reporters;
+using Orc.Monitoring.Reporters;
+
 
 public class MethodCallInfo
 {
     private readonly MethodCallInfoPool? _pool;
-
     private IClassMonitor? _classMonitor;
     private int _usageCounter;
     private bool _readyToReturn;
 
     public bool IsNull { get; private set; }
-
     public Dictionary<string, string>? Parameters { get; set; }
     public MethodInfo? MethodInfo { get; set; }
     public Type? ClassType { get; set; }
@@ -30,7 +29,7 @@ public class MethodCallInfo
     public MethodCallInfo? Parent { get; set; }
     public int ParentThreadId { get; set; }
     public HashSet<string>? AttributeParameters { get; private set; }
-    public int MonitoringVersion { get; private set; }
+    public MonitoringVersion Version { get; private set; }
 
     private MethodCallInfo(MethodCallInfoPool? pool)
     {
@@ -75,10 +74,10 @@ public class MethodCallInfo
 
         AttributeParameters = new HashSet<string>(attributeParameters.Keys);
         Parameters = new Dictionary<string, string>(attributeParameters);
-        MonitoringVersion = MonitoringController.GetCurrentVersion();
+        Version = MonitoringController.GetCurrentVersion();
     }
 
-        public void Clear()
+    public void Clear()
     {
         if (IsNull) return;
 
@@ -98,7 +97,7 @@ public class MethodCallInfo
         Elapsed = TimeSpan.Zero;
         Parent = null;
         ParentThreadId = -1;
-        MonitoringVersion = 0;
+        Version = default;
     }
 
     public void TryReturnToPool()
@@ -145,7 +144,7 @@ public class MethodCallInfo
     {
         if (IsNull) return "Null MethodCallInfo";
         var classTypeName = ClassType?.Name ?? string.Empty;
-        return $"{classTypeName}.{MethodName}";
+        return $"{classTypeName}.{MethodName} (Version: {Version})";
     }
 
     private static string GetMethodName(MethodInfo methodInfo, IReadOnlyCollection<Type> genericArguments)
@@ -154,15 +153,15 @@ public class MethodCallInfo
 
         if (genericArguments.Count != 0)
         {
-            var genericArgumentsNames = genericArguments.Select(a => a.Name);
-            methodName = $"{methodName}<{string.Join(", ", genericArgumentsNames)}>";
+            var genericArgumentsNames = string.Join(", ", genericArguments.Select(a => a.Name));
+            methodName = $"{methodName}<{genericArgumentsNames}>";
         }
 
         var parameters = methodInfo.GetParameters();
         if (parameters.Length != 0)
         {
-            var parametersNames = parameters.Select(p => p.ParameterType.Name);
-            methodName = $"{methodName}({string.Join(", ", parametersNames)})";
+            var parametersNames = string.Join(", ", parameters.Select(p => p.ParameterType.Name));
+            methodName = $"{methodName}({parametersNames})";
         }
         else
         {

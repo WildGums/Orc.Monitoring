@@ -1,5 +1,7 @@
 ﻿// ReSharper disable InconsistentNaming
 #pragma warning disable IDE1006
+// ReSharper disable InconsistentNaming
+#pragma warning disable IDE1006
 namespace Orc.Monitoring;
 
 using System;
@@ -139,5 +141,10 @@ public static class PerformanceMonitor
     public static void AddFilterForClass<TClass, TFilter>() where TFilter : IMethodFilter
     {
         MonitoringController.Configuration?.AddFilterForClass<TClass, TFilter>();
+    }
+
+    public static MonitoringVersion GetCurrentVersion()
+    {
+        return MonitoringController.GetCurrentVersion();
     }
 }

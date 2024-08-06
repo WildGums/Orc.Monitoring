@@ -16,7 +16,6 @@ using Orc.Monitoring.Filters;
 public class CallStack : IObservable<ICallStackItem>
 {
     private readonly ILogger<CallStack> _logger = MonitoringController.CreateLogger<CallStack>();
-
     private readonly MethodCallInfoPool _methodCallInfoPool = new();
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
     private readonly ConcurrentStack<MethodCallInfo> _globalCallStack = new();
@@ -71,9 +70,10 @@ public class CallStack : IObservable<ICallStackItem>
             threadStack.Push(methodCallInfo);
             _globalCallStack.Push(methodCallInfo);
 
-            if (MonitoringController.IsEnabled)
+            var currentVersion = MonitoringController.GetCurrentVersion();
+            if (MonitoringController.ShouldTrack(currentVersion))
             {
-                NotifyObservers(new MethodCallStart(methodCallInfo));
+                NotifyObservers(new MethodCallStart(methodCallInfo), currentVersion);
             }
 
             return methodCallInfo;
@@ -127,32 +127,35 @@ public class CallStack : IObservable<ICallStackItem>
             _logger.LogWarning("Global CallStack mismatch: failed to pop method call info.");
         }
 
-        if (MonitoringController.IsEnabled)
+        var currentVersion = MonitoringController.GetCurrentVersion();
+        if (MonitoringController.ShouldTrack(currentVersion))
         {
-            NotifyObservers(new MethodCallEnd(methodCallInfo));
+            NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
         }
     }
 
     public void LogStatus(IMethodLifeCycleItem status)
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
-        if (!MonitoringController.IsEnabled)
+
+        var currentVersion = MonitoringController.GetCurrentVersion();
+        if (!MonitoringController.ShouldTrack(currentVersion))
         {
-            _logger.LogDebug("Monitoring is disabled, not logging status");
+            _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
             return;
         }
 
         ArgumentNullException.ThrowIfNull(status);
 
-        if (ShouldLogStatus(status))
+        if (ShouldLogStatus(status, currentVersion))
         {
             _logger.LogDebug($"Notifying observers: {status}");
-            NotifyObservers(status);
+            NotifyObservers(status, currentVersion);
 
             if (status is MethodCallEnd && IsEmpty())
             {
                 _logger.LogDebug("Call stack is empty, notifying with CallStackItem.Empty");
-                NotifyObservers(CallStackItem.Empty);
+                NotifyObservers(CallStackItem.Empty, currentVersion);
             }
         }
         else
@@ -160,7 +163,8 @@ public class CallStack : IObservable<ICallStackItem>
             _logger.LogDebug($"Skipping status logging: {status}");
         }
     }
-    private bool ShouldLogStatus(IMethodLifeCycleItem status)
+    
+    private bool ShouldLogStatus(IMethodLifeCycleItem status, MonitoringVersion currentVersion)
     {
         var methodInfo = status.MethodCallInfo.MethodInfo;
         if (methodInfo is null)
@@ -328,12 +332,14 @@ public class CallStack : IObservable<ICallStackItem>
         return new Unsubscriber<ICallStackItem>(_observers, observer);
     }
 
-    private void NotifyObservers(ICallStackItem value)
+    private void NotifyObservers(ICallStackItem value, MonitoringVersion version)
     {
-        Console.WriteLine($"Notifying observers: {value}");
         foreach (var observer in _observers.ToArray())
         {
-            observer.OnNext(value);
+            if (MonitoringController.ShouldTrack(version))
+            {
+                observer.OnNext(value);
+            }
         }
     }
 

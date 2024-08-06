@@ -30,11 +30,11 @@ public class MonitoringIntegrationTests
 
         using (var context = monitor.Start(builder => builder.AddReporter<PerformanceReporter>()))
         {
-            Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(PerformanceReporter)), Is.True);
+            Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.True);
 
             MonitoringController.Disable();
 
-            Assert.That(MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, typeof(PerformanceReporter)), Is.False);
+            Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.False);
         }
     }
 

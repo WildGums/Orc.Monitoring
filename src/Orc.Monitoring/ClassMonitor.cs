@@ -12,6 +12,7 @@ using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Filters;
 using System.Linq;
 
+
 internal class ClassMonitor : IClassMonitor
 {
     private readonly Type _classType;
@@ -44,14 +45,15 @@ internal class ClassMonitor : IClassMonitor
 
     private object StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
     {
+        var currentVersion = MonitoringController.GetCurrentVersion();
         _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}, Method tracked: {_trackedMethodNames.Contains(callerMethod)}");
 
-        if (!IsMonitoringEnabled(callerMethod))
+        if (!IsMonitoringEnabled(callerMethod, currentVersion))
         {
             return GetDummyContext(async);
         }
 
-        using var operation = MonitoringController.BeginOperation();
+        using var operation = MonitoringController.BeginOperation(out var operationVersion);
 
         var methodCallInfo = PushMethodCallInfo(config, callerMethod);
         if (methodCallInfo.IsNull)
@@ -59,9 +61,9 @@ internal class ClassMonitor : IClassMonitor
             _logger.LogDebug("MethodCallInfo is null, returning Dummy context");
             return GetDummyContext(async);
         }
-        
+
         var methodInfo = methodCallInfo.MethodInfo;
-        if (methodInfo is null) 
+        if (methodInfo is null)
         {
             _logger.LogDebug("MethodInfo is null, returning Dummy context");
             return GetDummyContext(async);
@@ -69,14 +71,14 @@ internal class ClassMonitor : IClassMonitor
 
         var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
 
-        if (ShouldReturnDummyContext(methodCallInfo))
+        if (ShouldReturnDummyContext(methodCallInfo, operationVersion))
         {
             return GetDummyContext(async);
         }
 
-        var disposables = StartReporters(config, methodCallInfo);
+        var disposables = StartReporters(config, methodCallInfo, operationVersion);
 
-        if (!ShouldTrackMethod(methodCallInfo, applicableFilters))
+        if (!ShouldTrackMethod(methodCallInfo, applicableFilters, operationVersion))
         {
             _logger.LogDebug("Method filtered out, returning Dummy context");
             return GetDummyContext(async);
@@ -86,9 +88,9 @@ internal class ClassMonitor : IClassMonitor
         return CreateMethodCallContext(async, methodCallInfo, disposables);
     }
 
-    private bool IsMonitoringEnabled(string callerMethod)
+    private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
     {
-        return MonitoringController.IsEnabled && _trackedMethodNames.Contains(callerMethod);
+        return MonitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
     }
 
     private object GetDummyContext(bool async)
@@ -107,21 +109,21 @@ internal class ClassMonitor : IClassMonitor
             ParameterTypes = config.ParameterTypes
         });
 
-        _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.MonitoringVersion}");
+        _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.Version}");
         return methodCallInfo;
     }
 
-    private bool ShouldReturnDummyContext(MethodCallInfo methodCallInfo)
+    private bool ShouldReturnDummyContext(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
     {
-        return methodCallInfo.IsNull || !MonitoringController.ShouldTrack(methodCallInfo.MonitoringVersion);
+        return methodCallInfo.IsNull || !MonitoringController.ShouldTrack(operationVersion);
     }
 
-    private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MethodCallInfo methodCallInfo)
+    private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
     {
         var disposables = new List<IAsyncDisposable>();
         foreach (var reporter in config.Reporters)
         {
-            if (MonitoringController.IsReporterEnabled(reporter.GetType()))
+            if (MonitoringController.IsReporterEnabled(reporter.GetType()) && MonitoringController.ShouldTrack(operationVersion, reporter.GetType()))
             {
                 _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
                 reporter.RootMethod = methodCallInfo.MethodInfo;
@@ -139,11 +141,11 @@ internal class ClassMonitor : IClassMonitor
             : new MethodCallContext(this, methodCallInfo, disposables);
     }
 
-    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, IEnumerable<Type> applicableFilters)
+    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, IEnumerable<Type> applicableFilters, MonitoringVersion operationVersion)
     {
         return applicableFilters.Any(filterType =>
         {
-            if (MonitoringController.IsFilterEnabled(filterType))
+            if (MonitoringController.IsFilterEnabled(filterType) && MonitoringController.ShouldTrack(operationVersion, filterType: filterType))
             {
                 var filter = (IMethodFilter)Activator.CreateInstance(filterType)!;
                 return filter.ShouldInclude(methodCallInfo);
@@ -155,9 +157,10 @@ internal class ClassMonitor : IClassMonitor
     public void LogStatus(IMethodLifeCycleItem status)
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
-        if (!MonitoringController.IsEnabled)
+        var currentVersion = MonitoringController.GetCurrentVersion();
+        if (!MonitoringController.ShouldTrack(currentVersion))
         {
-            _logger.LogDebug("Monitoring is disabled, not logging status");
+            _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
             return;
         }
 

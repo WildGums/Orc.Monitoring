@@ -12,6 +12,7 @@ public class MonitoringControllerBenchmarks
 {
     private static readonly Type ReporterType = typeof(WorkflowReporter);
     private static readonly Type FilterType = typeof(WorkflowItemFilter);
+    private MonitoringVersion _testVersion;
 
     [GlobalSetup]
     public void Setup()
@@ -19,12 +20,13 @@ public class MonitoringControllerBenchmarks
         MonitoringController.Enable();
         MonitoringController.EnableReporter(ReporterType);
         MonitoringController.EnableFilter(FilterType);
+        _testVersion = MonitoringController.GetCurrentVersion();
     }
 
     [Benchmark]
     public bool ShouldTrackBenchmark()
     {
-        return MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, ReporterType, FilterType);
+        return MonitoringController.ShouldTrack(_testVersion, ReporterType, FilterType);
     }
 
     [Benchmark]
@@ -44,7 +46,8 @@ public class MonitoringControllerBenchmarks
     {
         using (MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
         {
-            MonitoringController.ShouldTrack(MonitoringController.CurrentVersion, ReporterType, FilterType);
+            var currentVersion = MonitoringController.GetCurrentVersion();
+            MonitoringController.ShouldTrack(currentVersion, ReporterType, FilterType);
         }
     }
 
@@ -68,8 +71,24 @@ public class MonitoringControllerBenchmarks
     }
 
     [Benchmark]
-    public void GetCurrentVersionBenchmark()
+    public MonitoringVersion GetCurrentVersionBenchmark()
     {
-        _ = MonitoringController.GetCurrentVersion();
+        return MonitoringController.GetCurrentVersion();
+    }
+
+    [Benchmark]
+    public void VersionComparisonBenchmark()
+    {
+        var currentVersion = MonitoringController.GetCurrentVersion();
+        _ = currentVersion == _testVersion;
+    }
+
+    [Benchmark]
+    public void BeginOperationBenchmark()
+    {
+        using (MonitoringController.BeginOperation(out var operationVersion))
+        {
+            _ = MonitoringController.ShouldTrack(operationVersion, ReporterType, FilterType);
+        }
     }
 }
