@@ -5,6 +5,7 @@ namespace Orc.Monitoring;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 
 
@@ -12,12 +13,16 @@ public static class MonitoringDiagnostics
 {
     private static readonly ConcurrentQueue<VersionChangeRecord> _versionHistory = new();
     private static readonly ILogger _logger = MonitoringController.CreateLogger(typeof(MonitoringDiagnostics));
+    private const int MaxHistorySize = 1000; // Adjust as needed
 
     public static void LogVersionChange(MonitoringVersion oldVersion, MonitoringVersion newVersion)
     {
         var record = new VersionChangeRecord(oldVersion, newVersion, DateTime.UtcNow);
         _versionHistory.Enqueue(record);
         _logger.LogInformation($"Monitoring version changed from {oldVersion} to {newVersion}");
+
+        // Trim history if it exceeds the max size
+        while (_versionHistory.Count > MaxHistorySize && _versionHistory.TryDequeue(out _)) { }
     }
 
     public static IReadOnlyList<VersionChangeRecord> GetVersionHistory()
@@ -40,6 +45,18 @@ public static class MonitoringDiagnostics
         return _versionHistory.Count;
     }
 
+    public static TimeSpan GetAverageVersionDuration()
+    {
+        var records = _versionHistory.ToArray();
+        if (records.Length < 2) return TimeSpan.Zero;
+
+        var totalDuration = records.Skip(1)
+            .Zip(records, (current, previous) => current.Timestamp - previous.Timestamp)
+            .Aggregate(TimeSpan.Zero, (total, duration) => total + duration);
+
+        return totalDuration / (records.Length - 1);
+    }
+
     public static string GenerateVersionReport()
     {
         var report = new System.Text.StringBuilder();
@@ -48,7 +65,15 @@ public static class MonitoringDiagnostics
         {
             report.AppendLine($"  {record.Timestamp:yyyy-MM-dd HH:mm:ss.fff}: {record.OldVersion} -> {record.NewVersion}");
         }
+        report.AppendLine($"Total Version Changes: {GetVersionChangeCount()}");
+        report.AppendLine($"Average Version Duration: {GetAverageVersionDuration()}");
         return report.ToString();
+    }
+
+    public static VersionChangeRecord? FindVersionAtTime(DateTime time)
+    {
+        return _versionHistory
+            .LastOrDefault(r => r.Timestamp <= time);
     }
 }
 
