@@ -22,8 +22,22 @@ public class MonitoringIntegrationTests
 #if DEBUG || TEST
         MonitoringController.ResetForTesting();
 #endif
-        MonitoringController.Enable();
         _sequenceReporter = new MockSequenceReporter();
+
+        PerformanceMonitor.Configure(config =>
+        {
+            config.AddReporter(_sequenceReporter.GetType());
+            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
+        });
+
+        // Add all public methods of the test class to tracked methods
+        foreach (var method in typeof(MonitoringIntegrationTests).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        {
+            PerformanceMonitor.AddTrackedMethod(typeof(MonitoringIntegrationTests), method);
+        }
+
+        MonitoringController.Enable();
+        MonitoringController.EnableReporter(_sequenceReporter.GetType());
     }
 
     [Test]
@@ -33,8 +47,9 @@ public class MonitoringIntegrationTests
         {
             config.AddReporter<PerformanceReporter>();
             config.AddFilter<PerformanceFilter>();
-            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
         });
+
+        MonitoringController.EnableReporter(typeof(PerformanceReporter));
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
 
@@ -78,13 +93,7 @@ public class MonitoringIntegrationTests
     [Test]
     public void RootMethod_SetsRootMethodBeforeStartingReporting()
     {
-        PerformanceMonitor.Configure(config =>
-        {
-            config.AddReporter(_sequenceReporter.GetType());
-            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
-        });
-
-        MonitoringController.EnableReporter(_sequenceReporter.GetType());
+        _sequenceReporter.Reset();
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
 
@@ -101,13 +110,7 @@ public class MonitoringIntegrationTests
     [Test]
     public async Task AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync()
     {
-        PerformanceMonitor.Configure(config =>
-        {
-            config.AddReporter(_sequenceReporter.GetType());
-            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
-        });
-
-        MonitoringController.EnableReporter(_sequenceReporter.GetType());
+        _sequenceReporter.Reset();
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
 
@@ -159,6 +162,13 @@ public class MonitoringIntegrationTests
         public IOutputContainer AddOutput<TOutput>(object parameter = null) where TOutput : IReportOutput, new()
         {
             return this;
+        }
+
+        public void Reset()
+        {
+            OperationSequence.Clear();
+            RootMethodName = null;
+            _rootMethod = null;
         }
     }
 }
