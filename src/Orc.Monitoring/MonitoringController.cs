@@ -74,6 +74,7 @@ public static class MonitoringController
     private static readonly ConcurrentDictionary<Type, bool> _filterEffectiveStates = new();
     private static readonly ReaderWriterLockSlim _stateLock = new();
     private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
+    private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?), bool> _shouldTrackCache = new();
 
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
@@ -151,10 +152,14 @@ public static class MonitoringController
 
     public static bool ShouldTrack(MonitoringVersion operationVersion, Type? reporterType = null, Type? filterType = null)
     {
-        return IsEnabled
-               && operationVersion == _currentVersion
-               && (reporterType is null || IsReporterEnabled(reporterType))
-               && (filterType is null || IsFilterEnabled(filterType));
+        return _shouldTrackCache.GetOrAdd((operationVersion, reporterType, filterType), key =>
+        {
+            var (version, reporter, filter) = key;
+            return IsEnabled
+                   && version == _currentVersion
+                   && (reporter is null || IsReporterEnabled(reporter))
+                   && (filter is null || IsFilterEnabled(filter));
+        });
     }
 
     public static IDisposable BeginOperation(out MonitoringVersion operationVersion)
@@ -178,15 +183,26 @@ public static class MonitoringController
     {
         return new TemporaryStateChange(MonitoringComponentType.Filter, typeof(T));
     }
-
-
+    
     private static void UpdateVersion()
     {
         var oldVersion = _currentVersion;
-        _currentVersion = new MonitoringVersion(_currentVersion.MainVersion + 1, Guid.NewGuid());
+        long newMainVersion = _currentVersion.MainVersion + 1;
+
+        // Check for overflow
+        if (newMainVersion < 0)
+        {
+            // Reset to 0 if overflow occurs
+            newMainVersion = 0;
+            _logger.LogWarning("MonitoringVersion MainVersion overflowed and was reset to 0.");
+        }
+
+        _currentVersion = new MonitoringVersion(newMainVersion, Guid.NewGuid());
         MonitoringDiagnostics.LogVersionChange(oldVersion, _currentVersion);
         VersionChanged?.Invoke(null, _currentVersion);
         PropagateVersionChange(_currentVersion);
+
+        _shouldTrackCache.Clear();
     }
 
     private static event Action<MonitoringComponentType, string, bool, MonitoringVersion>? StateChangedCallback;
@@ -219,6 +235,7 @@ public static class MonitoringController
             UpdateVersion();
             _logger.LogDebug($"{componentType} {type.Name} {(enabled ? "enabled" : "disabled")}. New version: {_currentVersion}");
             OnStateChanged(componentType, type.Name, effectiveStates[type], _currentVersion);
+            _shouldTrackCache.Clear();
         }
         finally
         {
