@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Reporters.ReportOutputs;
 
 /// <summary>
 /// Provides centralized control for the monitoring system, including hierarchical control of reporters and filters.
@@ -61,8 +62,6 @@ using Microsoft.Extensions.Logging;
 /// - State changes are not persisted across application restarts.
 /// - Temporary state changes are not thread-safe across multiple threads.
 /// </remarks>
-
-
 public static class MonitoringController
 {
     private static int _isEnabled = 0;
@@ -72,9 +71,10 @@ public static class MonitoringController
     private static readonly ConcurrentDictionary<Type, bool> _filterTrueStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _reporterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _filterEffectiveStates = new();
+    private static readonly ConcurrentDictionary<Type, bool> _outputTypeStates = new();
     private static readonly ReaderWriterLockSlim _stateLock = new();
     private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
-    private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?), bool> _shouldTrackCache = new();
+    private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?), bool> _shouldTrackCache = new();
 
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
@@ -150,22 +150,73 @@ public static class MonitoringController
     public static void DisableFilter(Type filterType) => SetComponentState(MonitoringComponentType.Filter, filterType, false);
     public static bool IsFilterEnabled(Type filterType) => IsComponentEnabled(_filterEffectiveStates, filterType);
 
+    public static void EnableOutputType<T>() where T : IReportOutput => EnableOutputType(typeof(T));
+    public static void DisableOutputType<T>() where T : IReportOutput => DisableOutputType(typeof(T));
+    public static bool IsOutputTypeEnabled<T>() where T : IReportOutput => IsOutputTypeEnabled(typeof(T));
+
+    public static void EnableOutputType(Type outputType)
+    {
+        if (!typeof(IReportOutput).IsAssignableFrom(outputType))
+        {
+            throw new ArgumentException("Type must implement IReportOutput", nameof(outputType));
+        }
+
+        _stateLock.EnterWriteLock();
+        try
+        {
+            _outputTypeStates[outputType] = true;
+            UpdateVersion();
+            _logger.LogDebug($"Output type {outputType.Name} enabled. New version: {_currentVersion}");
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
+    }
+
+    public static void DisableOutputType(Type outputType)
+    {
+        if (!typeof(IReportOutput).IsAssignableFrom(outputType))
+        {
+            throw new ArgumentException("Type must implement IReportOutput", nameof(outputType));
+        }
+
+        _stateLock.EnterWriteLock();
+        try
+        {
+            _outputTypeStates[outputType] = false;
+            UpdateVersion();
+            _logger.LogDebug($"Output type {outputType.Name} disabled. New version: {_currentVersion}");
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
+    }
+
+    public static bool IsOutputTypeEnabled(Type outputType)
+    {
+        return _outputTypeStates.TryGetValue(outputType, out bool state) && state && IsEnabled;
+    }
+
     /// <summary>
     /// Determines whether monitoring should track the current operation based on the given version and component types.
     /// </summary>
     /// <param name="operationVersion">The version of the operation to check.</param>
     /// <param name="reporterType">The type of the reporter to check, if any.</param>
     /// <param name="filterType">The type of the filter to check, if any.</param>
+    /// <param name="outputType">The type of the output to check, if any.</param>
     /// <returns>True if the operation should be tracked, false otherwise.</returns>
-    public static bool ShouldTrack(MonitoringVersion operationVersion, Type? reporterType = null, Type? filterType = null)
+    public static bool ShouldTrack(MonitoringVersion operationVersion, Type? reporterType = null, Type? filterType = null, Type? outputType = null)
     {
-        return _shouldTrackCache.GetOrAdd((operationVersion, reporterType, filterType), key =>
+        return _shouldTrackCache.GetOrAdd((operationVersion, reporterType, filterType, outputType), key =>
         {
-            var (version, reporter, filter) = key;
+            var (version, reporter, filter, output) = key;
             return IsEnabled
                    && version == _currentVersion
                    && (reporter is null || IsReporterEnabled(reporter))
-                   && (filter is null || IsFilterEnabled(filter));
+                   && (filter is null || IsFilterEnabled(filter))
+                   && (output is null || IsOutputTypeEnabled(output));
         });
     }
 
@@ -305,6 +356,10 @@ public static class MonitoringController
         {
             _filterEffectiveStates[key] = false;
         }
+        foreach (var key in _outputTypeStates.Keys)
+        {
+            _outputTypeStates[key] = false;
+        }
     }
 
     private static void PropagateVersionChange(MonitoringVersion newVersion)
@@ -405,6 +460,7 @@ public static class MonitoringController
     public enum MonitoringComponentType
     {
         Reporter,
-        Filter
+        Filter,
+        OutputType
     }
 }

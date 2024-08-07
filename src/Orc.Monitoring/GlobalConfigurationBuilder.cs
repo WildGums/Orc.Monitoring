@@ -5,6 +5,7 @@ using System.Reflection;
 using Orc.Monitoring.Configuration;
 using Orc.Monitoring.Filters;
 using Orc.Monitoring.Reporters;
+using Orc.Monitoring.Reporters.ReportOutputs;
 
 public class GlobalConfigurationBuilder
 {
@@ -85,6 +86,32 @@ public class GlobalConfigurationBuilder
     public GlobalConfigurationBuilder TrackAssembly(Assembly assembly)
     {
         _config.TrackAssembly(assembly);
+        return this;
+    }
+
+    public GlobalConfigurationBuilder SetOutputTypeState<T>(bool enabled) where T : IReportOutput
+    {
+        if (enabled)
+        {
+            MonitoringController.EnableOutputType<T>();
+        }
+        else
+        {
+            MonitoringController.DisableOutputType<T>();
+        }
+        return this;
+    }
+
+    public GlobalConfigurationBuilder SetOutputTypeState(Type outputType, bool enabled)
+    {
+        if (enabled)
+        {
+            MonitoringController.EnableOutputType(outputType);
+        }
+        else
+        {
+            MonitoringController.DisableOutputType(outputType);
+        }
         return this;
     }
 

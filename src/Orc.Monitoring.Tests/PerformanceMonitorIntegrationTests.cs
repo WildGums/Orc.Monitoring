@@ -219,4 +219,39 @@ public class PerformanceMonitorIntegrationTests
         Console.WriteLine($"Final CallCount: {_testReporter.CallCount}");
         Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected 1 call: method started before disabling should complete");
     }
+
+    [Test]
+    public void Configure_EnablesDefaultOutputTypes()
+    {
+        PerformanceMonitor.Configure(_ => { });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MonitoringController.IsOutputTypeEnabled<CsvReportOutput>(), Is.True);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<RanttOutput>(), Is.True);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<TxtReportOutput>(), Is.True);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<CatelLogReportOutput>(), Is.True);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<DebugCatelLogTraceReportOutput>(), Is.True);
+        });
+    }
+
+    [Test]
+    public void Configure_AllowsCustomOutputTypeConfiguration()
+    {
+        PerformanceMonitor.Configure(config =>
+        {
+            config.SetOutputTypeState<CsvReportOutput>(false);
+            config.SetOutputTypeState<RanttOutput>(true);
+        });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(MonitoringController.IsOutputTypeEnabled<CsvReportOutput>(), Is.False);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<RanttOutput>(), Is.True);
+            // Check other output types are still enabled by default
+            Assert.That(MonitoringController.IsOutputTypeEnabled<TxtReportOutput>(), Is.True);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<CatelLogReportOutput>(), Is.True);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<DebugCatelLogTraceReportOutput>(), Is.True);
+        });
+    }
 }

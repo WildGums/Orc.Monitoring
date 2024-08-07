@@ -372,12 +372,20 @@ public sealed class WorkflowReporter : IMethodCallReporter
         PublishEndMethodCall(end);
     }
 
-    private void PublishGap(CallGap callGap)
+    private void PublishToOutputs(Action<IReportOutput> action)
     {
         foreach (var output in _outputs)
         {
-            output.WriteItem(callGap);
+            if (MonitoringController.IsOutputTypeEnabled(output.GetType()))
+            {
+                action(output);
+            }
         }
+    }
+
+    private void PublishGap(CallGap callGap)
+    {
+        PublishToOutputs(output => output.WriteItem(callGap));
     }
 
     private void PublishStartMethodCall(MethodCallStart methodCallStart)
@@ -394,10 +402,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             .Append("' started");
 
         var message = _messageBuilder.ToString();
-        foreach (var output in _outputs)
-        {
-            output.WriteItem(methodCallStart, message);
-        }
+        PublishToOutputs(output => output.WriteItem(methodCallStart, message));
     }
 
     private void PublishEndMethodCall(MethodCallEnd methodCallEnd)
@@ -416,10 +421,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             .Append(" ms");
 
         var message = _messageBuilder.ToString();
-        foreach (var output in _outputs)
-        {
-            output.WriteItem(methodCallEnd, message);
-        }
+        PublishToOutputs(output => output.WriteItem(methodCallEnd, message));
     }
 
     private void PublishSummary(MethodCallInfo rootMethodCallInfo)
@@ -499,10 +501,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     private void PublishSummary(string message)
     {
-        foreach (var output in _outputs)
-        {
-            output.WriteSummary(message);
-        }
+        PublishToOutputs(output => output.WriteSummary(message));
     }
 
     private class CallProcessingContext

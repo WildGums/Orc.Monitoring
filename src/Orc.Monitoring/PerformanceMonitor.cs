@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Filters;
+using Orc.Monitoring.Reporters.ReportOutputs;
 using Reporters;
 
 public static class PerformanceMonitor
@@ -21,7 +22,13 @@ public static class PerformanceMonitor
     {
         Console.WriteLine("PerformanceMonitor.Configure called");
         var builder = new GlobalConfigurationBuilder();
+
+        // Enable default output types first
+        EnableDefaultOutputTypes();
+
+        // Apply custom configuration
         configAction(builder);
+
         var config = builder.Build();
         MonitoringController.Configuration = config;
         ApplyGlobalConfiguration(config);
@@ -29,6 +36,27 @@ public static class PerformanceMonitor
         // Enable monitoring by default when configured
         MonitoringController.Enable();
         Console.WriteLine("Monitoring enabled after configuration");
+    }
+
+    private static void EnableDefaultOutputTypes()
+    {
+        var outputTypes = new[]
+        {
+            typeof(CsvReportOutput),
+            typeof(RanttOutput),
+            typeof(TxtReportOutput),
+            typeof(CatelLogReportOutput),
+            typeof(DebugCatelLogTraceReportOutput)
+        };
+
+        foreach (var outputType in outputTypes)
+        {
+            // Only enable if not already configured
+            if (!MonitoringController.IsOutputTypeEnabled(outputType))
+            {
+                MonitoringController.EnableOutputType(outputType);
+            }
+        }
     }
 
     private static void ApplyGlobalConfiguration(MonitoringConfiguration config)
