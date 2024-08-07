@@ -1,9 +1,9 @@
 ﻿namespace Orc.Monitoring;
 
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
-using System;
 
 public class MethodCallInfoPool
 {
@@ -12,17 +12,27 @@ public class MethodCallInfoPool
     public MethodCallInfo Rent(IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, int level, string id, MethodCallInfo? parent, Dictionary<string, string> attributeParameters)
     {
+        if (!MonitoringController.IsEnabled)
+        {
+            return MethodCallInfo.CreateNull();
+        }
+
         if (_pool.TryTake(out var item))
         {
             item.Reset(classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
             return item;
         }
 
-        return new MethodCallInfo(this, classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
+        return MethodCallInfo.Create(this, classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
     }
 
     public void Return(MethodCallInfo item)
     {
+        if (item.IsNull)
+        {
+            return;
+        }
+
         item.Clear();
         _pool.Add(item);
     }

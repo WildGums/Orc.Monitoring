@@ -8,6 +8,13 @@ public class MethodConfigurationBuilder
 {
     private readonly MethodConfiguration _config = new MethodConfiguration();
 
+    public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
+    {
+        Console.WriteLine($"Adding reporter: {reporter.GetType().Name}");
+        _config.Reporters.Add(reporter);
+        return this;
+    }
+
     public MethodConfigurationBuilder AddReporter<TReporter>(Action<TReporter>? configAction = null) where TReporter : IMethodCallReporter, new()
     {
         var reporter = new TReporter();

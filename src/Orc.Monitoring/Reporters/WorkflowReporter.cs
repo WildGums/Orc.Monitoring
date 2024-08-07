@@ -9,17 +9,17 @@ using System.Reactive.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using Catel.Logging;
 using MethodLifeCycleItems;
 using Monitoring;
 using Filters;
 using ReportOutputs;
+using Microsoft.Extensions.Logging;
 
 public sealed class WorkflowReporter : IMethodCallReporter
 {
     private const int BatchSize = 100;
 
-    private static readonly ILog Log = LogManager.GetCurrentClassLogger();
+    private readonly ILogger<WorkflowReporter> _logger;
 
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
@@ -27,9 +27,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private readonly List<IMethodFilter> _filters = new();
     private readonly Dictionary<int, int> _activeThreads = new();
     private readonly TaskCompletionSource _tcs = new();
-#if DEBUG
-    private readonly IReportOutput _debugOutput = new DebugCatelLogTraceReportOutput();
-#endif
 
     private MethodInfo? _rootMethod;
     private MethodCallInfo? _rootMethodCallInfo;
@@ -43,6 +40,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     public WorkflowReporter()
     {
+        _logger = MonitoringController.CreateLogger<WorkflowReporter>();
+
         // Add default WorkflowItemFilter
         _filters.Add(new WorkflowItemFilter());
     }
@@ -80,23 +79,12 @@ public sealed class WorkflowReporter : IMethodCallReporter
             throw new InvalidOperationException("Unable to start reporting when root method is not set");
         }
 
+        _logger.LogInformation("WorkflowReporter started reporting");
+
         _disposables?.DisposeAsync().AsTask().Wait();
         _disposables = new AsyncCompositeDisposable();
 
         InitializeOutputs();
-
-#if DEBUG
-        if (_debugOutput is not null)
-        {
-            _disposables.Add(new AsyncDisposable(async () =>
-            {
-                callStack.Subscribe(
-                    x => _debugOutput.WriteItem(x),
-                    exception => _debugOutput.WriteError(exception)
-                ).Dispose();
-            }));
-        }
-#endif
 
         _disposables.Add(CreateReportingObservable(callStack));
 
@@ -133,12 +121,11 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         foreach (var reportOutput in _outputs)
         {
-            _disposables.Add(reportOutput.Initialize(this));
+            if (MonitoringController.IsOutputTypeEnabled(reportOutput.GetType()))
+            {
+                _disposables.Add(reportOutput.Initialize(this));
+            }
         }
-
-#if DEBUG
-        _disposables.Add(_debugOutput.Initialize(this));
-#endif
     }
 
     public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
@@ -165,7 +152,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             .Where(x => ShouldIncludeMethodCall(x.MethodCallInfo))
             .Subscribe(
                 ProcessMethodLifeCycleItem,
-                ex => Log.Error($"Error during summary reporting: {ex.Message}")
+                ex => _logger.LogError($"Error during summary reporting: {ex.Message}")
             );
 
         return new AsyncDisposable(async () => disposable.Dispose());
@@ -368,12 +355,20 @@ public sealed class WorkflowReporter : IMethodCallReporter
         PublishEndMethodCall(end);
     }
 
-    private void PublishGap(CallGap callGap)
+    private void PublishToOutputs(Action<IReportOutput> action)
     {
         foreach (var output in _outputs)
         {
-            output.WriteItem(callGap);
+            if (MonitoringController.IsOutputTypeEnabled(output.GetType()))
+            {
+                action(output);
+            }
         }
+    }
+
+    private void PublishGap(CallGap callGap)
+    {
+        PublishToOutputs(output => output.WriteItem(callGap));
     }
 
     private void PublishStartMethodCall(MethodCallStart methodCallStart)
@@ -390,10 +385,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             .Append("' started");
 
         var message = _messageBuilder.ToString();
-        foreach (var output in _outputs)
-        {
-            output.WriteItem(methodCallStart, message);
-        }
+        PublishToOutputs(output => output.WriteItem(methodCallStart, message));
     }
 
     private void PublishEndMethodCall(MethodCallEnd methodCallEnd)
@@ -412,10 +404,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             .Append(" ms");
 
         var message = _messageBuilder.ToString();
-        foreach (var output in _outputs)
-        {
-            output.WriteItem(methodCallEnd, message);
-        }
+        PublishToOutputs(output => output.WriteItem(methodCallEnd, message));
     }
 
     private void PublishSummary(MethodCallInfo rootMethodCallInfo)
@@ -495,10 +484,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     private void PublishSummary(string message)
     {
-        foreach (var output in _outputs)
-        {
-            output.WriteSummary(message);
-        }
+        PublishToOutputs(output => output.WriteSummary(message));
     }
 
     private class CallProcessingContext
