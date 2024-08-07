@@ -1,16 +1,12 @@
 ﻿// ReSharper disable InconsistentNaming
 #pragma warning disable IDE1006
-// ReSharper disable InconsistentNaming
-#pragma warning disable IDE1006
 namespace Orc.Monitoring;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Filters;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Reporters;
+using Reporters.ReportOutputs;
 
 public static class PerformanceMonitor
 {
@@ -42,11 +38,8 @@ public static class PerformanceMonitor
     {
         var outputTypes = new[]
         {
-            typeof(CsvReportOutput),
             typeof(RanttOutput),
             typeof(TxtReportOutput),
-            typeof(CatelLogReportOutput),
-            typeof(DebugCatelLogTraceReportOutput)
         };
 
         foreach (var outputType in outputTypes)

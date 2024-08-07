@@ -27,9 +27,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private readonly List<IMethodFilter> _filters = new();
     private readonly Dictionary<int, int> _activeThreads = new();
     private readonly TaskCompletionSource _tcs = new();
-#if DEBUG
-    private readonly IReportOutput _debugOutput = new DebugCatelLogTraceReportOutput();
-#endif
 
     private MethodInfo? _rootMethod;
     private MethodCallInfo? _rootMethodCallInfo;
@@ -89,19 +86,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         InitializeOutputs();
 
-#if DEBUG
-        if (_debugOutput is not null)
-        {
-            _disposables.Add(new AsyncDisposable(async () =>
-            {
-                callStack.Subscribe(
-                    x => _debugOutput.WriteItem(x),
-                    exception => _debugOutput.WriteError(exception)
-                ).Dispose();
-            }));
-        }
-#endif
-
         _disposables.Add(CreateReportingObservable(callStack));
 
         _disposables.Add(new AsyncDisposable(async () =>
@@ -139,10 +123,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
         {
             _disposables.Add(reportOutput.Initialize(this));
         }
-
-#if DEBUG
-        _disposables.Add(_debugOutput.Initialize(this));
-#endif
     }
 
     public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()

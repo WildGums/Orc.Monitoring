@@ -227,11 +227,9 @@ public class PerformanceMonitorIntegrationTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(MonitoringController.IsOutputTypeEnabled<CsvReportOutput>(), Is.True);
+            Assert.That(MonitoringController.IsOutputTypeEnabled<CsvReportOutput>(), Is.False);
             Assert.That(MonitoringController.IsOutputTypeEnabled<RanttOutput>(), Is.True);
             Assert.That(MonitoringController.IsOutputTypeEnabled<TxtReportOutput>(), Is.True);
-            Assert.That(MonitoringController.IsOutputTypeEnabled<CatelLogReportOutput>(), Is.True);
-            Assert.That(MonitoringController.IsOutputTypeEnabled<DebugCatelLogTraceReportOutput>(), Is.True);
         });
     }
 
@@ -250,8 +248,6 @@ public class PerformanceMonitorIntegrationTests
             Assert.That(MonitoringController.IsOutputTypeEnabled<RanttOutput>(), Is.True);
             // Check other output types are still enabled by default
             Assert.That(MonitoringController.IsOutputTypeEnabled<TxtReportOutput>(), Is.True);
-            Assert.That(MonitoringController.IsOutputTypeEnabled<CatelLogReportOutput>(), Is.True);
-            Assert.That(MonitoringController.IsOutputTypeEnabled<DebugCatelLogTraceReportOutput>(), Is.True);
         });
     }
 }
