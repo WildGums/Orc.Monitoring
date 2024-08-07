@@ -7,7 +7,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Filters;
 using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters;
 
 /// <summary>
 /// Provides centralized control for the monitoring system, including hierarchical control of reporters and filters.
@@ -142,13 +144,75 @@ public static class MonitoringController
         }
     }
 
-    public static void EnableReporter(Type reporterType) => SetComponentState(MonitoringComponentType.Reporter, reporterType, true);
-    public static void DisableReporter(Type reporterType) => SetComponentState(MonitoringComponentType.Reporter, reporterType, false);
-    public static bool IsReporterEnabled(Type reporterType) => IsComponentEnabled(_reporterEffectiveStates, reporterType);
+    public static void EnableReporter<T>() where T : IMethodCallReporter => EnableReporter(typeof(T));
 
-    public static void EnableFilter(Type filterType) => SetComponentState(MonitoringComponentType.Filter, filterType, true);
-    public static void DisableFilter(Type filterType) => SetComponentState(MonitoringComponentType.Filter, filterType, false);
-    public static bool IsFilterEnabled(Type filterType) => IsComponentEnabled(_filterEffectiveStates, filterType);
+    public static void DisableReporter<T>() where T : IMethodCallReporter => DisableReporter(typeof(T));
+
+    public static bool IsReporterEnabled<T>() where T : IMethodCallReporter => IsReporterEnabled(typeof(T));
+
+    public static void EnableReporter(Type reporterType)
+    {
+        if(!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
+        {
+            throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
+        }
+
+        SetComponentState(MonitoringComponentType.Reporter, reporterType, true);
+    }
+
+    public static void DisableReporter(Type reporterType)
+    {
+        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
+        {
+            throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
+        }
+
+        SetComponentState(MonitoringComponentType.Reporter, reporterType, false);
+    }
+
+    public static bool IsReporterEnabled(Type reporterType)
+    {
+        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
+        {
+            throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
+        }
+
+        return IsComponentEnabled(_reporterEffectiveStates, reporterType);
+    }
+
+    public static void EnableFilter<T>() where T : IMethodFilter => EnableFilter(typeof(T));
+    public static void DisableFilter<T>() where T : IMethodFilter => DisableFilter(typeof(T));
+    public static bool IsFilterEnabled<T>() where T : IMethodFilter => IsFilterEnabled(typeof(T));
+
+    public static void EnableFilter(Type filterType)
+    {
+        if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
+        {
+            throw new ArgumentException("Type must implement IFilter", nameof(filterType));
+        }
+
+        SetComponentState(MonitoringComponentType.Filter, filterType, true);
+    }
+
+    public static void DisableFilter(Type filterType)
+    {
+        if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
+        {
+            throw new ArgumentException("Type must implement IFilter", nameof(filterType));
+        }
+
+        SetComponentState(MonitoringComponentType.Filter, filterType, false);
+    }
+
+    public static bool IsFilterEnabled(Type filterType)
+    {
+        if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
+        {
+            throw new ArgumentException("Type must implement IFilter", nameof(filterType));
+        }
+
+        return IsComponentEnabled(_filterEffectiveStates, filterType);
+    }
 
     public static void EnableOutputType<T>() where T : IReportOutput => EnableOutputType(typeof(T));
     public static void DisableOutputType<T>() where T : IReportOutput => DisableOutputType(typeof(T));
@@ -161,17 +225,7 @@ public static class MonitoringController
             throw new ArgumentException("Type must implement IReportOutput", nameof(outputType));
         }
 
-        _stateLock.EnterWriteLock();
-        try
-        {
-            _outputTypeStates[outputType] = true;
-            UpdateVersion();
-            _logger.LogDebug($"Output type {outputType.Name} enabled. New version: {_currentVersion}");
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
-        }
+        SetComponentState(MonitoringComponentType.OutputType, outputType, true);
     }
 
     public static void DisableOutputType(Type outputType)
@@ -181,22 +235,12 @@ public static class MonitoringController
             throw new ArgumentException("Type must implement IReportOutput", nameof(outputType));
         }
 
-        _stateLock.EnterWriteLock();
-        try
-        {
-            _outputTypeStates[outputType] = false;
-            UpdateVersion();
-            _logger.LogDebug($"Output type {outputType.Name} disabled. New version: {_currentVersion}");
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
-        }
+        SetComponentState(MonitoringComponentType.OutputType, outputType, false);
     }
 
     public static bool IsOutputTypeEnabled(Type outputType)
     {
-        return _outputTypeStates.TryGetValue(outputType, out bool state) && state && IsEnabled;
+        return IsComponentEnabled(_filterEffectiveStates, outputType);
     }
 
     /// <summary>
