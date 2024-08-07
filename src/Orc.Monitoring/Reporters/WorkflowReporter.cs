@@ -121,7 +121,10 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         foreach (var reportOutput in _outputs)
         {
-            _disposables.Add(reportOutput.Initialize(this));
+            if (MonitoringController.IsOutputTypeEnabled(reportOutput.GetType()))
+            {
+                _disposables.Add(reportOutput.Initialize(this));
+            }
         }
     }
 
