@@ -5,6 +5,7 @@ using NUnit.Framework;
 using System;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using Moq;
@@ -97,7 +98,7 @@ public class CallStackParentChildTests
     [Test]
     public void MultiThreadedCalls_SetsParentCorrectlyAcrossThreads()
     {
-        _callStack.Reset(); // Reset the state before the test
+        _callStack.Reset();
 
         var parentInfo = CreateMethodCallInfo("ParentMethod");
         _callStack.Push(parentInfo);
@@ -106,9 +107,12 @@ public class CallStackParentChildTests
         Console.WriteLine(_callStack.DumpState());
 
         var childInfos = new ConcurrentBag<MethodCallInfo>();
-        using var allChildrenPushed = new ManualResetEventSlim(false);
+#pragma warning disable IDISP001
+        var allChildrenPushed = new ManualResetEventSlim(false);
+#pragma warning restore IDISP001
 
-        Parallel.For(0, 5, _ => {
+        var tasks = Enumerable.Range(0, 5).Select(_ => Task.Run(() =>
+        {
             var childInfo = CreateMethodCallInfo("ChildMethod");
             _callStack.Push(childInfo);
             childInfos.Add(childInfo);
@@ -117,9 +121,10 @@ public class CallStackParentChildTests
             {
                 allChildrenPushed.Set();
             }
-        });
+        })).ToArray();
 
-        allChildrenPushed.Wait(TimeSpan.FromSeconds(5)); // Wait for all children to be pushed, with a timeout
+        Task.WaitAll(tasks);
+        allChildrenPushed.Wait(TimeSpan.FromSeconds(5));
 
         Console.WriteLine("All children pushed. Final state:");
         Console.WriteLine(_callStack.DumpState());
@@ -131,6 +136,7 @@ public class CallStackParentChildTests
             Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), $"Child {childInfo.Id} should have parent {parentInfo.Id}");
             Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), $"Child {childInfo.Id} should have parent thread ID {parentInfo.ThreadId}");
             Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), $"Child {childInfo.Id} should have level {parentInfo.Level + 1}");
+            Assert.That(childInfo.ThreadId, Is.Not.EqualTo(parentInfo.ThreadId), $"Child {childInfo.Id} should be on a different thread than the parent");
         }
     }
 
