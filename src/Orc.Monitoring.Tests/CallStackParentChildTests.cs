@@ -22,7 +22,9 @@ public class CallStackParentChildTests
         _config = new MonitoringConfiguration();
         _callStack = new CallStack(_config);
         _mockClassMonitor = new Mock<IClassMonitor>();
+#if DEBUG || TEST
         _callStack.ClearGlobalParent();
+#endif
 
         // Enable monitoring
         MonitoringController.Enable();
