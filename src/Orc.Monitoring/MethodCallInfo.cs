@@ -11,12 +11,16 @@ using Orc.Monitoring.Reporters;
 
 public class MethodCallInfo
 {
+    public static readonly MethodCallInfo Null = new MethodCallInfo(null) { IsNull = true };
+
     private readonly MethodCallInfoPool? _pool;
+
     private IClassMonitor? _classMonitor;
     private int _usageCounter;
     private bool _readyToReturn;
+    private MethodCallInfo? _parent;
 
-    public bool IsNull { get; private set; }
+    public bool IsNull { get; init; }
     public Dictionary<string, string>? Parameters { get; set; }
     public MethodInfo? MethodInfo { get; set; }
     public Type? ClassType { get; set; }
@@ -26,8 +30,17 @@ public class MethodCallInfo
     public int Level { get; set; }
     public string? Id { get; set; }
     public TimeSpan Elapsed { get; set; }
-    public MethodCallInfo? Parent { get; set; }
-    public int ParentThreadId { get; set; }
+    public MethodCallInfo? Parent
+    {
+        get => _parent;
+        set
+        {
+            _parent = value;
+            ParentThreadId = value?.ThreadId ?? -1;
+        }
+    }
+
+    public int ParentThreadId { get; set; } = -1;
     public HashSet<string>? AttributeParameters { get; private set; }
     public MonitoringVersion Version { get; private set; }
 
@@ -36,26 +49,18 @@ public class MethodCallInfo
         _pool = pool;
     }
 
-    public static MethodCallInfo CreateNull()
-    {
-        return new MethodCallInfo(null)
-        {
-            IsNull = true
-        };
-    }
+    public static MethodCallInfo CreateNull() => Null;
 
     public static MethodCallInfo Create(MethodCallInfoPool pool, IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
-        IReadOnlyCollection<Type> genericArguments, int level, string id, MethodCallInfo? parent,
-        Dictionary<string, string> attributeParameters)
+        IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
         var info = new MethodCallInfo(pool);
-        info.Reset(classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
+        info.Reset(classMonitor, classType, methodInfo, genericArguments, id, attributeParameters);
         return info;
     }
 
     public void Reset(IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
-        IReadOnlyCollection<Type> genericArguments, int level, string id, MethodCallInfo? parent,
-        Dictionary<string, string> attributeParameters)
+        IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
         if (IsNull) return;
 
@@ -65,12 +70,12 @@ public class MethodCallInfo
         MethodName = GetMethodName(methodInfo, genericArguments);
         MethodInfo = methodInfo;
         StartTime = DateTime.Now;
-        Level = level;
         Id = id;
         ThreadId = Environment.CurrentManagedThreadId;
         Elapsed = TimeSpan.Zero;
-        Parent = parent;
-        ParentThreadId = parent?.ThreadId ?? -1;
+
+        // Remove setting of Parent, Level, and ParentThreadId here
+        // They will be set in the CallStack.Push method
 
         AttributeParameters = new HashSet<string>(attributeParameters.Keys);
         Parameters = new Dictionary<string, string>(attributeParameters);
@@ -169,5 +174,61 @@ public class MethodCallInfo
         }
 
         return methodName;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is not MethodCallInfo other)
+        {
+            return false;
+        }
+
+        if (IsNull && other.IsNull)
+        {
+            return true;
+        }
+
+        if (IsNull || other.IsNull)
+        {
+            return false;
+        }
+
+        // Compare relevant properties
+        return Id == other.Id &&
+               ThreadId == other.ThreadId &&
+               ParentThreadId == other.ParentThreadId &&
+               Level == other.Level &&
+               MethodName == other.MethodName;
+    }
+
+    public override int GetHashCode()
+    {
+        return IsNull switch
+        {
+            true => 0,
+            _ => HashCode.Combine(Id, ThreadId, ParentThreadId, Level, MethodName)
+        };
+    }
+
+    public static bool operator ==(MethodCallInfo? left, MethodCallInfo? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null)
+        {
+            return right is null || right.IsNull;
+        }
+
+        return right is null 
+            ? left.IsNull 
+            : left.Equals(right);
+    }
+
+    public static bool operator !=(MethodCallInfo? left, MethodCallInfo? right)
+    {
+        return !(left == right);
     }
 }

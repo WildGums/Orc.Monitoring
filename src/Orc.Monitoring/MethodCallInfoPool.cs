@@ -9,21 +9,22 @@ public class MethodCallInfoPool
 {
     private readonly ConcurrentBag<MethodCallInfo> _pool = new ConcurrentBag<MethodCallInfo>();
 
-    public MethodCallInfo Rent(IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
-        IReadOnlyCollection<Type> genericArguments, int level, string id, MethodCallInfo? parent, Dictionary<string, string> attributeParameters)
+    public MethodCallInfo Rent(IClassMonitor classMonitor, Type callerType, MethodInfo methodInfo,
+        IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
         if (!MonitoringController.IsEnabled)
         {
+            Console.WriteLine($"Monitoring is disabled. Returning Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}");
             return MethodCallInfo.CreateNull();
         }
 
         if (_pool.TryTake(out var item))
         {
-            item.Reset(classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
+            item.Reset(classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters);
             return item;
         }
 
-        return MethodCallInfo.Create(this, classMonitor, classType, methodInfo, genericArguments, level, id, parent, attributeParameters);
+        return MethodCallInfo.Create(this, classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters);
     }
 
     public void Return(MethodCallInfo item)
