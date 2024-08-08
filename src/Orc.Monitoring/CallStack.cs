@@ -26,7 +26,7 @@ public class CallStack : IObservable<ICallStackItem>
     private readonly ConcurrentDictionary<int, MethodCallInfo> _threadRootMethods = new();
     private readonly object _globalLock = new object();
 
-    private MethodCallInfo? _globalParent;
+    private MethodCallInfo? _rootParent;
     private int _idCounter = 0;
 
     public CallStack(MonitoringConfiguration monitoringConfig)
@@ -68,32 +68,28 @@ public class CallStack : IObservable<ICallStackItem>
 
         lock (_globalLock)
         {
-            if (threadStack.Count > 0)
+            if (_rootParent is null)
             {
-                var immediateParent = threadStack.Peek();
+                _rootParent = methodCallInfo;
+                methodCallInfo.Parent = MethodCallInfo.Null;
+                methodCallInfo.Level = 1;
+                methodCallInfo.ParentThreadId = -1;
+            }
+            else
+            {
+                var immediateParent = threadStack.Count > 0 ? threadStack.Peek() : _rootParent;
                 methodCallInfo.Parent = immediateParent;
                 methodCallInfo.Level = immediateParent.Level + 1;
                 methodCallInfo.ParentThreadId = immediateParent.ThreadId;
             }
-            else if (_globalParent is not null && !_globalParent.IsNull)
-            {
-                // This is the key change: always use _globalParent for root methods of new threads
-                methodCallInfo.Parent = _globalParent;
-                methodCallInfo.Level = _globalParent.Level + 1;
-                methodCallInfo.ParentThreadId = _globalParent.ThreadId;
-                _threadRootMethods[threadId] = methodCallInfo;
-            }
-            else
-            {
-                methodCallInfo.Parent = MethodCallInfo.Null;
-                methodCallInfo.Level = 1;
-                methodCallInfo.ParentThreadId = -1;
-                _globalParent = methodCallInfo;
-                _threadRootMethods[threadId] = methodCallInfo;
-            }
 
             threadStack.Push(methodCallInfo);
             _globalCallStack.Push(methodCallInfo);
+
+            if (threadStack.Count == 1)
+            {
+                _threadRootMethods[threadId] = methodCallInfo;
+            }
 
             _logger.LogDebug($"Pushed: {methodCallInfo}");
 
@@ -132,10 +128,6 @@ public class CallStack : IObservable<ICallStackItem>
                     if (threadStack.Count == 0)
                     {
                         _threadRootMethods.TryRemove(threadId, out _);
-                        if (_globalParent == methodCallInfo)
-                        {
-                            _globalParent = _threadRootMethods.Values.FirstOrDefault(m => m != methodCallInfo);
-                        }
                     }
                 }
                 else
@@ -160,34 +152,17 @@ public class CallStack : IObservable<ICallStackItem>
                 _logger.LogWarning("Global CallStack mismatch: failed to pop method call info.");
             }
 
+            if (methodCallInfo == _rootParent)
+            {
+                _rootParent = null;
+            }
+
             var currentVersion = MonitoringController.GetCurrentVersion();
             if (MonitoringController.ShouldTrack(currentVersion))
             {
                 NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
             }
         }
-    }
-
-    public string DumpState()
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("CallStack State:");
-        sb.AppendLine($"Global Parent: {_globalParent}");
-        sb.AppendLine("Thread Root Methods:");
-        foreach (var kvp in _threadRootMethods)
-        {
-            sb.AppendLine($"  Thread {kvp.Key}: {kvp.Value}");
-        }
-        sb.AppendLine("Thread Call Stacks:");
-        foreach (var kvp in _threadCallStacks)
-        {
-            sb.AppendLine($"  Thread {kvp.Key}:");
-            foreach (var item in kvp.Value)
-            {
-                sb.AppendLine($"    {item}");
-            }
-        }
-        return sb.ToString();
     }
 
     public void LogStatus(IMethodLifeCycleItem status)
@@ -221,9 +196,39 @@ public class CallStack : IObservable<ICallStackItem>
     }
 
 #if DEBUG || TEST
+    public void Reset()
+    {
+        _rootParent = null;
+        _threadCallStacks.Clear();
+        _globalCallStack.Clear();
+        _threadRootMethods.Clear();
+    }
+
+    public string DumpState()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("CallStack State:");
+        sb.AppendLine($"Root Parent: {_rootParent}");
+        sb.AppendLine("Thread Root Methods:");
+        foreach (var kvp in _threadRootMethods)
+        {
+            sb.AppendLine($"  Thread {kvp.Key}: {kvp.Value}");
+        }
+        sb.AppendLine("Thread Call Stacks:");
+        foreach (var kvp in _threadCallStacks)
+        {
+            sb.AppendLine($"  Thread {kvp.Key}:");
+            foreach (var item in kvp.Value)
+            {
+                sb.AppendLine($"    {item}");
+            }
+        }
+        return sb.ToString();
+    }
+
     internal void ClearGlobalParent()
     {
-        _globalParent = null;
+        _rootParent = null;
     }
 #endif
 
@@ -267,7 +272,6 @@ public class CallStack : IObservable<ICallStackItem>
         {
             return null;
         }
-
 
         // First, try to find the method in the current class
         var currentClassMethods = classType.GetMethods(bindingFlags)
