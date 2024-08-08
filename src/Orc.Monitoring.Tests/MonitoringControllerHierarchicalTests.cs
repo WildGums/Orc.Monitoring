@@ -12,9 +12,7 @@ public class MonitoringControllerHierarchicalTests
     [SetUp]
     public void Setup()
     {
-#if DEBUG || TEST
         MonitoringController.ResetForTesting();
-#endif
     }
 
     [Test]

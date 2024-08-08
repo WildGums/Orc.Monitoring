@@ -19,9 +19,8 @@ public class MonitoringIntegrationTests
     [SetUp]
     public void Setup()
     {
-#if DEBUG || TEST
         MonitoringController.ResetForTesting();
-#endif
+
         _sequenceReporter = new MockSequenceReporter();
 
         PerformanceMonitor.Configure(config =>

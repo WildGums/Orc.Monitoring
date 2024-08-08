@@ -421,7 +421,7 @@ public static class MonitoringController
         }
     }
 
-#if DEBUG || TEST
+    #region Testing
     internal static void ResetForTesting()
     {
         _stateLock.EnterWriteLock();
@@ -450,7 +450,7 @@ public static class MonitoringController
             _stateLock.ExitWriteLock();
         }
     }
-#endif
+    #endregion
 
     private sealed class OperationScope : IDisposable
     {

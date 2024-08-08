@@ -15,9 +15,7 @@ public class MonitoringControllerTests
     [SetUp]
     public void Setup()
     {
-#if DEBUG || TEST
         MonitoringController.ResetForTesting();
-#endif
         MonitoringController.Enable(); // Enable monitoring by default for tests
     }
 

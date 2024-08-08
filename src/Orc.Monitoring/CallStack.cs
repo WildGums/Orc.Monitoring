@@ -198,8 +198,8 @@ public class CallStack : IObservable<ICallStackItem>
         }
     }
 
-#if DEBUG || TEST
-    public void Reset()
+    #region Debugging Methods
+    internal void Reset()
     {
         _rootParent = null;
         _threadCallStacks.Clear();
@@ -207,7 +207,7 @@ public class CallStack : IObservable<ICallStackItem>
         _threadRootMethods.Clear();
     }
 
-    public string DumpState()
+    internal string DumpState()
     {
         var sb = new StringBuilder();
         sb.AppendLine("CallStack State:");
@@ -233,7 +233,7 @@ public class CallStack : IObservable<ICallStackItem>
     {
         _rootParent = null;
     }
-#endif
+    #endregion
 
     private bool ShouldLogStatus(IMethodLifeCycleItem status, MonitoringVersion currentVersion)
     {

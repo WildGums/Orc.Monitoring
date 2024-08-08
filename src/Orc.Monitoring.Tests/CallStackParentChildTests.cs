@@ -23,9 +23,9 @@ public class CallStackParentChildTests
         _config = new MonitoringConfiguration();
         _callStack = new CallStack(_config);
         _mockClassMonitor = new Mock<IClassMonitor>();
-#if DEBUG || TEST
+
         _callStack.Reset(); // Reset the CallStack before each test
-#endif
+
         MonitoringController.Enable();
     }
 
@@ -52,9 +52,8 @@ public class CallStackParentChildTests
     [Test]
     public void NestedMethodCalls_SetsMultipleLevelsCorrectly()
     {
-#if DEBUG || TEST
         _callStack.Reset(); // Reset the CallStack before the test
-#endif
+
         var level1 = CreateMethodCallInfo("Level1");
         var level2 = CreateMethodCallInfo("Level2");
         var level3 = CreateMethodCallInfo("Level3");
@@ -98,9 +97,7 @@ public class CallStackParentChildTests
     [Test]
     public void MultiThreadedCalls_SetsParentCorrectlyAcrossThreads()
     {
-#if DEBUG || TEST
         _callStack.Reset(); // Reset the state before the test
-#endif
 
         var parentInfo = CreateMethodCallInfo("ParentMethod");
         _callStack.Push(parentInfo);
