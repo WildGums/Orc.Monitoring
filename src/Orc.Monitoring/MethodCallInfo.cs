@@ -149,7 +149,7 @@ public class MethodCallInfo
     {
         if (IsNull) return "Null MethodCallInfo";
         var classTypeName = ClassType?.Name ?? string.Empty;
-        return $"{classTypeName}.{MethodName} (Version: {Version})";
+        return $"{classTypeName}.{MethodName} (Id: {Id}, ThreadId: {ThreadId}, ParentId: {Parent?.Id ?? "None"}, Level: {Level}, Version: {Version})";
     }
 
     private static string GetMethodName(MethodInfo methodInfo, IReadOnlyCollection<Type> genericArguments)

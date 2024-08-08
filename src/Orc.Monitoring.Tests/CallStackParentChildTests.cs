@@ -95,6 +95,9 @@ public class CallStackParentChildTests
         var parentInfo = CreateMethodCallInfo("ParentMethod");
         _callStack.Push(parentInfo);
 
+        Console.WriteLine("Before parallel execution:");
+        Console.WriteLine(_callStack.DumpState());
+
         var childInfos = new ConcurrentBag<MethodCallInfo>();
 
         Parallel.For(0, 5, _ => {
@@ -103,11 +106,16 @@ public class CallStackParentChildTests
             childInfos.Add(childInfo);
         });
 
+        Console.WriteLine("After parallel execution:");
+        Console.WriteLine(_callStack.DumpState());
+
         foreach (var childInfo in childInfos)
         {
-            Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
-            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId));
-            Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1));
+            Console.WriteLine($"Checking child: {childInfo}");
+            Console.WriteLine($"Parent: {parentInfo}");
+            Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), $"Child {childInfo.Id} should have parent {parentInfo.Id}");
+            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), $"Child {childInfo.Id} should have parent thread ID {parentInfo.ThreadId}");
+            Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), $"Child {childInfo.Id} should have level {parentInfo.Level + 1}");
         }
     }
 

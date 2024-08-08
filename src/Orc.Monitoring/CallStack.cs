@@ -63,25 +63,26 @@ public class CallStack : IObservable<ICallStackItem>
 
     public void Push(MethodCallInfo methodCallInfo)
     {
-        _logger.LogDebug($"Pushing MethodCallInfo: {methodCallInfo}. IsNull: {methodCallInfo.IsNull}");
-
         var threadId = methodCallInfo.ThreadId;
         var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
 
         lock (_globalLock)
         {
+            MethodCallInfo? parent = null;
             if (threadStack.Count > 0)
             {
-                var parent = threadStack.Peek();
-                methodCallInfo.Parent = parent;
-                methodCallInfo.Level = parent.Level + 1;
-                methodCallInfo.ParentThreadId = parent.ThreadId;
+                parent = threadStack.Peek();
             }
             else if (_globalParent is not null && !_globalParent.IsNull)
             {
-                methodCallInfo.Parent = _globalParent;
-                methodCallInfo.Level = _globalParent.Level + 1;
-                methodCallInfo.ParentThreadId = _globalParent.ThreadId;
+                parent = _globalParent;
+            }
+
+            if (parent is not null)
+            {
+                methodCallInfo.Parent = parent;
+                methodCallInfo.Level = parent.Level + 1;
+                methodCallInfo.ParentThreadId = parent.ThreadId;
             }
             else
             {
@@ -102,6 +103,8 @@ public class CallStack : IObservable<ICallStackItem>
                     _globalParent = methodCallInfo;
                 }
             }
+
+            _logger.LogDebug($"Pushed: {methodCallInfo}");
 
             var currentVersion = MonitoringController.GetCurrentVersion();
             if (MonitoringController.ShouldTrack(currentVersion))
@@ -172,6 +175,28 @@ public class CallStack : IObservable<ICallStackItem>
                 NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
             }
         }
+    }
+
+    public string DumpState()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("CallStack State:");
+        sb.AppendLine($"Global Parent: {_globalParent}");
+        sb.AppendLine("Thread Root Methods:");
+        foreach (var kvp in _threadRootMethods)
+        {
+            sb.AppendLine($"  Thread {kvp.Key}: {kvp.Value}");
+        }
+        sb.AppendLine("Thread Call Stacks:");
+        foreach (var kvp in _threadCallStacks)
+        {
+            sb.AppendLine($"  Thread {kvp.Key}:");
+            foreach (var item in kvp.Value)
+            {
+                sb.AppendLine($"    {item}");
+            }
+        }
+        return sb.ToString();
     }
 
     public void LogStatus(IMethodLifeCycleItem status)
