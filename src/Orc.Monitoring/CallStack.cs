@@ -68,41 +68,32 @@ public class CallStack : IObservable<ICallStackItem>
 
         lock (_globalLock)
         {
-            MethodCallInfo? parent = null;
             if (threadStack.Count > 0)
             {
-                parent = threadStack.Peek();
+                var immediateParent = threadStack.Peek();
+                methodCallInfo.Parent = immediateParent;
+                methodCallInfo.Level = immediateParent.Level + 1;
+                methodCallInfo.ParentThreadId = immediateParent.ThreadId;
             }
             else if (_globalParent is not null && !_globalParent.IsNull)
             {
-                parent = _globalParent;
-            }
-
-            if (parent is not null)
-            {
-                methodCallInfo.Parent = parent;
-                methodCallInfo.Level = parent.Level + 1;
-                methodCallInfo.ParentThreadId = parent.ThreadId;
+                // This is the key change: always use _globalParent for root methods of new threads
+                methodCallInfo.Parent = _globalParent;
+                methodCallInfo.Level = _globalParent.Level + 1;
+                methodCallInfo.ParentThreadId = _globalParent.ThreadId;
+                _threadRootMethods[threadId] = methodCallInfo;
             }
             else
             {
                 methodCallInfo.Parent = MethodCallInfo.Null;
                 methodCallInfo.Level = 1;
                 methodCallInfo.ParentThreadId = -1;
+                _globalParent = methodCallInfo;
+                _threadRootMethods[threadId] = methodCallInfo;
             }
 
             threadStack.Push(methodCallInfo);
             _globalCallStack.Push(methodCallInfo);
-
-            // Update _globalParent and _threadRootMethods after pushing
-            if (threadStack.Count == 1)
-            {
-                _threadRootMethods[threadId] = methodCallInfo;
-                if (_globalParent is null || _globalParent.IsNull)
-                {
-                    _globalParent = methodCallInfo;
-                }
-            }
 
             _logger.LogDebug($"Pushed: {methodCallInfo}");
 
