@@ -74,6 +74,7 @@ public class CallStack : IObservable<ICallStackItem>
                 methodCallInfo.Parent = MethodCallInfo.Null;
                 methodCallInfo.Level = 1;
                 methodCallInfo.ParentThreadId = -1;
+                _logger.LogDebug($"Set root parent: {methodCallInfo}");
             }
             else
             {
@@ -81,6 +82,7 @@ public class CallStack : IObservable<ICallStackItem>
                 methodCallInfo.Parent = immediateParent;
                 methodCallInfo.Level = immediateParent.Level + 1;
                 methodCallInfo.ParentThreadId = immediateParent.ThreadId;
+                _logger.LogDebug($"Set parent: {methodCallInfo} with parent {immediateParent}");
             }
 
             threadStack.Push(methodCallInfo);
@@ -89,6 +91,7 @@ public class CallStack : IObservable<ICallStackItem>
             if (threadStack.Count == 1)
             {
                 _threadRootMethods[threadId] = methodCallInfo;
+                _logger.LogDebug($"Set thread root method: {methodCallInfo}");
             }
 
             _logger.LogDebug($"Pushed: {methodCallInfo}");

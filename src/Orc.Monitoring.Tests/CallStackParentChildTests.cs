@@ -6,6 +6,7 @@ using System;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Reflection;
+using System.Threading;
 using Moq;
 
 
@@ -105,15 +106,26 @@ public class CallStackParentChildTests
         _callStack.Push(parentInfo);
 
         Console.WriteLine($"Parent: {parentInfo}");
+        Console.WriteLine(_callStack.DumpState());
 
         var childInfos = new ConcurrentBag<MethodCallInfo>();
+        using var allChildrenPushed = new ManualResetEventSlim(false);
 
         Parallel.For(0, 5, _ => {
             var childInfo = CreateMethodCallInfo("ChildMethod");
             _callStack.Push(childInfo);
             childInfos.Add(childInfo);
             Console.WriteLine($"Child pushed: {childInfo}");
+            if (childInfos.Count == 5)
+            {
+                allChildrenPushed.Set();
+            }
         });
+
+        allChildrenPushed.Wait(TimeSpan.FromSeconds(5)); // Wait for all children to be pushed, with a timeout
+
+        Console.WriteLine("All children pushed. Final state:");
+        Console.WriteLine(_callStack.DumpState());
 
         Console.WriteLine("All children:");
         foreach (var childInfo in childInfos)
