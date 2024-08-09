@@ -75,19 +75,23 @@ public class CallStack : IObservable<ICallStackItem>
                 methodCallInfo.Level = 1;
                 methodCallInfo.ParentThreadId = -1;
             }
-            else if (threadStack.Count == 0)
-            {
-                // This is a new thread, set parent to root parent
-                methodCallInfo.Parent = _rootParent;
-                methodCallInfo.Level = _rootParent.Level + 1;
-                methodCallInfo.ParentThreadId = _rootParent.ThreadId;
-            }
             else
             {
-                var immediateParent = threadStack.Peek();
-                methodCallInfo.Parent = immediateParent;
-                methodCallInfo.Level = immediateParent.Level + 1;
-                methodCallInfo.ParentThreadId = immediateParent.ThreadId;
+                MethodCallInfo parent;
+                if (threadStack.Count == 0 || threadId != _rootParent.ThreadId)
+                {
+                    // First call on this thread or a different thread from root, parent is the root
+                    parent = _rootParent;
+                }
+                else
+                {
+                    // Nested call on the same thread as root, parent is the top of the stack
+                    parent = threadStack.Peek();
+                }
+
+                methodCallInfo.Parent = parent;
+                methodCallInfo.Level = parent.Level + 1;
+                methodCallInfo.ParentThreadId = parent.ThreadId;
             }
 
             threadStack.Push(methodCallInfo);

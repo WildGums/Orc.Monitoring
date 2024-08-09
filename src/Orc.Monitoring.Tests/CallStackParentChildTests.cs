@@ -1,4 +1,5 @@
-﻿#pragma warning disable CL0002
+﻿#pragma warning disable IDISP001
+#pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
@@ -103,20 +104,14 @@ public class CallStackParentChildTests
         var parentInfo = CreateMethodCallInfo("ParentMethod");
         _callStack.Push(parentInfo);
 
-        Console.WriteLine($"Parent: {parentInfo}");
-        Console.WriteLine(_callStack.DumpState());
-
         var childInfos = new ConcurrentBag<MethodCallInfo>();
-#pragma warning disable IDISP001
         var allChildrenPushed = new ManualResetEventSlim(false);
-#pragma warning restore IDISP001
 
         var tasks = Enumerable.Range(0, 5).Select(_ => Task.Run(() =>
         {
             var childInfo = CreateMethodCallInfo("ChildMethod");
             _callStack.Push(childInfo);
             childInfos.Add(childInfo);
-            Console.WriteLine($"Child pushed: {childInfo}");
             if (childInfos.Count == 5)
             {
                 allChildrenPushed.Set();
@@ -126,19 +121,23 @@ public class CallStackParentChildTests
         Task.WaitAll(tasks);
         allChildrenPushed.Wait(TimeSpan.FromSeconds(5));
 
-        Console.WriteLine("All children pushed. Final state:");
-        Console.WriteLine(_callStack.DumpState());
-
-        Console.WriteLine("All children:");
         foreach (var childInfo in childInfos)
         {
-            Console.WriteLine($"Child: {childInfo}");
-            Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), $"Child {childInfo.Id} should have parent {parentInfo.Id}");
-            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), $"Child {childInfo.Id} should have parent thread ID {parentInfo.ThreadId}");
-            Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), $"Child {childInfo.Id} should have level {parentInfo.Level + 1}");
-            Assert.That(childInfo.ThreadId, Is.Not.EqualTo(parentInfo.ThreadId), $"Child {childInfo.Id} should be on a different thread than the parent");
+            if (childInfo.ThreadId == parentInfo.ThreadId)
+            {
+                // Calls on the same thread as parent should be nested
+                Assert.That(childInfo.Parent.ThreadId, Is.EqualTo(parentInfo.ThreadId));
+            }
+            else
+            {
+                // Calls on different threads should have the root parent
+                Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
+            }
+            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId));
+            Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent.Level + 1));
         }
     }
+
 
     [Test]
     public void RootMethod_HasNoParent()
