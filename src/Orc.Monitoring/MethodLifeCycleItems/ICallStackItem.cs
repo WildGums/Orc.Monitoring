@@ -1,4 +1,5 @@
-﻿namespace Orc.Monitoring.MethodLifeCycleItems;
+﻿// ReSharper disable InconsistentNaming
+namespace Orc.Monitoring.MethodLifeCycleItems;
 
 public interface ICallStackItem
 {

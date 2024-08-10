@@ -7,9 +7,9 @@ using System.Reflection;
 
 public class MethodCallInfoPool
 {
-    private readonly ConcurrentBag<MethodCallInfo> _pool = new ConcurrentBag<MethodCallInfo>();
+    private readonly ConcurrentBag<MethodCallInfo> _pool = [];
 
-    public MethodCallInfo Rent(IClassMonitor classMonitor, Type callerType, MethodInfo methodInfo,
+    public MethodCallInfo Rent(IClassMonitor? classMonitor, Type callerType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
         if (!MonitoringController.IsEnabled)

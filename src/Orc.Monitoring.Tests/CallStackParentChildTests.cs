@@ -7,7 +7,6 @@ using System;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using Moq;
 
@@ -15,9 +14,9 @@ using Moq;
 [TestFixture]
 public class CallStackParentChildTests
 {
-    private CallStack _callStack;
-    private Mock<IClassMonitor> _mockClassMonitor;
-    private MonitoringConfiguration _config;
+    private CallStack? _callStack;
+    private Mock<IClassMonitor>? _mockClassMonitor;
+    private MonitoringConfiguration? _config;
 
     [SetUp]
     public void Setup()
@@ -25,8 +24,6 @@ public class CallStackParentChildTests
         _config = new MonitoringConfiguration();
         _callStack = new CallStack(_config);
         _mockClassMonitor = new Mock<IClassMonitor>();
-
-        _callStack.Reset(); // Reset the CallStack before each test
 
         MonitoringController.Enable();
     }
@@ -41,10 +38,10 @@ public class CallStackParentChildTests
     public void SimpleParentChildRelationship_SetsParentCorrectly()
     {
         var parentInfo = CreateMethodCallInfo("ParentMethod");
-        _callStack.Push(parentInfo);
+        _callStack?.Push(parentInfo);
 
         var childInfo = CreateMethodCallInfo("ChildMethod");
-        _callStack.Push(childInfo);
+        _callStack?.Push(childInfo);
 
         Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
         Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId));
@@ -54,15 +51,13 @@ public class CallStackParentChildTests
     [Test]
     public void NestedMethodCalls_SetsMultipleLevelsCorrectly()
     {
-        _callStack.Reset(); // Reset the CallStack before the test
-
         var level1 = CreateMethodCallInfo("Level1");
         var level2 = CreateMethodCallInfo("Level2");
         var level3 = CreateMethodCallInfo("Level3");
 
-        _callStack.Push(level1);
-        _callStack.Push(level2);
-        _callStack.Push(level3);
+        _callStack?.Push(level1);
+        _callStack?.Push(level2);
+        _callStack?.Push(level3);
 
         Console.WriteLine($"Level1: {level1}");
         Console.WriteLine($"Level2: {level2}");
@@ -81,11 +76,11 @@ public class CallStackParentChildTests
     public async Task AsyncMethodCalls_MaintainsParentChildRelationship()
     {
         var parentInfo = CreateMethodCallInfo("AsyncParentMethod");
-        _callStack.Push(parentInfo);
+        _callStack?.Push(parentInfo);
 
         var childInfoTask = Task.Run(() => {
             var childInfo = CreateMethodCallInfo("AsyncChildMethod");
-            _callStack.Push(childInfo);
+            _callStack?.Push(childInfo);
             return childInfo;
         });
 
@@ -99,10 +94,8 @@ public class CallStackParentChildTests
     [Test]
     public void MultiThreadedCalls_SetsParentCorrectlyAcrossThreads()
     {
-        _callStack.Reset();
-
         var parentInfo = CreateMethodCallInfo("ParentMethod");
-        _callStack.Push(parentInfo);
+        _callStack?.Push(parentInfo);
 
         var childInfos = new ConcurrentBag<MethodCallInfo>();
         var allChildrenPushed = new ManualResetEventSlim(false);
@@ -110,7 +103,7 @@ public class CallStackParentChildTests
         var tasks = Enumerable.Range(0, 5).Select(_ => Task.Run(() =>
         {
             var childInfo = CreateMethodCallInfo("ChildMethod");
-            _callStack.Push(childInfo);
+            _callStack?.Push(childInfo);
             childInfos.Add(childInfo);
             if (childInfos.Count == 5)
             {
@@ -126,7 +119,7 @@ public class CallStackParentChildTests
             if (childInfo.ThreadId == parentInfo.ThreadId)
             {
                 // Calls on the same thread as parent should be nested
-                Assert.That(childInfo.Parent.ThreadId, Is.EqualTo(parentInfo.ThreadId));
+                Assert.That(childInfo.Parent?.ThreadId, Is.EqualTo(parentInfo.ThreadId));
             }
             else
             {
@@ -134,7 +127,7 @@ public class CallStackParentChildTests
                 Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
             }
             Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId));
-            Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent.Level + 1));
+            Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent?.Level + 1));
         }
     }
 
@@ -143,7 +136,7 @@ public class CallStackParentChildTests
     public void RootMethod_HasNoParent()
     {
         var rootInfo = CreateMethodCallInfo("RootMethod");
-        _callStack.Push(rootInfo);
+        _callStack?.Push(rootInfo);
 
         Assert.That(rootInfo.Parent, Is.EqualTo(MethodCallInfo.Null));
         Assert.That(rootInfo.ParentThreadId, Is.EqualTo(-1));
@@ -156,15 +149,15 @@ public class CallStackParentChildTests
         var parentInfo = CreateMethodCallInfo("ParentMethod");
         var childInfo = CreateMethodCallInfo("ChildMethod");
 
-        _callStack.Push(parentInfo);
-        _callStack.Push(childInfo);
+        _callStack?.Push(parentInfo);
+        _callStack?.Push(childInfo);
 
-        _callStack.Pop(childInfo);
+        _callStack?.Pop(childInfo);
 
         Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
 
         var newChildInfo = CreateMethodCallInfo("NewChildMethod");
-        _callStack.Push(newChildInfo);
+        _callStack?.Push(newChildInfo);
 
         Assert.That(newChildInfo.Parent, Is.EqualTo(parentInfo));
         Assert.That(newChildInfo.Level, Is.EqualTo(parentInfo.Level + 1));
@@ -172,6 +165,11 @@ public class CallStackParentChildTests
 
     private MethodCallInfo CreateMethodCallInfo(string methodName)
     {
+        if (_callStack is null)
+        {
+            throw new InvalidOperationException("CallStack not initialized");
+        }
+
         var config = new MethodCallContextConfig
         {
             ClassType = typeof(CallStackParentChildTests),
@@ -183,6 +181,6 @@ public class CallStackParentChildTests
         // Add the MethodCallParameterAttribute
         testMethod.SetCustomAttribute(new MethodCallParameterAttribute("TestParam", "TestValue"));
 
-        return _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, typeof(CallStackParentChildTests), config, testMethod);
+        return _callStack.CreateMethodCallInfo(_mockClassMonitor?.Object, typeof(CallStackParentChildTests), config, testMethod);
     }
 }

@@ -2,7 +2,7 @@
 
 using System;
 using System.Linq;
-using Orc.Monitoring.Reporters;
+using Reporters;
 
 public class MethodConfigurationBuilder
 {

@@ -1,20 +1,20 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
+using Filters;
+using MethodLifeCycleItems;
+using Reporters;
 using System.Collections.Generic;
 using System;
 using System.Threading.Tasks;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters.ReportOutputs;
 using System.Reflection;
 
 
 [TestFixture]
 public class MonitoringIntegrationTests
 {
-    private MockSequenceReporter _sequenceReporter;
+    private MockSequenceReporter? _sequenceReporter;
 
     [SetUp]
     public void Setup()
@@ -52,14 +52,13 @@ public class MonitoringIntegrationTests
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
 
-        using (var context = monitor.Start(builder => builder.AddReporter<PerformanceReporter>()))
-        {
-            Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.True);
+        using var context = monitor.Start(builder => builder.AddReporter<PerformanceReporter>());
 
-            MonitoringController.Disable();
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.True);
 
-            Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.False);
-        }
+        MonitoringController.Disable();
+
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.False);
     }
 
     [Test]
@@ -92,9 +91,17 @@ public class MonitoringIntegrationTests
     [Test]
     public void RootMethod_SetsRootMethodBeforeStartingReporting()
     {
-        _sequenceReporter.Reset();
-
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
+        
+        if (monitor is null)
+        {
+            throw new InvalidOperationException("Monitor not initialized");
+        }
+
+        if (_sequenceReporter is null)
+        {
+            throw new InvalidOperationException("Reporter not initialized");
+        }
 
         using (var context = monitor.Start(builder => builder.AddReporter(_sequenceReporter)))
         {
@@ -109,9 +116,16 @@ public class MonitoringIntegrationTests
     [Test]
     public async Task AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync()
     {
-        _sequenceReporter.Reset();
-
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
+        if (monitor is null)
+        {
+            throw new InvalidOperationException("Monitor not initialized");
+        }
+
+        if (_sequenceReporter is null)
+        {
+            throw new InvalidOperationException("Reporter not initialized");
+        }
 
         await using (var context = monitor.AsyncStart(builder => builder.AddReporter(_sequenceReporter)))
         {
@@ -125,7 +139,7 @@ public class MonitoringIntegrationTests
 
     private class TestObserver : IObserver<ICallStackItem>
     {
-        public List<ICallStackItem> ReceivedItems { get; } = new List<ICallStackItem>();
+        public List<ICallStackItem> ReceivedItems { get; } = [];
 
         public void OnCompleted() { }
         public void OnError(Exception error) { }
@@ -134,20 +148,20 @@ public class MonitoringIntegrationTests
 
     private class MockSequenceReporter : IMethodCallReporter
     {
-        public List<string> OperationSequence { get; } = new List<string>();
-        public string RootMethodName { get; private set; }
+        public List<string> OperationSequence { get; } = [];
+        public string? RootMethodName { get; private set; }
 
         public string Name => "MockSequenceReporter";
         public string FullName => "MockSequenceReporter";
 
-        private MethodInfo _rootMethod;
-        public MethodInfo RootMethod
+        private MethodInfo? _rootMethod;
+        public MethodInfo? RootMethod
         {
             get => _rootMethod;
             set
             {
                 _rootMethod = value;
-                RootMethodName = value.Name;
+                RootMethodName = value?.Name;
                 OperationSequence.Add("SetRootMethod");
             }
         }
@@ -158,16 +172,9 @@ public class MonitoringIntegrationTests
             return new AsyncDisposable(async () => { });
         }
 
-        public IOutputContainer AddOutput<TOutput>(object parameter = null) where TOutput : IReportOutput, new()
+        public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
         {
             return this;
-        }
-
-        public void Reset()
-        {
-            OperationSequence.Clear();
-            RootMethodName = null;
-            _rootMethod = null;
         }
     }
 }

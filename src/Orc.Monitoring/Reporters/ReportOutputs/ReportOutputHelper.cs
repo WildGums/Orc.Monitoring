@@ -9,9 +9,9 @@ public class ReportOutputHelper
 {
     public IMethodCallReporter? Reporter { get; private set; }
     public ConcurrentDictionary<string, ReportItem> ReportItems { get; } = new();
-    public List<ReportItem> Gaps { get; } = new();
+    public List<ReportItem> Gaps { get; } = [];
     public ConcurrentDictionary<int, Stack<string>> MethodStack { get; } = new();
-    public HashSet<string> ParameterNames { get; } = new();
+    public HashSet<string> ParameterNames { get; } = [];
     public string? LastEndTime { get; private set; }
 
     public void Initialize(IMethodCallReporter reporter)

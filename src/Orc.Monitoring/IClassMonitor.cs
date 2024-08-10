@@ -1,4 +1,5 @@
-﻿namespace Orc.Monitoring;
+﻿// ReSharper disable InconsistentNaming
+namespace Orc.Monitoring;
 
 using System.Runtime.CompilerServices;
 using MethodLifeCycleItems;

@@ -31,7 +31,7 @@ public class TestMethodInfo : MethodInfo
         var attributeType = attribute.GetType();
         if (!_customAttributes.TryGetValue(attributeType, out var attributes))
         {
-            attributes = new List<Attribute>();
+            attributes = [];
             _customAttributes[attributeType] = attributes;
         }
         attributes.Add(attribute);
@@ -55,11 +55,11 @@ public class TestMethodInfo : MethodInfo
             // Cast the typed array to Attribute[]
             return (Attribute[])typedArray;
         }
-        return Array.Empty<Attribute>();
+        return [];
     }
 
     public override MethodImplAttributes GetMethodImplementationFlags() => MethodImplAttributes.Managed;
-    public override ParameterInfo[] GetParameters() => Array.Empty<ParameterInfo>();
+    public override ParameterInfo[] GetParameters() => [];
 
     public override object? Invoke(object? obj, BindingFlags invokeAttr, Binder? binder, object?[]? parameters, System.Globalization.CultureInfo? culture)
     {

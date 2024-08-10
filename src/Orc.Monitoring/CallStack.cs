@@ -5,14 +5,13 @@ namespace Orc.Monitoring;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Runtime;
 using System.Text;
 using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Filters;
+using Filters;
 
 public class CallStack : IObservable<ICallStackItem>
 {
@@ -21,13 +20,13 @@ public class CallStack : IObservable<ICallStackItem>
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
     private readonly ConcurrentStack<MethodCallInfo> _globalCallStack = new();
     private readonly object _idLock = new();
-    private readonly List<IObserver<ICallStackItem>> _observers = new();
+    private readonly List<IObserver<ICallStackItem>> _observers = [];
     private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ConcurrentDictionary<int, MethodCallInfo> _threadRootMethods = new();
     private readonly object _globalLock = new object();
 
     private MethodCallInfo? _rootParent;
-    private int _idCounter = 0;
+    private int _idCounter;
 
     public CallStack(MonitoringConfiguration monitoringConfig)
     {
@@ -36,7 +35,7 @@ public class CallStack : IObservable<ICallStackItem>
         _monitoringConfig = monitoringConfig;
     }
 
-    public MethodCallInfo CreateMethodCallInfo(IClassMonitor classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null)
+    public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null)
     {
         methodInfo ??= FindMatchingMethod(config);
         if (methodInfo is null)
@@ -206,43 +205,6 @@ public class CallStack : IObservable<ICallStackItem>
         }
     }
 
-    #region Debugging Methods
-    internal void Reset()
-    {
-        _rootParent = null;
-        _threadCallStacks.Clear();
-        _globalCallStack.Clear();
-        _threadRootMethods.Clear();
-    }
-
-    internal string DumpState()
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("CallStack State:");
-        sb.AppendLine($"Root Parent: {_rootParent}");
-        sb.AppendLine("Thread Root Methods:");
-        foreach (var kvp in _threadRootMethods)
-        {
-            sb.AppendLine($"  Thread {kvp.Key}: {kvp.Value}");
-        }
-        sb.AppendLine("Thread Call Stacks:");
-        foreach (var kvp in _threadCallStacks)
-        {
-            sb.AppendLine($"  Thread {kvp.Key}:");
-            foreach (var item in kvp.Value)
-            {
-                sb.AppendLine($"    {item}");
-            }
-        }
-        return sb.ToString();
-    }
-
-    internal void ClearGlobalParent()
-    {
-        _rootParent = null;
-    }
-    #endregion
-
     private bool ShouldLogStatus(IMethodLifeCycleItem status, MonitoringVersion currentVersion)
     {
         var methodInfo = status.MethodCallInfo.MethodInfo;
@@ -255,11 +217,10 @@ public class CallStack : IObservable<ICallStackItem>
         var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
 
         // Check if any enabled reporter is interested in this status
-        bool anyEnabledReporterInterested = applicableReporters.Any(reporter =>
-            MonitoringController.IsReporterEnabled(reporter));
+        var anyEnabledReporterInterested = applicableReporters.Any(MonitoringController.IsReporterEnabled);
 
         // Check if any enabled filter allows this status
-        bool anyEnabledFilterAllows = applicableFilters.Any(filter =>
+        var anyEnabledFilterAllows = applicableFilters.Any(filter =>
         {
             if (MonitoringController.IsFilterEnabled(filter))
             {

@@ -6,13 +6,12 @@
 namespace Orc.Monitoring.Tests;
 
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using MethodLifeCycleItems;
+using Reporters;
+using Reporters.ReportOutputs;
 
 
 [TestFixture]
@@ -75,7 +74,7 @@ public class PerformanceMonitorIntegrationTests
             Console.WriteLine($"Using monitor of type: {_monitor.GetType().Name}");
             using var context = _monitor.StartMethod(new MethodConfiguration
             {
-                Reporters = new List<IMethodCallReporter> { _testReporter }
+                Reporters = [_testReporter]
             });
             Console.WriteLine("TestClass.TestMethod executing");
             Console.WriteLine("TestClass.TestMethod exited");
@@ -87,7 +86,7 @@ public class PerformanceMonitorIntegrationTests
             Console.WriteLine($"Using monitor of type: {_monitor.GetType().Name}");
             await using var context = _monitor.StartAsyncMethod(new MethodConfiguration
             {
-                Reporters = new List<IMethodCallReporter> { _testReporter }
+                Reporters = [_testReporter]
             });
             Console.WriteLine("TestClass.TestAsyncMethod executing");
             await Task.Delay(10);

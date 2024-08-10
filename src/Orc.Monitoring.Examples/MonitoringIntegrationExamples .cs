@@ -1,11 +1,11 @@
-namespace Orc.Monitoring.Examples;
+﻿namespace Orc.Monitoring.Examples;
 
 using System;
 using System.Threading.Tasks;
-using Orc.Monitoring;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.MethodLifeCycleItems;
+using Monitoring;
+using Reporters;
+using Filters;
+using MethodLifeCycleItems;
 
 
 /// <summary>
@@ -177,7 +177,7 @@ public class MonitoringIntegrationExamples
 
 public class CallStackObserver : IObserver<ICallStackItem>
 {
-    public List<ICallStackItem> ReceivedItems { get; } = new List<ICallStackItem>();
+    public List<ICallStackItem> ReceivedItems { get; } = [];
 
     public void OnCompleted() => Console.WriteLine("CallStack observation completed");
     public void OnError(Exception error) => Console.WriteLine($"CallStack error: {error.Message}");

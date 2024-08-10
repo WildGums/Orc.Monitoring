@@ -7,8 +7,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Filters;
+using Reporters.ReportOutputs;
 using Reporters;
 
 /// <summary>
@@ -75,7 +75,7 @@ public static class MonitoringController
     private static readonly ConcurrentDictionary<Type, bool> _filterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _outputTypeStates = new();
     private static readonly ReaderWriterLockSlim _stateLock = new();
-    private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
+    private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = [];
     private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?), bool> _shouldTrackCache = new();
 
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();

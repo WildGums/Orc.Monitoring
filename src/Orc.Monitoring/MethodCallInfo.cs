@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Orc.Monitoring.Reporters;
+using Reporters;
 
 
 public class MethodCallInfo
@@ -51,7 +51,7 @@ public class MethodCallInfo
 
     public static MethodCallInfo CreateNull() => Null;
 
-    public static MethodCallInfo Create(MethodCallInfoPool pool, IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
+    public static MethodCallInfo Create(MethodCallInfoPool pool, IClassMonitor? classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
         var info = new MethodCallInfo(pool);
@@ -59,7 +59,7 @@ public class MethodCallInfo
         return info;
     }
 
-    public void Reset(IClassMonitor classMonitor, Type classType, MethodInfo methodInfo,
+    public void Reset(IClassMonitor? classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
         if (IsNull) return;

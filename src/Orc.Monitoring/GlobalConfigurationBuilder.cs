@@ -2,10 +2,9 @@
 
 using System;
 using System.Reflection;
-using Orc.Monitoring.Configuration;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Filters;
+using Reporters;
+using Reporters.ReportOutputs;
 
 public class GlobalConfigurationBuilder
 {

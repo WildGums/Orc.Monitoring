@@ -23,8 +23,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
-    private readonly List<IReportOutput> _outputs = new();
-    private readonly List<IMethodFilter> _filters = new();
+    private readonly List<IReportOutput> _outputs = [];
+    private readonly List<IMethodFilter> _filters = [];
     private readonly Dictionary<int, int> _activeThreads = new();
     private readonly TaskCompletionSource _tcs = new();
 

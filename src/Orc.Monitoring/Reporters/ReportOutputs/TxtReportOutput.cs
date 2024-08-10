@@ -13,7 +13,7 @@ public sealed class TxtReportOutput : IReportOutput
 {
     private readonly ReportOutputHelper _helper = new();
     private readonly StringBuilder _buffer = new();
-    private readonly List<int> _nestingLevels = new();
+    private readonly List<int> _nestingLevels = [];
 
     private string? _fileName;
     private string? _folderPath;

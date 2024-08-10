@@ -4,17 +4,17 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Configuration;
+using Reporters;
+using Filters;
+using Configuration;
 
 public class MonitoringConfiguration
 {
     private readonly HierarchicalRuleManager _ruleManager = new();
     private readonly TypeAndMethodTracker _typeAndMethodTracker = new();
-    private readonly List<Assembly> _trackedAssemblies = new();
-    private readonly List<Type> _reporters = new();
-    private readonly List<IMethodFilter> _filters = new();
+    private readonly List<Assembly> _trackedAssemblies = [];
+    private readonly List<Type> _reporters = [];
+    private readonly List<IMethodFilter> _filters = [];
 
     public void AddHierarchicalRule(HierarchicalMonitoringRule rule)
     {

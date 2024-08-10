@@ -1,7 +1,8 @@
-﻿namespace Orc.Monitoring.MethodLifeCycleItems;
+﻿// ReSharper disable InconsistentNaming
+namespace Orc.Monitoring.MethodLifeCycleItems;
 
 using System;
-using Orc.Monitoring;
+using Monitoring;
 
 /// <summary>
 /// Defines properties for an item in the lifecycle of a method call.
