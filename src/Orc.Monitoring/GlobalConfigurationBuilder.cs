@@ -8,7 +8,7 @@ using Reporters.ReportOutputs;
 
 public class GlobalConfigurationBuilder
 {
-    private readonly MonitoringConfiguration _config = new MonitoringConfiguration();
+    private readonly MonitoringConfiguration _config = new();
 
     public GlobalConfigurationBuilder SetGlobalState(bool enabled)
     {

@@ -11,7 +11,7 @@ using Reporters;
 
 public class MethodCallInfo
 {
-    public static readonly MethodCallInfo Null = new MethodCallInfo(null) { IsNull = true };
+    public static readonly MethodCallInfo Null = new(null) { IsNull = true };
 
     private readonly MethodCallInfoPool? _pool;
 

@@ -23,7 +23,7 @@ public class CallStack : IObservable<ICallStackItem>
     private readonly List<IObserver<ICallStackItem>> _observers = [];
     private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ConcurrentDictionary<int, MethodCallInfo> _threadRootMethods = new();
-    private readonly object _globalLock = new object();
+    private readonly object _globalLock = new();
 
     private MethodCallInfo? _rootParent;
     private int _idCounter;

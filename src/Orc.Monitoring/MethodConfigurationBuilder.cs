@@ -6,7 +6,7 @@ using Reporters;
 
 public class MethodConfigurationBuilder
 {
-    private readonly MethodConfiguration _config = new MethodConfiguration();
+    private readonly MethodConfiguration _config = new();
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
     {

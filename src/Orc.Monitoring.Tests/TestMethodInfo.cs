@@ -7,7 +7,7 @@ using System.Linq;
 
 public class TestMethodInfo : MethodInfo
 {
-    private readonly Dictionary<Type, List<Attribute>> _customAttributes = new Dictionary<Type, List<Attribute>>();
+    private readonly Dictionary<Type, List<Attribute>> _customAttributes = new();
 
     public TestMethodInfo(string name, Type declaringType)
     {

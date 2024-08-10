@@ -13,7 +13,7 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
     private readonly System.Diagnostics.Stopwatch _stopwatch = new();
     private bool _isDisposed;
 
-    public static MethodCallContext Dummy { get; } = new MethodCallContext();
+    public static MethodCallContext Dummy { get; } = new();
 
     public MethodCallInfo? MethodCallInfo { get; }
 

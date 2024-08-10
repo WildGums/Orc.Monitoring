@@ -68,7 +68,7 @@ public static class MonitoringController
 {
     private static int _isEnabled = 0;
     private static int _activeOperations = 0;
-    private static MonitoringVersion _currentVersion = new MonitoringVersion(0, Guid.NewGuid());
+    private static MonitoringVersion _currentVersion = new(0, Guid.NewGuid());
     private static readonly ConcurrentDictionary<Type, bool> _reporterTrueStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _filterTrueStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _reporterEffectiveStates = new();
@@ -81,7 +81,7 @@ public static class MonitoringController
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
 
-    private static MonitoringConfiguration _configuration = new MonitoringConfiguration();
+    private static MonitoringConfiguration _configuration = new();
 
     public static event EventHandler<MonitoringVersion>? VersionChanged;
 
