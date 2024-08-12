@@ -1,7 +1,5 @@
 ﻿namespace Orc.Monitoring.Benchmarks
 {
-    using System.Reflection;
-    using BenchmarkDotNet.Configs;
     using BenchmarkDotNet.Running;
 
     internal class Program

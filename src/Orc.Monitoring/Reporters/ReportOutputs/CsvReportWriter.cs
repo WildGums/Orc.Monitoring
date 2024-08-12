@@ -92,7 +92,7 @@ public class CsvReportWriter
 
         foreach (var column in _customColumns)
         {
-            var value = parameters.ContainsKey(column) ? parameters[column] : "Blank";
+            var value = parameters.GetValueOrDefault(column, "Blank");
             line.Append($",{ReplaceCommas(value)}");
         }
 

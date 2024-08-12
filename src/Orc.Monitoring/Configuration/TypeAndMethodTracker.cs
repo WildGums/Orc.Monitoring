@@ -4,13 +4,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Orc.Monitoring.Filters;
+using Filters;
 
 public class TypeAndMethodTracker
 {
-    private readonly HashSet<Type> _trackedTypes = new();
+    private readonly HashSet<Type> _trackedTypes = [];
     private readonly Dictionary<Type, HashSet<MethodInfo>> _targetMethods = new();
-    private readonly List<IMethodFilter> _filters = new();
+    private readonly List<IMethodFilter> _filters = [];
 
     public IReadOnlyDictionary<Type, HashSet<MethodInfo>> TargetMethods => _targetMethods;
     public IReadOnlyList<IMethodFilter> Filters => _filters;

@@ -1,8 +1,9 @@
-﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
+﻿// ReSharper disable InconsistentNaming
+namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
 using MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
+using Reporters;
 
 public interface IReportOutput
 {

@@ -1,10 +1,9 @@
 ﻿namespace Orc.Monitoring.Benchmarks;
 
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Running;
-using Orc.Monitoring;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
+using Monitoring;
+using Reporters;
+using Filters;
 
 
 [MemoryDiagnoser]

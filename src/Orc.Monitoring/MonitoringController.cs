@@ -7,8 +7,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Filters;
+using Reporters.ReportOutputs;
 using Reporters;
 
 /// <summary>
@@ -68,20 +68,20 @@ public static class MonitoringController
 {
     private static int _isEnabled = 0;
     private static int _activeOperations = 0;
-    private static MonitoringVersion _currentVersion = new MonitoringVersion(0, Guid.NewGuid());
+    private static MonitoringVersion _currentVersion = new(0, Guid.NewGuid());
     private static readonly ConcurrentDictionary<Type, bool> _reporterTrueStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _filterTrueStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _reporterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _filterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _outputTypeStates = new();
     private static readonly ReaderWriterLockSlim _stateLock = new();
-    private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
+    private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = [];
     private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?), bool> _shouldTrackCache = new();
 
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
 
-    private static MonitoringConfiguration _configuration = new MonitoringConfiguration();
+    private static MonitoringConfiguration _configuration = new();
 
     public static event EventHandler<MonitoringVersion>? VersionChanged;
 

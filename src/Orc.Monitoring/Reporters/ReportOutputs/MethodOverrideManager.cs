@@ -65,7 +65,7 @@ public class MethodOverrideManager
         }
     }
 
-    public void SaveOverrides(IEnumerable<ReportItem> reportItems)
+    public void SaveOverrides(ICollection<ReportItem> reportItems)
     {
         var allStaticParameters = new HashSet<string>(reportItems
             .SelectMany(item => item.AttributeParameters)

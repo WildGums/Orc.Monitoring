@@ -1,7 +1,8 @@
-﻿namespace Orc.Monitoring.Filters;
+﻿// ReSharper disable InconsistentNaming
+namespace Orc.Monitoring.Filters;
 
 using System.Reflection;
-using Orc.Monitoring;
+using Monitoring;
 
 public interface IMethodFilter
 {

@@ -1,9 +1,9 @@
-﻿namespace Orc.Monitoring.Reporters;
+﻿// ReSharper disable InconsistentNaming
+namespace Orc.Monitoring.Reporters;
 
 using System;
 using System.Reflection;
 using MethodLifeCycleItems;
-using ReportOutputs;
 
 /// <summary>
 /// Defines a method for reporting performance data.
@@ -16,12 +16,6 @@ public interface IMethodCallReporter : IOutputContainer
 
     IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack);
 }
-
-public interface IOutputContainer
-{
-    IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new();
-}
-
 
 public static class MethodCallParameter
 {
@@ -37,7 +31,7 @@ public static class MethodCallParameter
         public const string Gap = "Gap";
         public const string UserInteraction = "UserInteraction";
         public const string DataProcess = "DataProcess";
-        public const string DataIO = "DataIO";
+        public const string DataIo = "DataIO";
         public const string Refresh = "Refresh";
         public const string Overview = "Overview";
     }

@@ -2,7 +2,7 @@
 
 using System;
 using System.Threading;
-using Orc.Monitoring;
+using Monitoring;
 
 /// <summary>
 /// Represents a log entry in the performance monitoring system.

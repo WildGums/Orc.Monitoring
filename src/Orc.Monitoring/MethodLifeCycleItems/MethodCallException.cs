@@ -2,7 +2,7 @@
 
 using System;
 using System.Threading;
-using Orc.Monitoring;
+using Monitoring;
 
 /// <summary>
 /// Represents an exception that occurred during a method call in the performance monitoring system.
@@ -13,7 +13,7 @@ public class MethodCallException : IMethodLifeCycleItem
     {
         ArgumentNullException.ThrowIfNull(exception);
 
-        MethodCallInfo = methodCallInfo; ;
+        MethodCallInfo = methodCallInfo;
         Exception = exception;
         ThreadId = Thread.CurrentThread.ManagedThreadId;
         TimeStamp = DateTime.Now;

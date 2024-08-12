@@ -7,7 +7,7 @@ using System.Reflection;
 
 public class HierarchicalRuleManager
 {
-    private readonly List<HierarchicalMonitoringRule> _hierarchicalRules = new();
+    private readonly List<HierarchicalMonitoringRule> _hierarchicalRules = [];
 
     public void AddRule(HierarchicalMonitoringRule rule)
     {

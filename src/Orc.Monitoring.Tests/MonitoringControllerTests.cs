@@ -5,8 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
+using Reporters;
+using Filters;
 
 
 [TestFixture]
@@ -249,7 +249,7 @@ public class MonitoringControllerTests
     {
         // Set the version to the maximum value
         typeof(MonitoringController).GetField("_currentVersion", BindingFlags.NonPublic | BindingFlags.Static)
-            .SetValue(null, new MonitoringVersion(long.MaxValue, Guid.NewGuid()));
+            ?.SetValue(null, new MonitoringVersion(long.MaxValue, Guid.NewGuid()));
 
         var beforeOverflow = MonitoringController.GetCurrentVersion();
         MonitoringController.EnableReporter(typeof(WorkflowReporter)); // This should increment the version

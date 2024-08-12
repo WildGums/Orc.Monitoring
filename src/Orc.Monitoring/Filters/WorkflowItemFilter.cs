@@ -14,5 +14,5 @@ public class WorkflowItemFilter : IMethodFilter
             .Any(x => string.Equals(x.Name, MethodCallParameter.WorkflowItemName, StringComparison.Ordinal));
     }
 
-    public bool ShouldInclude(MethodCallInfo methodCallInfo) => methodCallInfo?.Parameters?.ContainsKey(MethodCallParameter.WorkflowItemName) ?? false;
+    public bool ShouldInclude(MethodCallInfo methodCallInfo) => methodCallInfo.Parameters?.ContainsKey(MethodCallParameter.WorkflowItemName) ?? false;
 }

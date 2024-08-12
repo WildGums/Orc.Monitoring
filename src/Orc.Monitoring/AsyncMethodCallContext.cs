@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Orc.Monitoring.MethodLifeCycleItems;
+using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
 
 
@@ -18,13 +18,12 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
 
     public MethodCallInfo? MethodCallInfo { get; }
 
-    private AsyncMethodCallContext() : base()
+    private AsyncMethodCallContext() 
     {
         // Dummy constructor
     }
 
     public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)
-        : base()
     {
         _classMonitor = classMonitor;
         _disposables = disposables;
