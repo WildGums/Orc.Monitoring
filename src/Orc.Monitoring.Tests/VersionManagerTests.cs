@@ -3,6 +3,7 @@
 using NUnit.Framework;
 using NUnit.Framework.Legacy;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -59,28 +60,27 @@ public class VersionManagerTests
         const int numThreads = 100;
         const int versionsPerThread = 1000;
 
-        var allVersions = new List<MonitoringVersion>[numThreads];
+        var allVersions = new ConcurrentBag<MonitoringVersion>();
 
-        var tasks = Enumerable.Range(0, numThreads).Select(i =>
-            Task.Run(() =>
+        var tasks = Enumerable.Range(0, numThreads).Select(_ => Task.Run(() =>
+        {
+            for (int j = 0; j < versionsPerThread; j++)
             {
-                var versions = new List<MonitoringVersion>();
-                for (int j = 0; j < versionsPerThread; j++)
-                {
-                    versions.Add(_versionManager.GetNextVersion());
-                }
-                allVersions[i] = versions;
-            })).ToArray();
+                allVersions.Add(_versionManager.GetNextVersion());
+            }
+        })).ToArray();
 
         Task.WaitAll(tasks);
 
-        var flattenedVersions = allVersions.SelectMany(v => v).ToList();
-        var uniqueVersions = new HashSet<MonitoringVersion>(flattenedVersions);
+        var uniqueVersions = new HashSet<MonitoringVersion>(allVersions);
 
         Assert.That(uniqueVersions.Count, Is.EqualTo(numThreads * versionsPerThread), "All versions should be unique");
 
-        var sortedVersions = flattenedVersions.OrderBy(v => v).ToList();
-        Assert.That(sortedVersions, Is.EquivalentTo(flattenedVersions), "Versions should be in ascending order");
+        var sortedVersions = allVersions.OrderBy(v => v).ToList();
+        for (int i = 1; i < sortedVersions.Count; i++)
+        {
+            Assert.That(sortedVersions[i], Is.GreaterThan(sortedVersions[i - 1]), $"Version at index {i} should be greater than the previous version");
+        }
     }
 
     [Test]

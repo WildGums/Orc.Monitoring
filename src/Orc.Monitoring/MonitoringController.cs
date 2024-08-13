@@ -74,7 +74,7 @@ public static class MonitoringController
     private static readonly ConcurrentDictionary<Type, bool> _reporterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _filterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _outputTypeStates = new();
-    private static readonly ReaderWriterLockSlim _stateLock = new();
+    private static readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
     private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
     private static readonly AsyncLocal<OperationContext?> _currentOperationContext = new();
 
@@ -84,6 +84,7 @@ public static class MonitoringController
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
 
     private static long _cacheVersion = 0;
+    private static int _isUpdating = 0;
 
     private static MonitoringConfiguration _configuration = new();
 
@@ -119,37 +120,45 @@ public static class MonitoringController
 
     public static void Enable()
     {
-        _stateLock.EnterWriteLock();
-        try
+        if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
         {
-            if (Interlocked.Exchange(ref _isEnabled, 1) == 0)
+            try
             {
-                UpdateVersion();
-                RestoreComponentStates();
-                _logger.LogDebug($"Monitoring enabled. New version: {_currentVersion}");
+                _stateLock.EnterWriteLock();
+                if (Interlocked.Exchange(ref _isEnabled, 1) == 0)
+                {
+                    UpdateVersionNoLock();
+                    RestoreComponentStates();
+                    _logger.LogDebug($"Monitoring enabled. New version: {_currentVersion}");
+                }
             }
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
+            finally
+            {
+                _stateLock.ExitWriteLock();
+                Interlocked.Exchange(ref _isUpdating, 0);
+            }
         }
     }
 
     public static void Disable()
     {
-        _stateLock.EnterWriteLock();
-        try
+        if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
         {
-            if (Interlocked.Exchange(ref _isEnabled, 0) == 1)
+            try
             {
-                UpdateVersion();
-                DisableAllComponents();
-                _logger.LogDebug($"Monitoring disabled. New version: {_currentVersion}");
+                _stateLock.EnterWriteLock();
+                if (Interlocked.Exchange(ref _isEnabled, 0) == 1)
+                {
+                    UpdateVersionNoLock();
+                    DisableAllComponents();
+                    _logger.LogDebug($"Monitoring disabled. New version: {_currentVersion}");
+                }
             }
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
+            finally
+            {
+                _stateLock.ExitWriteLock();
+                Interlocked.Exchange(ref _isUpdating, 0);
+            }
         }
     }
 
@@ -325,22 +334,30 @@ public static class MonitoringController
         VersionChanged?.Invoke(null, new VersionChangedEventArgs(oldVersion, newVersion));
     }
 
+    private static void UpdateVersionNoLock()
+    {
+        var oldVersion = _currentVersion;
+        _currentVersion = _versionManager.GetNextVersion();
+        MonitoringDiagnostics.LogVersionChange(oldVersion, _currentVersion);
+        NotifyVersionChanged(oldVersion, _currentVersion);
+        PropagateVersionChange(_currentVersion);
+        InvalidateShouldTrackCache();
+    }
+
     private static void UpdateVersion()
     {
-        _stateLock.EnterWriteLock();
-        try
+        if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
         {
-            var oldVersion = _currentVersion;
-            _currentVersion = _versionManager.GetNextVersion();
-            MonitoringDiagnostics.LogVersionChange(oldVersion, _currentVersion);
-            NotifyVersionChanged(oldVersion, _currentVersion);
-            PropagateVersionChange(_currentVersion);
-
-            InvalidateShouldTrackCache();
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
+            try
+            {
+                _stateLock.EnterWriteLock();
+                UpdateVersionNoLock();
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
+                Interlocked.Exchange(ref _isUpdating, 0);
+            }
         }
     }
 
@@ -363,23 +380,28 @@ public static class MonitoringController
 
     private static void SetComponentState(MonitoringComponentType componentType, Type type, bool enabled)
     {
-        _stateLock.EnterWriteLock();
+        bool lockTaken = false;
         try
         {
+            _stateLock.EnterWriteLock();
+            lockTaken = true;
+
             var trueStates = componentType == MonitoringComponentType.Reporter ? _reporterTrueStates : _filterTrueStates;
             var effectiveStates = componentType == MonitoringComponentType.Reporter ? _reporterEffectiveStates : _filterEffectiveStates;
 
             trueStates[type] = enabled;
             effectiveStates[type] = enabled && IsEnabled;
-            UpdateVersion();
+            UpdateVersionNoLock();
             _logger.LogDebug($"{componentType} {type.Name} {(enabled ? "enabled" : "disabled")}. New version: {_currentVersion}");
             OnStateChanged(componentType, type.Name, effectiveStates[type], _currentVersion);
             InvalidateShouldTrackCache();
-
         }
         finally
         {
-            _stateLock.ExitWriteLock();
+            if (lockTaken)
+            {
+                _stateLock.ExitWriteLock();
+            }
         }
     }
 

@@ -8,24 +8,35 @@ public class VersionManager
 {
     private long _lastTimestamp;
     private int _counter;
-    private readonly object _lock = new object();
 
     public MonitoringVersion GetNextVersion()
     {
-        lock (_lock)
+        long timestamp;
+        int counter;
+
+        while (true)
         {
-            var now = GetTimestamp();
-            if (now > _lastTimestamp)
+            long currentTimestamp = GetTimestamp();
+            long lastTimestamp = Interlocked.Read(ref _lastTimestamp);
+
+            if (currentTimestamp > lastTimestamp)
             {
-                _lastTimestamp = now;
-                _counter = 0;
+                if (Interlocked.CompareExchange(ref _lastTimestamp, currentTimestamp, lastTimestamp) == lastTimestamp)
+                {
+                    timestamp = currentTimestamp;
+                    counter = Interlocked.Exchange(ref _counter, 0);
+                    break;
+                }
             }
             else
             {
-                _counter++;
+                counter = Interlocked.Increment(ref _counter);
+                timestamp = lastTimestamp;
+                break;
             }
-            return new MonitoringVersion(_lastTimestamp, _counter, Guid.NewGuid());
         }
+
+        return new MonitoringVersion(timestamp, counter, Guid.NewGuid());
     }
 
     private static long GetTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

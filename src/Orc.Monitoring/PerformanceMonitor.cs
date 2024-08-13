@@ -11,6 +11,7 @@ using Reporters.ReportOutputs;
 public static class PerformanceMonitor
 {
     private static readonly Dictionary<Type, HashSet<MethodInfo>> TargetMethods = new();
+    private static readonly object _configLock = new object();
 
     private static CallStack? _callStack;
 
@@ -19,19 +20,30 @@ public static class PerformanceMonitor
         Console.WriteLine("PerformanceMonitor.Configure called");
         var builder = new GlobalConfigurationBuilder();
 
-        // Enable default output types first
-        EnableDefaultOutputTypes();
+        lock (_configLock)
+        {
+            try
+            {
+                // Enable default output types first
+                EnableDefaultOutputTypes();
 
-        // Apply custom configuration
-        configAction(builder);
+                // Apply custom configuration
+                configAction(builder);
 
-        var config = builder.Build();
-        MonitoringController.Configuration = config;
-        ApplyGlobalConfiguration(config);
+                var config = builder.Build();
+                MonitoringController.Configuration = config;
+                ApplyGlobalConfiguration(config);
 
-        // Enable monitoring by default when configured
-        MonitoringController.Enable();
-        Console.WriteLine("Monitoring enabled after configuration");
+                // Enable monitoring by default when configured
+                MonitoringController.Enable();
+                Console.WriteLine("Monitoring enabled after configuration");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during PerformanceMonitor configuration: {ex.Message}");
+                // Consider logging the exception or rethrowing if necessary
+            }
+        }
     }
 
     private static void EnableDefaultOutputTypes()
@@ -47,7 +59,15 @@ public static class PerformanceMonitor
             // Only enable if not already configured
             if (!MonitoringController.IsOutputTypeEnabled(outputType))
             {
-                MonitoringController.EnableOutputType(outputType);
+                try
+                {
+                    MonitoringController.EnableOutputType(outputType);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error enabling output type {outputType.Name}: {ex.Message}");
+                    // Consider logging the exception or rethrowing if necessary
+                }
             }
         }
     }

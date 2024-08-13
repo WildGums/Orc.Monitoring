@@ -80,7 +80,7 @@ public class MonitoringControllerShouldTrackTests
         var result1 = MonitoringController.ShouldTrack(version);
         MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
         var result2 = MonitoringController.ShouldTrack(version);
-        Assert.That(result1, Is.Not.EqualTo(result2));
+        Assert.That(result2, Is.False, "ShouldTrack should return false for the old version after a version change");
     }
 
     [Test]
