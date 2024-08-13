@@ -76,11 +76,38 @@ public class MonitoringControllerShouldTrackTests
     [Test]
     public void ShouldTrack_InvalidatesCacheOnVersionChange()
     {
+        MonitoringController.Enable(); // Ensure monitoring is enabled
         var version = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Initial version: {version}");
+
         var result1 = MonitoringController.ShouldTrack(version);
-        MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
+        Console.WriteLine($"First ShouldTrack result: {result1}");
+
+        Assert.That(result1, Is.True, "Initial ShouldTrack should return true");
+
+        MonitoringController.EnableReporter(typeof(DummyReporter)); // This should update the version
+        var newVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"New version after enabling reporter: {newVersion}");
+
         var result2 = MonitoringController.ShouldTrack(version);
+        Console.WriteLine($"Second ShouldTrack result (with old version): {result2}");
+
         Assert.That(result2, Is.False, "ShouldTrack should return false for the old version after a version change");
+
+        var result3 = MonitoringController.ShouldTrack(newVersion);
+        Console.WriteLine($"Third ShouldTrack result (with new version): {result3}");
+
+        Assert.That(result3, Is.True, "ShouldTrack should return true for the new version");
+
+        var versionHistory = MonitoringDiagnostics.GetVersionHistory();
+        Console.WriteLine("Version History:");
+        foreach (var change in versionHistory)
+        {
+            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+        }
+
+        Console.WriteLine($"Is Monitoring Enabled: {MonitoringController.IsEnabled}");
+        Console.WriteLine($"Is DummyReporter Enabled: {MonitoringController.IsReporterEnabled(typeof(DummyReporter))}");
     }
 
     [Test]

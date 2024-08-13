@@ -94,19 +94,40 @@ public class MonitoringDiagnosticsTests
 
         var time1 = DateTime.UtcNow;
         MonitoringDiagnostics.LogVersionChange(version1, version2);
-        Thread.Sleep(100);
         var time2 = DateTime.UtcNow;
-        MonitoringDiagnostics.LogVersionChange(version2, version3);
         Thread.Sleep(100);
+        MonitoringDiagnostics.LogVersionChange(version2, version3);
         var time3 = DateTime.UtcNow;
+
+        var history = MonitoringDiagnostics.GetVersionHistory().ToList();
+        Console.WriteLine($"Version History:");
+        foreach (var record in history)
+        {
+            Console.WriteLine($"  {record.Timestamp}: {record.OldVersion} -> {record.NewVersion}");
+        }
 
         var foundVersion1 = MonitoringDiagnostics.FindVersionAtTime(time1);
         var foundVersion2 = MonitoringDiagnostics.FindVersionAtTime(time2);
         var foundVersion3 = MonitoringDiagnostics.FindVersionAtTime(time3);
 
-        Assert.That(foundVersion1?.NewVersion, Is.EqualTo(version2));
-        Assert.That(foundVersion2?.NewVersion, Is.EqualTo(version2));
-        Assert.That(foundVersion3?.NewVersion, Is.EqualTo(version3));
+        Console.WriteLine($"Time1: {time1}, FoundVersion1: {foundVersion1?.NewVersion}");
+        Console.WriteLine($"Time2: {time2}, FoundVersion2: {foundVersion2?.NewVersion}");
+        Console.WriteLine($"Time3: {time3}, FoundVersion3: {foundVersion3?.NewVersion}");
+
+        // time1 might be before the first version change, so it could be null
+        Assert.That(foundVersion1?.NewVersion, Is.Null.Or.EqualTo(version2), "First version should be null or version2");
+        Assert.That(foundVersion2?.NewVersion, Is.EqualTo(version2), "Second version should be version2");
+        Assert.That(foundVersion3?.NewVersion, Is.EqualTo(version3), "Third version should be version3");
+
+        Assert.That(history, Has.Count.EqualTo(2), "Should have 2 version changes");
+        Assert.That(history[0].NewVersion, Is.EqualTo(version2), "First change should be to version2");
+        Assert.That(history[1].NewVersion, Is.EqualTo(version3), "Second change should be to version3");
+
+        // Additional assertions to check the timing
+        Assert.That(history[0].Timestamp, Is.GreaterThanOrEqualTo(time1), "First change should be after or at time1");
+        Assert.That(history[0].Timestamp, Is.LessThanOrEqualTo(time2), "First change should be before or at time2");
+        Assert.That(history[1].Timestamp, Is.GreaterThan(time2), "Second change should be after time2");
+        Assert.That(history[1].Timestamp, Is.LessThanOrEqualTo(time3), "Second change should be before or at time3");
     }
 
     [Test]

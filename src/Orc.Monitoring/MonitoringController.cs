@@ -1,4 +1,4 @@
-﻿// ReSharper disable InconsistentNaming
+// ReSharper disable InconsistentNaming
 #pragma warning disable IDE1006
 namespace Orc.Monitoring;
 
@@ -98,8 +98,16 @@ public static class MonitoringController
         get => _configuration;
         set
         {
-            _configuration = value;
-            UpdateVersion();
+            _stateLock.EnterWriteLock();
+            try
+            {
+                _configuration = value;
+                UpdateVersionNoLock();
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
+            }
         }
     }
 
@@ -175,7 +183,17 @@ public static class MonitoringController
             throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
         }
 
-        SetComponentState(MonitoringComponentType.Reporter, reporterType, true);
+        _stateLock.EnterWriteLock();
+        try
+        {
+            _reporterTrueStates[reporterType] = true;
+            _reporterEffectiveStates[reporterType] = IsEnabled;
+            UpdateVersionNoLock();
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
     }
 
     public static void DisableReporter(Type reporterType)
@@ -265,21 +283,29 @@ public static class MonitoringController
     {
         var currentContext = _currentOperationContext.Value;
         var versionToCheck = currentContext?.OperationVersion ?? operationVersion;
+        var currentVersion = GetCurrentVersion();
+
+        // If we're in an operation, use the operation's version
+        if (currentContext is not null)
+        {
+            return versionToCheck == currentVersion && IsEnabled;
+        }
+
+        // For regular checks (not in an operation)
+        if (versionToCheck > currentVersion)
+        {
+            return false;
+        }
 
         return _shouldTrackCache.GetOrAdd((versionToCheck, reporterType, filterType, outputType), key =>
         {
             var (version, reporter, filter, output) = key;
-            var currentVersion = GetCurrentVersion();
+
             var result = IsEnabled
-                         && version <= currentVersion
+                         && version == currentVersion
                          && (reporter is null || IsReporterEnabled(reporter))
                          && (filter is null || IsFilterEnabled(filter))
                          && (output is null || IsOutputTypeEnabled(output));
-
-            if (!result)
-            {
-                _shouldTrackCache.TryRemove(key, out _);
-            }
 
             return result;
         });
@@ -293,14 +319,19 @@ public static class MonitoringController
 
     public static IDisposable BeginOperation(out MonitoringVersion operationVersion)
     {
-        var currentVersion = GetCurrentVersion();
-        operationVersion = currentVersion;
-
-        var parentContext = _currentOperationContext.Value;
-        var newContext = new OperationContext(currentVersion, parentContext);
-        _currentOperationContext.Value = newContext;
-
-        return new OperationScope(newContext);
+        _stateLock.EnterReadLock();
+        try
+        {
+            operationVersion = GetCurrentVersion();
+            var parentContext = _currentOperationContext.Value;
+            var newContext = new OperationContext(operationVersion, parentContext);
+            _currentOperationContext.Value = newContext;
+            return new OperationScope(newContext);
+        }
+        finally
+        {
+            _stateLock.ExitReadLock();
+        }
     }
 
     public static bool IsOperationValid()
@@ -333,7 +364,7 @@ public static class MonitoringController
     {
         VersionChanged?.Invoke(null, new VersionChangedEventArgs(oldVersion, newVersion));
     }
-
+    
     private static void UpdateVersionNoLock()
     {
         var oldVersion = _currentVersion;

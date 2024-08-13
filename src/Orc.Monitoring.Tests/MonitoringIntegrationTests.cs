@@ -151,20 +151,37 @@ public class MonitoringIntegrationTests
     {
         MonitoringController.ResetForTesting(); // Ensure a clean state
         var initialVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Initial Version: {initialVersion}");
 
         MonitoringController.EnableReporter(typeof(PerformanceReporter));
-        var afterEnableVersion = MonitoringController.GetCurrentVersion();
+        var afterFirstEnableVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"After First Enable Version: {afterFirstEnableVersion}");
 
-        MonitoringController.DisableReporter(typeof(PerformanceReporter));
+        Assert.That(afterFirstEnableVersion, Is.GreaterThan(initialVersion), "Version should increase after enabling first reporter");
+
+        // Force a version change
+        MonitoringController.Configuration = new MonitoringConfiguration();
+        var afterConfigChangeVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"After Config Change Version: {afterConfigChangeVersion}");
+
+        Assert.That(afterConfigChangeVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after changing configuration");
+
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
         var finalVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Final Version: {finalVersion}");
 
-        Assert.That(afterEnableVersion, Is.GreaterThan(initialVersion));
-        Assert.That(finalVersion, Is.GreaterThan(afterEnableVersion));
+        Assert.That(finalVersion, Is.GreaterThan(afterConfigChangeVersion), "Version should increase after enabling second reporter");
 
         var versionHistory = MonitoringDiagnostics.GetVersionHistory();
-        Assert.That(versionHistory, Has.Count.GreaterThanOrEqualTo(2));
-        Assert.That(versionHistory.First().OldVersion, Is.EqualTo(initialVersion));
-        Assert.That(versionHistory.Last().NewVersion, Is.EqualTo(finalVersion));
+        Console.WriteLine("Version History:");
+        foreach (var change in versionHistory)
+        {
+            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+        }
+
+        Assert.That(versionHistory, Has.Count.GreaterThanOrEqualTo(3), "Should have at least 3 version changes");
+        Assert.That(versionHistory.First().OldVersion, Is.EqualTo(initialVersion), "First change should start from initial version");
+        Assert.That(versionHistory.Last().NewVersion, Is.EqualTo(finalVersion), "Last change should end with final version");
     }
 
     [Test]

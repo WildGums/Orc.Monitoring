@@ -190,11 +190,24 @@ public class MonitoringControllerTests
     [Test]
     public void Configuration_WhenSet_TriggersVersionChange()
     {
+        MonitoringController.Enable(); // Ensure monitoring is enabled
         var initialVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Initial version: {initialVersion}");
+
         MonitoringController.Configuration = new MonitoringConfiguration();
         var newVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"New version after setting Configuration: {newVersion}");
 
-        Assert.That(newVersion, Is.GreaterThan(initialVersion));
+        Assert.That(newVersion, Is.GreaterThan(initialVersion), "Version should increase after setting Configuration");
+
+        var versionHistory = MonitoringDiagnostics.GetVersionHistory();
+        Console.WriteLine("Version History:");
+        foreach (var change in versionHistory)
+        {
+            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+        }
+
+        Console.WriteLine($"Is Monitoring Enabled: {MonitoringController.IsEnabled}");
     }
 
     [Test]
