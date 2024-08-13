@@ -3,39 +3,26 @@
 using System;
 
 
-/// <summary>
-/// Represents a version of the monitoring system state.
-/// </summary>
 public readonly struct MonitoringVersion : IEquatable<MonitoringVersion>, IComparable<MonitoringVersion>
 {
-    /// <summary>
-    /// Gets the main version number.
-    /// </summary>
-    public long MainVersion { get; }
-
-    /// <summary>
-    /// Gets the unique identifier for this version change.
-    /// </summary>
+    public long Timestamp { get; }
+    public int Counter { get; }
     public Guid ChangeId { get; }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MonitoringVersion"/> struct.
-    /// </summary>
-    /// <param name="mainVersion">The main version number.</param>
-    /// <param name="changeId">The unique identifier for this version change.</param>
-    public MonitoringVersion(long mainVersion, Guid changeId)
+    public MonitoringVersion(long timestamp, int counter, Guid changeId)
     {
-        MainVersion = mainVersion;
+        Timestamp = timestamp;
+        Counter = counter;
         ChangeId = changeId;
     }
 
     public bool Equals(MonitoringVersion other) =>
-        MainVersion == other.MainVersion && ChangeId == other.ChangeId;
+        Timestamp == other.Timestamp && Counter == other.Counter && ChangeId.Equals(other.ChangeId);
 
     public override bool Equals(object? obj) =>
         obj is MonitoringVersion version && Equals(version);
 
-    public override int GetHashCode() => HashCode.Combine(MainVersion, ChangeId);
+    public override int GetHashCode() => HashCode.Combine(Timestamp, Counter, ChangeId);
 
     public static bool operator ==(MonitoringVersion left, MonitoringVersion right) =>
         left.Equals(right);
@@ -43,8 +30,14 @@ public readonly struct MonitoringVersion : IEquatable<MonitoringVersion>, ICompa
     public static bool operator !=(MonitoringVersion left, MonitoringVersion right) =>
         !(left == right);
 
-    public int CompareTo(MonitoringVersion other) =>
-        MainVersion.CompareTo(other.MainVersion);
+    public int CompareTo(MonitoringVersion other)
+    {
+        var timestampComparison = Timestamp.CompareTo(other.Timestamp);
+        if (timestampComparison != 0) return timestampComparison;
+        var counterComparison = Counter.CompareTo(other.Counter);
+        if (counterComparison != 0) return counterComparison;
+        return ChangeId.CompareTo(other.ChangeId);
+    }
 
     public static bool operator <(MonitoringVersion left, MonitoringVersion right) =>
         left.CompareTo(right) < 0;
@@ -58,5 +51,5 @@ public readonly struct MonitoringVersion : IEquatable<MonitoringVersion>, ICompa
     public static bool operator >=(MonitoringVersion left, MonitoringVersion right) =>
         left.CompareTo(right) >= 0;
 
-    public override string ToString() => $"V{MainVersion}-{ChangeId}";
+    public override string ToString() => $"V{Timestamp}-{Counter}-{ChangeId}";
 }

@@ -161,12 +161,14 @@ public class MonitoringControllerTests
     public void VersionChanged_EventFired_WhenVersionChanges()
     {
         var eventFired = false;
+        MonitoringVersion? oldVersion = null;
         MonitoringVersion? newVersion = null;
 
-        MonitoringController.VersionChanged += (sender, version) =>
+        MonitoringController.VersionChanged += (sender, args) =>
         {
             eventFired = true;
-            newVersion = version;
+            oldVersion = args.OldVersion;
+            newVersion = args.NewVersion;
         };
 
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
@@ -249,14 +251,14 @@ public class MonitoringControllerTests
     {
         // Set the version to the maximum value
         typeof(MonitoringController).GetField("_currentVersion", BindingFlags.NonPublic | BindingFlags.Static)
-            ?.SetValue(null, new MonitoringVersion(long.MaxValue, Guid.NewGuid()));
+            ?.SetValue(null, new MonitoringVersion(long.MaxValue, int.MaxValue, Guid.NewGuid()));
 
         var beforeOverflow = MonitoringController.GetCurrentVersion();
         MonitoringController.EnableReporter(typeof(WorkflowReporter)); // This should increment the version
         var afterOverflow = MonitoringController.GetCurrentVersion();
 
-        Assert.That(afterOverflow.MainVersion, Is.LessThan(beforeOverflow.MainVersion));
-        Assert.That(afterOverflow.ChangeId, Is.Not.EqualTo(beforeOverflow.ChangeId));
+        Assert.That(afterOverflow.Timestamp, Is.LessThan(beforeOverflow.Timestamp));
+        Assert.That(afterOverflow, Is.LessThan(beforeOverflow));
     }
 
     [Test]
