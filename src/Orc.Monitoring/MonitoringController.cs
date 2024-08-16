@@ -103,12 +103,12 @@ public static class MonitoringController
             {
                 var oldConfig = _configuration;
                 _configuration = value;
-                UpdateVersionNoLock();
+                UpdateVersionNoLock(); // Ensure version is always updated
                 InvalidateShouldTrackCache();
                 _logger.LogDebug($"Configuration updated. New version: {_currentVersion}");
                 OnStateChanged(MonitoringComponentType.Configuration, "Configuration", true, _currentVersion);
 
-                 LogConfigurationChanges(oldConfig, value);
+                LogConfigurationChanges(oldConfig, value);
             }
             finally
             {

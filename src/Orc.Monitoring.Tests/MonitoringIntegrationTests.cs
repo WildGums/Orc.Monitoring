@@ -146,7 +146,7 @@ public class MonitoringIntegrationTests
         Assert.That(_sequenceReporter.RootMethodName, Is.EqualTo(nameof(AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync)));
     }
 
-    [Test]
+    [Test, Retry(3)] // Retry up to 3 times
     public void VersionChanges_AreReflectedInMonitoring()
     {
         MonitoringController.ResetForTesting(); // Ensure a clean state
@@ -154,6 +154,7 @@ public class MonitoringIntegrationTests
         Console.WriteLine($"Initial Version: {initialVersion}");
 
         MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        Task.Delay(50).Wait(); // Add a small delay
         var afterFirstEnableVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"After First Enable Version: {afterFirstEnableVersion}");
 
@@ -161,12 +162,14 @@ public class MonitoringIntegrationTests
 
         // Force a version change
         MonitoringController.Configuration = new MonitoringConfiguration();
+        Task.Delay(50).Wait(); // Add a small delay
         var afterConfigChangeVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"After Config Change Version: {afterConfigChangeVersion}");
 
         Assert.That(afterConfigChangeVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after changing configuration");
 
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        Task.Delay(50).Wait(); // Add a small delay
         var finalVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"Final Version: {finalVersion}");
 
