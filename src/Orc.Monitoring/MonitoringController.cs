@@ -1,4 +1,4 @@
-// ReSharper disable InconsistentNaming
+﻿// ReSharper disable InconsistentNaming
 #pragma warning disable IDE1006
 namespace Orc.Monitoring;
 
@@ -101,14 +101,30 @@ public static class MonitoringController
             _stateLock.EnterWriteLock();
             try
             {
+                var oldConfig = _configuration;
                 _configuration = value;
                 UpdateVersionNoLock();
+                InvalidateShouldTrackCache();
+                _logger.LogDebug($"Configuration updated. New version: {_currentVersion}");
+                OnStateChanged(MonitoringComponentType.Configuration, "Configuration", true, _currentVersion);
+
+                 LogConfigurationChanges(oldConfig, value);
             }
             finally
             {
                 _stateLock.ExitWriteLock();
             }
         }
+    }
+
+    private static void LogConfigurationChanges(MonitoringConfiguration oldConfig, MonitoringConfiguration newConfig)
+    {
+        // Implement comparison logic here and log specific changes
+        // For example:
+        // if (oldConfig.SomeProperty != newConfig.SomeProperty)
+        // {
+        //     _logger.LogDebug($"Configuration property changed: {nameof(newConfig.SomeProperty)} from {oldConfig.SomeProperty} to {newConfig.SomeProperty}");
+        // }
     }
 
     public static bool IsEnabled => Interlocked.CompareExchange(ref _isEnabled, 0, 0) == 1;
@@ -189,6 +205,9 @@ public static class MonitoringController
             _reporterTrueStates[reporterType] = true;
             _reporterEffectiveStates[reporterType] = IsEnabled;
             UpdateVersionNoLock();
+            InvalidateShouldTrackCache();
+            _logger.LogDebug($"Reporter {reporterType.Name} enabled. New version: {_currentVersion}");
+            OnStateChanged(MonitoringComponentType.Reporter, reporterType.Name, true, _currentVersion);
         }
         finally
         {
@@ -279,30 +298,39 @@ public static class MonitoringController
         return IsComponentEnabled(_filterEffectiveStates, outputType);
     }
 
-    public static bool ShouldTrack(MonitoringVersion operationVersion, Type? reporterType = null, Type? filterType = null, Type? outputType = null)
+    public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, Type? outputType = null)
     {
         var currentContext = _currentOperationContext.Value;
-        var versionToCheck = currentContext?.OperationVersion ?? operationVersion;
         var currentVersion = GetCurrentVersion();
 
-        // If we're in an operation, use the operation's version
+        // If we're in an operation
         if (currentContext is not null)
         {
-            return versionToCheck == currentVersion && IsEnabled;
+            // If the provided version is equal to the operation version, we should track only if the global version hasn't changed
+            if (version == currentContext.OperationVersion)
+            {
+                return version == currentVersion;
+            }
+            // If the provided version is older than the operation version, don't track
+            if (version < currentContext.OperationVersion)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // If we're not in an operation, check against the current global version
+            if (version < currentVersion)
+            {
+                return false;
+            }
         }
 
-        // For regular checks (not in an operation)
-        if (versionToCheck > currentVersion)
+        return _shouldTrackCache.GetOrAdd((version, reporterType, filterType, outputType), key =>
         {
-            return false;
-        }
-
-        return _shouldTrackCache.GetOrAdd((versionToCheck, reporterType, filterType, outputType), key =>
-        {
-            var (version, reporter, filter, output) = key;
+            var (v, reporter, filter, output) = key;
 
             var result = IsEnabled
-                         && version == currentVersion
                          && (reporter is null || IsReporterEnabled(reporter))
                          && (filter is null || IsFilterEnabled(filter))
                          && (output is null || IsOutputTypeEnabled(output));
@@ -326,6 +354,7 @@ public static class MonitoringController
             var parentContext = _currentOperationContext.Value;
             var newContext = new OperationContext(operationVersion, parentContext);
             _currentOperationContext.Value = newContext;
+            _logger.LogDebug($"Operation begun with version: {operationVersion}");
             return new OperationScope(newContext);
         }
         finally
@@ -422,7 +451,7 @@ public static class MonitoringController
 
             trueStates[type] = enabled;
             effectiveStates[type] = enabled && IsEnabled;
-            UpdateVersionNoLock();
+            UpdateVersionNoLock(); // Change this line
             _logger.LogDebug($"{componentType} {type.Name} {(enabled ? "enabled" : "disabled")}. New version: {_currentVersion}");
             OnStateChanged(componentType, type.Name, effectiveStates[type], _currentVersion);
             InvalidateShouldTrackCache();
@@ -512,6 +541,7 @@ public static class MonitoringController
             {
                 _currentOperationContext.Value = _context.ParentContext;
                 _isDisposed = true;
+                _logger.LogDebug($"Operation ended with version: {_context.OperationVersion}");
             }
         }
     }
@@ -561,7 +591,8 @@ public static class MonitoringController
     {
         Reporter,
         Filter,
-        OutputType
+        OutputType,
+        Configuration
     }
 
     #region Testing

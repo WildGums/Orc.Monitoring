@@ -101,14 +101,29 @@ public class MonitoringControllerOperationTests
         {
             Assert.That(operationVersion, Is.EqualTo(initialVersion));
 
+            // ShouldTrack should return true for the operation version initially
+            Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.True, "Should track for operation version initially");
+
             MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
 
-            // ShouldTrack should still return true because it uses the operation version
-            Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.True);
+            var currentVersion = MonitoringController.GetCurrentVersion();
+            Assert.That(currentVersion, Is.GreaterThan(initialVersion));
+
+            // ShouldTrack should return false for the operation version after global version change
+            Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.False, "Should not track for operation version after global version change");
+
+            // ShouldTrack should return false for the initial version
+            Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.False, "Should not track for initial version");
+
+            // ShouldTrack should return true for the current version (which is newer than the operation version)
+            Assert.That(MonitoringController.ShouldTrack(currentVersion), Is.True, "Should track for current version");
         }
 
         // Outside the operation, ShouldTrack should now return false for the initial version
-        Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.False);
+        Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.False, "Should not track for initial version outside operation");
+
+        // Outside the operation, ShouldTrack should return true for the current version
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion()), Is.True, "Should track for current version outside operation");
     }
 
     [Test]
@@ -116,21 +131,25 @@ public class MonitoringControllerOperationTests
     {
         var initialVersion = MonitoringController.GetCurrentVersion();
 
-        using (MonitoringController.BeginOperation(out var operationVersion))
+        var operationTask = Task.Run(async () =>
         {
-            Assert.That(operationVersion, Is.EqualTo(initialVersion));
-            Assert.That(MonitoringController.IsOperationValid(), Is.True);
+            using (MonitoringController.BeginOperation(out var operationVersion))
+            {
+                Assert.That(operationVersion, Is.EqualTo(initialVersion));
+                await Task.Delay(1000); // Simulate long-running operation
+                return MonitoringController.ShouldTrack(operationVersion);
+            }
+        });
 
-            await Task.Delay(100); // Simulate some async work
+        await Task.Delay(100); // Give some time for the operation to start
 
-            MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
+        MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
 
-            Assert.That(MonitoringController.IsOperationValid(), Is.False);
-            Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.True);
+        var result = await operationTask;
 
-            var newVersion = MonitoringController.GetCurrentVersion();
-            Assert.That(newVersion, Is.GreaterThan(operationVersion));
-        }
+        Assert.That(result, Is.False, "ShouldTrack should return false for the operation version after global version change");
+        Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.False, "ShouldTrack should return false for the initial version outside the operation");
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion()), Is.True, "ShouldTrack should return true for the current version");
     }
 
     private class DummyReporter : IMethodCallReporter
