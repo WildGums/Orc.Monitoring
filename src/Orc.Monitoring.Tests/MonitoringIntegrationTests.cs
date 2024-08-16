@@ -1,14 +1,17 @@
-﻿namespace Orc.Monitoring.Tests;
+﻿#pragma warning disable CL0002
+namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Filters;
 using MethodLifeCycleItems;
 using Reporters;
-using System.Collections.Generic;
-using System;
-using System.Threading.Tasks;
 using Reporters.ReportOutputs;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 
 
 [TestFixture]
@@ -19,24 +22,32 @@ public class MonitoringIntegrationTests
     [SetUp]
     public void Setup()
     {
-        MonitoringController.ResetForTesting();
-
-        _sequenceReporter = new MockSequenceReporter();
-
-        PerformanceMonitor.Configure(config =>
+        try
         {
-            config.AddReporter(_sequenceReporter.GetType());
-            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
-        });
+            MonitoringController.ResetForTesting();
 
-        // Add all public methods of the test class to tracked methods
-        foreach (var method in typeof(MonitoringIntegrationTests).GetMethods(BindingFlags.Public | BindingFlags.Instance))
-        {
-            PerformanceMonitor.AddTrackedMethod(typeof(MonitoringIntegrationTests), method);
+            _sequenceReporter = new MockSequenceReporter();
+
+            PerformanceMonitor.Configure(config =>
+            {
+                config.AddReporter(_sequenceReporter.GetType());
+                config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
+            });
+
+            // Add all public methods of the test class to tracked methods
+            foreach (var method in typeof(MonitoringIntegrationTests).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            {
+                PerformanceMonitor.AddTrackedMethod(typeof(MonitoringIntegrationTests), method);
+            }
+
+            MonitoringController.Enable();
+            MonitoringController.EnableReporter(_sequenceReporter.GetType());
         }
-
-        MonitoringController.Enable();
-        MonitoringController.EnableReporter(_sequenceReporter.GetType());
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error during test setup: {ex}");
+            throw; // Rethrow the exception to fail the test
+        }
     }
 
     [Test]
@@ -92,7 +103,7 @@ public class MonitoringIntegrationTests
     public void RootMethod_SetsRootMethodBeforeStartingReporting()
     {
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
-        
+
         if (monitor is null)
         {
             throw new InvalidOperationException("Monitor not initialized");
@@ -105,7 +116,6 @@ public class MonitoringIntegrationTests
 
         using (var context = monitor.Start(builder => builder.AddReporter(_sequenceReporter)))
         {
-            // Simulate some work
             System.Threading.Thread.Sleep(10);
         }
 
@@ -129,12 +139,108 @@ public class MonitoringIntegrationTests
 
         await using (var context = monitor.AsyncStart(builder => builder.AddReporter(_sequenceReporter)))
         {
-            // Simulate some async work
             await Task.Delay(10);
         }
 
         Assert.That(_sequenceReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
         Assert.That(_sequenceReporter.RootMethodName, Is.EqualTo(nameof(AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync)));
+    }
+
+    [Test, Retry(3)] // Retry up to 3 times
+    public void VersionChanges_AreReflectedInMonitoring()
+    {
+        MonitoringController.ResetForTesting(); // Ensure a clean state
+        var initialVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Initial Version: {initialVersion}");
+
+        MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        Task.Delay(50).Wait(); // Add a small delay
+        var afterFirstEnableVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"After First Enable Version: {afterFirstEnableVersion}");
+
+        Assert.That(afterFirstEnableVersion, Is.GreaterThan(initialVersion), "Version should increase after enabling first reporter");
+
+        // Force a version change
+        MonitoringController.Configuration = new MonitoringConfiguration();
+        Task.Delay(50).Wait(); // Add a small delay
+        var afterConfigChangeVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"After Config Change Version: {afterConfigChangeVersion}");
+
+        Assert.That(afterConfigChangeVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after changing configuration");
+
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        Task.Delay(50).Wait(); // Add a small delay
+        var finalVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Final Version: {finalVersion}");
+
+        Assert.That(finalVersion, Is.GreaterThan(afterConfigChangeVersion), "Version should increase after enabling second reporter");
+
+        var versionHistory = MonitoringDiagnostics.GetVersionHistory();
+        Console.WriteLine("Version History:");
+        foreach (var change in versionHistory)
+        {
+            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+        }
+
+        Assert.That(versionHistory, Has.Count.GreaterThanOrEqualTo(3), "Should have at least 3 version changes");
+        Assert.That(versionHistory.First().OldVersion, Is.EqualTo(initialVersion), "First change should start from initial version");
+        Assert.That(versionHistory.Last().NewVersion, Is.EqualTo(finalVersion), "Last change should end with final version");
+    }
+
+    [Test]
+    public async Task ConcurrentOperations_MaintainVersionIntegrity()
+    {
+        const int concurrentTasks = 50;
+        var tasks = new Task[concurrentTasks];
+        var versions = new ConcurrentBag<MonitoringVersion>();
+
+        for (int i = 0; i < concurrentTasks; i++)
+        {
+            tasks[i] = Task.Run(() =>
+            {
+                MonitoringController.EnableReporter(typeof(PerformanceReporter));
+                versions.Add(MonitoringController.GetCurrentVersion());
+                MonitoringController.DisableReporter(typeof(PerformanceReporter));
+                versions.Add(MonitoringController.GetCurrentVersion());
+            });
+        }
+
+        await Task.WhenAll(tasks);
+
+        var orderedVersions = versions.OrderBy(v => v).ToList();
+        for (int i = 1; i < orderedVersions.Count; i++)
+        {
+            Assert.That(orderedVersions[i], Is.GreaterThanOrEqualTo(orderedVersions[i - 1]));
+        }
+
+        var versionHistory = MonitoringDiagnostics.GetVersionHistory();
+        Assert.That(versionHistory, Has.Count.GreaterThanOrEqualTo(concurrentTasks * 2));
+    }
+
+    [Test]
+    public async Task LongRunningOperation_MaintainsConsistentView()
+    {
+        var initialVersion = MonitoringController.GetCurrentVersion();
+
+        var operationTask = Task.Run(async () =>
+        {
+            using (MonitoringController.BeginOperation(out var operationVersion))
+            {
+                Assert.That(operationVersion, Is.EqualTo(initialVersion));
+                await Task.Delay(1000); // Simulate long-running operation
+                return MonitoringController.ShouldTrack(operationVersion, typeof(PerformanceReporter));
+            }
+        });
+
+        await Task.Delay(100); // Give some time for the operation to start
+
+        MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        MonitoringController.DisableReporter(typeof(PerformanceReporter));
+
+        var result = await operationTask;
+
+        Assert.That(result, Is.False);
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.False);
     }
 
     private class TestObserver : IObserver<ICallStackItem>

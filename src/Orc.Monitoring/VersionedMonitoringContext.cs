@@ -2,7 +2,6 @@
 
 using System;
 
-
 public abstract class VersionedMonitoringContext
 {
     protected MonitoringVersion ContextVersion { get; private set; }

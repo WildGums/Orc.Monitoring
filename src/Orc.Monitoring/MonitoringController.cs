@@ -66,24 +66,29 @@ using Reporters;
 /// </remarks>
 public static class MonitoringController
 {
+    private static readonly VersionManager _versionManager = new();
+    private static MonitoringVersion _currentVersion;
     private static int _isEnabled = 0;
-    private static int _activeOperations = 0;
-    private static MonitoringVersion _currentVersion = new(0, Guid.NewGuid());
     private static readonly ConcurrentDictionary<Type, bool> _reporterTrueStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _filterTrueStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _reporterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _filterEffectiveStates = new();
     private static readonly ConcurrentDictionary<Type, bool> _outputTypeStates = new();
-    private static readonly ReaderWriterLockSlim _stateLock = new();
-    private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = [];
+    private static readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
+    private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
+    private static readonly AsyncLocal<OperationContext?> _currentOperationContext = new();
+
     private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?), bool> _shouldTrackCache = new();
 
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
 
+    private static long _cacheVersion = 0;
+    private static int _isUpdating = 0;
+
     private static MonitoringConfiguration _configuration = new();
 
-    public static event EventHandler<MonitoringVersion>? VersionChanged;
+    public static event EventHandler<VersionChangedEventArgs>? VersionChanged;
 
     public static ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();
     public static ILogger CreateLogger(Type type) => _loggerFactory.CreateLogger(type);
@@ -93,54 +98,91 @@ public static class MonitoringController
         get => _configuration;
         set
         {
-            _configuration = value;
-            UpdateVersion();
+            _stateLock.EnterWriteLock();
+            try
+            {
+                var oldConfig = _configuration;
+                _configuration = value;
+                UpdateVersionNoLock(); // Ensure version is always updated
+                InvalidateShouldTrackCache();
+                _logger.LogDebug($"Configuration updated. New version: {_currentVersion}");
+                OnStateChanged(MonitoringComponentType.Configuration, "Configuration", true, _currentVersion);
+
+                LogConfigurationChanges(oldConfig, value);
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
+            }
         }
+    }
+
+    private static void LogConfigurationChanges(MonitoringConfiguration oldConfig, MonitoringConfiguration newConfig)
+    {
+        // Implement comparison logic here and log specific changes
+        // For example:
+        // if (oldConfig.SomeProperty != newConfig.SomeProperty)
+        // {
+        //     _logger.LogDebug($"Configuration property changed: {nameof(newConfig.SomeProperty)} from {oldConfig.SomeProperty} to {newConfig.SomeProperty}");
+        // }
     }
 
     public static bool IsEnabled => Interlocked.CompareExchange(ref _isEnabled, 0, 0) == 1;
 
-    public static MonitoringVersion GetCurrentVersion() => _currentVersion;
-
-    /// <summary>
-    /// Enables global monitoring and restores individual component states.
-    /// </summary>
-    public static void Enable()
+    public static MonitoringVersion GetCurrentVersion()
     {
-        _stateLock.EnterWriteLock();
+        _stateLock.EnterReadLock();
         try
         {
-            if (Interlocked.Exchange(ref _isEnabled, 1) == 0)
-            {
-                UpdateVersion();
-                RestoreComponentStates();
-                _logger.LogDebug($"Monitoring enabled. New version: {_currentVersion}");
-            }
+            return _currentVersion;
         }
         finally
         {
-            _stateLock.ExitWriteLock();
+            _stateLock.ExitReadLock();
         }
     }
 
-    /// <summary>
-    /// Disables global monitoring and sets all component states to disabled.
-    /// </summary>
-    public static void Disable()
+    public static void Enable()
     {
-        _stateLock.EnterWriteLock();
-        try
+        if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
         {
-            if (Interlocked.Exchange(ref _isEnabled, 0) == 1)
+            try
             {
-                UpdateVersion();
-                DisableAllComponents();
-                _logger.LogDebug($"Monitoring disabled. New version: {_currentVersion}");
+                _stateLock.EnterWriteLock();
+                if (Interlocked.Exchange(ref _isEnabled, 1) == 0)
+                {
+                    UpdateVersionNoLock();
+                    RestoreComponentStates();
+                    _logger.LogDebug($"Monitoring enabled. New version: {_currentVersion}");
+                }
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
+                Interlocked.Exchange(ref _isUpdating, 0);
             }
         }
-        finally
+    }
+
+    public static void Disable()
+    {
+        if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
         {
-            _stateLock.ExitWriteLock();
+            try
+            {
+                _stateLock.EnterWriteLock();
+                if (Interlocked.Exchange(ref _isEnabled, 0) == 1)
+                {
+                    UpdateVersionNoLock();
+                    DisableAllComponents();
+                    _logger.LogDebug($"Monitoring disabled. New version: {_currentVersion}");
+                }
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
+                Interlocked.Exchange(ref _isUpdating, 0);
+            }
         }
     }
 
@@ -152,12 +194,25 @@ public static class MonitoringController
 
     public static void EnableReporter(Type reporterType)
     {
-        if(!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
+        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
         {
             throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
         }
 
-        SetComponentState(MonitoringComponentType.Reporter, reporterType, true);
+        _stateLock.EnterWriteLock();
+        try
+        {
+            _reporterTrueStates[reporterType] = true;
+            _reporterEffectiveStates[reporterType] = IsEnabled;
+            UpdateVersionNoLock();
+            InvalidateShouldTrackCache();
+            _logger.LogDebug($"Reporter {reporterType.Name} enabled. New version: {_currentVersion}");
+            OnStateChanged(MonitoringComponentType.Reporter, reporterType.Name, true, _currentVersion);
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
     }
 
     public static void DisableReporter(Type reporterType)
@@ -243,96 +298,127 @@ public static class MonitoringController
         return IsComponentEnabled(_filterEffectiveStates, outputType);
     }
 
-    /// <summary>
-    /// Determines whether monitoring should track the current operation based on the given version and component types.
-    /// </summary>
-    /// <param name="operationVersion">The version of the operation to check.</param>
-    /// <param name="reporterType">The type of the reporter to check, if any.</param>
-    /// <param name="filterType">The type of the filter to check, if any.</param>
-    /// <param name="outputType">The type of the output to check, if any.</param>
-    /// <returns>True if the operation should be tracked, false otherwise.</returns>
-    public static bool ShouldTrack(MonitoringVersion operationVersion, Type? reporterType = null, Type? filterType = null, Type? outputType = null)
+    public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, Type? outputType = null, bool allowOlderVersions = false)
     {
-        return _shouldTrackCache.GetOrAdd((operationVersion, reporterType, filterType, outputType), key =>
+        var currentContext = _currentOperationContext.Value;
+        var currentVersion = GetCurrentVersion();
+
+        // If we're in an operation
+        if (currentContext is not null)
         {
-            var (version, reporter, filter, output) = key;
-            return IsEnabled
-                   && version == _currentVersion
-                   && (reporter is null || IsReporterEnabled(reporter))
-                   && (filter is null || IsFilterEnabled(filter))
-                   && (output is null || IsOutputTypeEnabled(output));
+            // If the provided version is equal to the operation version, we should track only if the global version hasn't changed
+            if (version == currentContext.OperationVersion)
+            {
+                return version == currentVersion;
+            }
+            // If the provided version is older than the operation version, don't track
+            if (version < currentContext.OperationVersion)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // If we're not in an operation, check against the current global version
+            if (version > currentVersion || (!allowOlderVersions && version < currentVersion))
+            {
+                return false;
+            }
+        }
+
+        return _shouldTrackCache.GetOrAdd((version, reporterType, filterType, outputType), key =>
+        {
+            var (v, reporter, filter, output) = key;
+
+            var result = IsEnabled
+                         && (reporter is null || IsReporterEnabled(reporter))
+                         && (filter is null || IsFilterEnabled(filter))
+                         && (output is null || IsOutputTypeEnabled(output));
+
+            return result;
         });
     }
 
-    /// <summary>
-    /// Begins a new monitoring operation and returns the current version.
-    /// </summary>
-    /// <param name="operationVersion">When this method returns, contains the current monitoring version.</param>
-    /// <returns>An IDisposable that ends the operation when disposed.</returns>
-    public static IDisposable BeginOperation(out MonitoringVersion operationVersion)
+    private static void InvalidateShouldTrackCache()
     {
-        operationVersion = _currentVersion;
-        Interlocked.Increment(ref _activeOperations);
-        return new OperationScope();
+        Interlocked.Increment(ref _cacheVersion);
+        _shouldTrackCache.Clear();
     }
 
-    /// <summary>
-    /// Registers a new monitoring context to receive version updates.
-    /// </summary>
-    /// <param name="context">The context to register.</param>
+    public static IDisposable BeginOperation(out MonitoringVersion operationVersion)
+    {
+        _stateLock.EnterReadLock();
+        try
+        {
+            operationVersion = GetCurrentVersion();
+            var parentContext = _currentOperationContext.Value;
+            var newContext = new OperationContext(operationVersion, parentContext);
+            _currentOperationContext.Value = newContext;
+            _logger.LogDebug($"Operation begun with version: {operationVersion}");
+            return new OperationScope(newContext);
+        }
+        finally
+        {
+            _stateLock.ExitReadLock();
+        }
+    }
+
+    public static bool IsOperationValid()
+    {
+        var context = _currentOperationContext.Value;
+        return context is not null && context.OperationVersion == GetCurrentVersion();
+    }
+
     public static void RegisterContext(VersionedMonitoringContext context)
     {
         _activeContexts.Add(new WeakReference<VersionedMonitoringContext>(context));
     }
 
-    /// <summary>
-    /// Temporarily enables the specified reporter and returns an IDisposable that reverts the change when disposed.
-    /// </summary>
-    /// <typeparam name="T">The type of the reporter to enable.</typeparam>
-    /// <returns>An IDisposable that reverts the change when disposed.</returns>
     public static IDisposable TemporarilyEnableReporter<T>() where T : class
     {
         return new TemporaryStateChange(MonitoringComponentType.Reporter, typeof(T));
     }
 
-    /// <summary>
-    /// Temporarily enables the specified filter and returns an IDisposable that reverts the change when disposed.
-    /// </summary>
-    /// <typeparam name="T">The type of the filter to enable.</typeparam>
-    /// <returns>An IDisposable that reverts the change when disposed.</returns>
     public static IDisposable TemporarilyEnableFilter<T>() where T : class
     {
         return new TemporaryStateChange(MonitoringComponentType.Filter, typeof(T));
     }
 
-    /// <summary>
-    /// Generates a report of version changes in the monitoring system.
-    /// </summary>
-    /// <returns>A string containing the version change report.</returns>
     public static string GenerateVersionReport()
     {
         return MonitoringDiagnostics.GenerateVersionReport();
     }
 
-    private static void UpdateVersion()
+    private static void NotifyVersionChanged(MonitoringVersion oldVersion, MonitoringVersion newVersion)
+    {
+        VersionChanged?.Invoke(null, new VersionChangedEventArgs(oldVersion, newVersion));
+    }
+
+    private static void UpdateVersionNoLock()
     {
         var oldVersion = _currentVersion;
-        long newMainVersion = _currentVersion.MainVersion + 1;
-
-        // Check for overflow
-        if (newMainVersion < 0)
-        {
-            // Reset to 0 if overflow occurs
-            newMainVersion = 0;
-            _logger.LogWarning("MonitoringVersion MainVersion overflowed and was reset to 0.");
-        }
-
-        _currentVersion = new MonitoringVersion(newMainVersion, Guid.NewGuid());
+        _currentVersion = _versionManager.GetNextVersion();
         MonitoringDiagnostics.LogVersionChange(oldVersion, _currentVersion);
-        VersionChanged?.Invoke(null, _currentVersion);
+        NotifyVersionChanged(oldVersion, _currentVersion);
         PropagateVersionChange(_currentVersion);
+        InvalidateShouldTrackCache();
+    }
 
-        _shouldTrackCache.Clear();
+    private static void UpdateVersion()
+    {
+        if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
+        {
+            try
+            {
+                _stateLock.EnterWriteLock();
+                UpdateVersionNoLock();
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
+                Interlocked.Exchange(ref _isUpdating, 0);
+            }
+        }
     }
 
     private static event Action<MonitoringComponentType, string, bool, MonitoringVersion>? StateChangedCallback;
@@ -354,22 +440,28 @@ public static class MonitoringController
 
     private static void SetComponentState(MonitoringComponentType componentType, Type type, bool enabled)
     {
-        _stateLock.EnterWriteLock();
+        bool lockTaken = false;
         try
         {
+            _stateLock.EnterWriteLock();
+            lockTaken = true;
+
             var trueStates = componentType == MonitoringComponentType.Reporter ? _reporterTrueStates : _filterTrueStates;
             var effectiveStates = componentType == MonitoringComponentType.Reporter ? _reporterEffectiveStates : _filterEffectiveStates;
 
             trueStates[type] = enabled;
             effectiveStates[type] = enabled && IsEnabled;
-            UpdateVersion();
+            UpdateVersionNoLock(); // Change this line
             _logger.LogDebug($"{componentType} {type.Name} {(enabled ? "enabled" : "disabled")}. New version: {_currentVersion}");
             OnStateChanged(componentType, type.Name, effectiveStates[type], _currentVersion);
-            _shouldTrackCache.Clear();
+            InvalidateShouldTrackCache();
         }
         finally
         {
-            _stateLock.ExitWriteLock();
+            if (lockTaken)
+            {
+                _stateLock.ExitWriteLock();
+            }
         }
     }
 
@@ -421,42 +513,36 @@ public static class MonitoringController
         }
     }
 
-    #region Testing
-    internal static void ResetForTesting()
+    private class OperationContext
     {
-        _stateLock.EnterWriteLock();
-        try
+        public MonitoringVersion OperationVersion { get; }
+        public OperationContext? ParentContext { get; }
+
+        public OperationContext(MonitoringVersion operationVersion, OperationContext? parentContext)
         {
-            _isEnabled = 0;
-            _activeOperations = 0;
-            _currentVersion = new MonitoringVersion(0, Guid.NewGuid());
-            _reporterTrueStates.Clear();
-            _reporterEffectiveStates.Clear();
-            _filterTrueStates.Clear();
-            _filterEffectiveStates.Clear();
-            _activeContexts.Clear();
-            _configuration = new MonitoringConfiguration();
-
-            // Clear any subscribed event handlers
-            VersionChanged = null;
-
-            // Reset MonitoringDiagnostics
-            MonitoringDiagnostics.ClearVersionHistory();
-
-            _logger.LogInformation("MonitoringController reset for testing");
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
+            OperationVersion = operationVersion;
+            ParentContext = parentContext;
         }
     }
-    #endregion
 
     private sealed class OperationScope : IDisposable
     {
+        private readonly OperationContext _context;
+        private bool _isDisposed;
+
+        public OperationScope(OperationContext context)
+        {
+            _context = context;
+        }
+
         public void Dispose()
         {
-            Interlocked.Decrement(ref _activeOperations);
+            if (!_isDisposed)
+            {
+                _currentOperationContext.Value = _context.ParentContext;
+                _isDisposed = true;
+                _logger.LogDebug($"Operation ended with version: {_context.OperationVersion}");
+            }
         }
     }
 
@@ -505,6 +591,37 @@ public static class MonitoringController
     {
         Reporter,
         Filter,
-        OutputType
+        OutputType,
+        Configuration
     }
+
+    #region Testing
+    internal static void ResetForTesting()
+    {
+        _stateLock.EnterWriteLock();
+        try
+        {
+            _isEnabled = 0;
+            _currentVersion = default;
+            _reporterTrueStates.Clear();
+            _reporterEffectiveStates.Clear();
+            _filterTrueStates.Clear();
+            _filterEffectiveStates.Clear();
+            _activeContexts.Clear();
+            _configuration = new MonitoringConfiguration();
+
+            // Clear any subscribed event handlers
+            VersionChanged = null;
+
+            // Reset MonitoringDiagnostics
+            MonitoringDiagnostics.ClearVersionHistory();
+
+            _logger.LogInformation("MonitoringController reset for testing");
+        }
+        finally
+        {
+            _stateLock.ExitWriteLock();
+        }
+    }
+    #endregion
 }

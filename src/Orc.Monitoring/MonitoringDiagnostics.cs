@@ -84,8 +84,15 @@ public static class MonitoringDiagnostics
 
     public static VersionChangeRecord? FindVersionAtTime(DateTime time)
     {
-        return _versionHistory
-            .LastOrDefault(r => r.Timestamp <= time);
+        var history = _versionHistory.ToList(); // Create a snapshot of the history
+        if (history.Count == 0 || time < history[0].Timestamp)
+        {
+            return null; // No version changes recorded yet or time is before first change
+        }
+        return history
+            .Where(r => r.Timestamp <= time)
+            .OrderByDescending(r => r.Timestamp)
+            .FirstOrDefault();
     }
 }
 
