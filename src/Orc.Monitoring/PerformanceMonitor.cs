@@ -122,6 +122,11 @@ public static class PerformanceMonitor
     public static IClassMonitor ForClass<T>()
     {
         Console.WriteLine($"PerformanceMonitor.ForClass<{typeof(T).Name}> called");
+        if (!MonitoringController.IsEnabled)
+        {
+            Console.WriteLine("Monitoring is disabled. Returning NullClassMonitor.");
+            return new NullClassMonitor();
+        }
         var monitor = CreateClassMonitor(typeof(T));
         Console.WriteLine($"Created monitor of type: {monitor.GetType().Name}");
         return monitor;

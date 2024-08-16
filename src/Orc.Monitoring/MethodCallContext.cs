@@ -40,26 +40,52 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
 
     public void LogException(Exception exception)
     {
-        EnsureValidVersion();
-        if (MethodCallInfo is null)
+        if (MethodCallInfo?.IsNull ?? true)
         {
+            // Do nothing if we're using a dummy context
             return;
         }
 
-        var exceptionStatus = new MethodCallException(MethodCallInfo, exception);
-        (_classMonitor as ClassMonitor)?.LogStatus(exceptionStatus);
+        try
+        {
+            EnsureValidVersion();
+            if (MethodCallInfo is null)
+            {
+                return;
+            }
+
+            var exceptionStatus = new MethodCallException(MethodCallInfo, exception);
+            (_classMonitor as ClassMonitor)?.LogStatus(exceptionStatus);
+        }
+        catch (InvalidOperationException)
+        {
+            // Silently ignore version mismatch when monitoring is not properly configured
+        }
     }
 
     public void Log(string category, object data)
     {
-        EnsureValidVersion();
-        if (MethodCallInfo is null)
+        if (MethodCallInfo?.IsNull ?? true)
         {
+            // Do nothing if we're using a dummy context
             return;
         }
 
-        var logEntry = new LogEntryItem(MethodCallInfo, category, data);
-        (_classMonitor as ClassMonitor)?.LogStatus(logEntry);
+        try
+        {
+            EnsureValidVersion();
+            if (MethodCallInfo is null)
+            {
+                return;
+            }
+
+            var logEntry = new LogEntryItem(MethodCallInfo, category, data);
+            (_classMonitor as ClassMonitor)?.LogStatus(logEntry);
+        }
+        catch (InvalidOperationException)
+        {
+            // Silently ignore version mismatch when monitoring is not properly configured
+        }
     }
 
     public void SetParameter(string name, string value)

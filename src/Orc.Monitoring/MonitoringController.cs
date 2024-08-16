@@ -204,6 +204,8 @@ public static class MonitoringController
         {
             _reporterTrueStates[reporterType] = true;
             _reporterEffectiveStates[reporterType] = IsEnabled;
+
+            // Always update version
             UpdateVersionNoLock();
             InvalidateShouldTrackCache();
             _logger.LogDebug($"Reporter {reporterType.Name} enabled. New version: {_currentVersion}");
@@ -312,7 +314,7 @@ public static class MonitoringController
                 return version == currentVersion;
             }
             // If the provided version is older than the operation version, don't track
-            if (version < currentContext.OperationVersion)
+            if (version < currentContext.OperationVersion && !allowOlderVersions)
             {
                 return false;
             }

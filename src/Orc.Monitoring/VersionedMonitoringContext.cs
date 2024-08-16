@@ -28,6 +28,12 @@ public abstract class VersionedMonitoringContext
 
     protected void EnsureValidVersion()
     {
+        if (!MonitoringController.IsEnabled)
+        {
+            // Do nothing if monitoring is disabled
+            return;
+        }
+
         if (!IsVersionValid())
         {
             throw new InvalidOperationException("The monitoring context is operating under an outdated version.");

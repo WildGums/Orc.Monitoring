@@ -40,14 +40,27 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
 
     public void LogException(Exception exception)
     {
-        EnsureValidVersion();
-        if (MethodCallInfo is null)
+        if (MethodCallInfo?.IsNull ?? true)
         {
+            // Do nothing if we're using a dummy context
             return;
         }
 
-        var exceptionStatus = new MethodCallException(MethodCallInfo, exception);
-        (_classMonitor as ClassMonitor)?.LogStatus(exceptionStatus);
+        try
+        {
+            EnsureValidVersion();
+            if (MethodCallInfo is null)
+            {
+                return;
+            }
+
+            var exceptionStatus = new MethodCallException(MethodCallInfo, exception);
+            (_classMonitor as ClassMonitor)?.LogStatus(exceptionStatus);
+        }
+        catch (InvalidOperationException)
+        {
+            // Silently ignore version mismatch when monitoring is not properly configured
+        }
     }
 
     public void Log(string category, object data)

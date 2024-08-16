@@ -31,12 +31,22 @@ internal class ClassMonitor : IClassMonitor
 
     public AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
     {
+        if (!MonitoringController.IsEnabled)
+        {
+            return AsyncMethodCallContext.Dummy;
+        }
+
         _logger.LogDebug($"StartAsyncMethod called for {callerMethod}");
         return (AsyncMethodCallContext)StartMethodInternal(config, callerMethod, async: true);
     }
 
     public MethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
     {
+        if (!MonitoringController.IsEnabled)
+        {
+            return MethodCallContext.Dummy;
+        }
+
         _logger.LogDebug($"StartMethod called for {callerMethod}");
         return (MethodCallContext)StartMethodInternal(config, callerMethod, async: false);
     }
