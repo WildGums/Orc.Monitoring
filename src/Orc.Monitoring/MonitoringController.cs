@@ -298,7 +298,7 @@ public static class MonitoringController
         return IsComponentEnabled(_filterEffectiveStates, outputType);
     }
 
-    public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, Type? outputType = null)
+    public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, Type? outputType = null, bool allowOlderVersions = false)
     {
         var currentContext = _currentOperationContext.Value;
         var currentVersion = GetCurrentVersion();
@@ -320,7 +320,7 @@ public static class MonitoringController
         else
         {
             // If we're not in an operation, check against the current global version
-            if (version < currentVersion)
+            if (version > currentVersion || (!allowOlderVersions && version < currentVersion))
             {
                 return false;
             }
@@ -393,7 +393,7 @@ public static class MonitoringController
     {
         VersionChanged?.Invoke(null, new VersionChangedEventArgs(oldVersion, newVersion));
     }
-    
+
     private static void UpdateVersionNoLock()
     {
         var oldVersion = _currentVersion;

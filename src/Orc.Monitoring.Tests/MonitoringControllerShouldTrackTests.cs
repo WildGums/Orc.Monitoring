@@ -37,7 +37,7 @@ public class MonitoringControllerShouldTrackTests
     {
         var oldVersion = MonitoringController.GetCurrentVersion();
         MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
-        Assert.That(MonitoringController.ShouldTrack(oldVersion), Is.True);
+        Assert.That(MonitoringController.ShouldTrack(oldVersion, allowOlderVersions: true), Is.True);
     }
 
     [Test]
