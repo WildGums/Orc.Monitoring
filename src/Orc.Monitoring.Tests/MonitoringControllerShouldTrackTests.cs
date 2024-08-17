@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using Orc.Monitoring.Reporters;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 
@@ -35,9 +36,20 @@ public class MonitoringControllerShouldTrackTests
     [Test]
     public void ShouldTrack_WithOlderVersion_ReturnsTrue()
     {
+        MonitoringController.Enable();
         var oldVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Old version: {oldVersion}");
+
+        // Add a small delay to ensure version change
+        Thread.Sleep(10);
+
         MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
-        Assert.That(MonitoringController.ShouldTrack(oldVersion, allowOlderVersions: true), Is.True);
+        var newVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"New version: {newVersion}");
+
+        Assert.That(oldVersion, Is.LessThan(newVersion), "New version should be greater than old version");
+        Assert.That(MonitoringController.ShouldTrack(oldVersion, allowOlderVersions: true), Is.True, "Should track older version when allowOlderVersions is true");
+        Assert.That(MonitoringController.ShouldTrack(oldVersion, allowOlderVersions: false), Is.False, "Should not track older version when allowOlderVersions is false");
     }
 
     [Test]

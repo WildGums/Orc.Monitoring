@@ -313,7 +313,7 @@ public static class MonitoringController
             {
                 return version == currentVersion;
             }
-            // If the provided version is older than the operation version, don't track
+            // If the provided version is older than the operation version, don't track unless allowOlderVersions is true
             if (version < currentContext.OperationVersion && !allowOlderVersions)
             {
                 return false;
@@ -326,6 +326,12 @@ public static class MonitoringController
             {
                 return false;
             }
+        }
+
+        // If we've made it this far and allowOlderVersions is true, we should track
+        if (allowOlderVersions && version < currentVersion)
+        {
+            return true;
         }
 
         return _shouldTrackCache.GetOrAdd((version, reporterType, filterType, outputType), key =>
