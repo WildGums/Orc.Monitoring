@@ -39,7 +39,7 @@ public class CsvReportWriter
 
     private void WriteReportItemsHeader(StreamWriter writer)
     {
-        var headerLine = new StringBuilder("Id,ParentId,StartTime,EndTime,Report,ClassName,MethodName,FullName,Duration,ThreadId,ParentThreadId,NestingLevel");
+        var headerLine = new StringBuilder("Id,ParentId,StartTime,EndTime,Report,ClassName,MethodName,FullName,Duration,ThreadId,ParentThreadId,NestingLevel,IsStatic,IsGeneric,IsExtension");
 
         foreach (var column in _customColumns)
         {
@@ -47,8 +47,8 @@ public class CsvReportWriter
         }
 
         var parameterNames = _reportItems.SelectMany(r => r.Parameters.Keys)
-                                         .Distinct()
-                                         .Where(k => !_customColumns.Contains(k));
+            .Distinct()
+            .Where(k => !_customColumns.Contains(k));
         foreach (var parameterName in parameterNames)
         {
             headerLine.Append($",{parameterName}");
@@ -60,7 +60,7 @@ public class CsvReportWriter
     private void WriteReportItemsData(StreamWriter writer)
     {
         var sortedReportItems = _reportItems
-            .Where( item => item.StartTime is not null)
+            .Where(item => item.StartTime is not null)
             .OrderBy(item => DateTime.ParseExact(item.StartTime!, "yyyy-MM-dd HH:mm:ss.fff", null))
             .ThenBy(item => item.ThreadId)
             .ThenBy(item => item.Level);
@@ -88,7 +88,10 @@ public class CsvReportWriter
         var line = new StringBuilder();
         line.Append($"{reportItem.Id},{parentId},{reportItem.StartTime},{reportItem.EndTime},{reportItem.Report},")
             .Append($"{reportItem.ClassName},{reportItem.MethodName},\"{fullName}\",\"{reportItem.Duration}\",")
-            .Append($"{reportItem.ThreadId},{reportItem.ParentThreadId},{reportItem.Level}");
+            .Append($"{reportItem.ThreadId},{reportItem.ParentThreadId},{reportItem.Level},")
+            .Append($"{GetPropertyOrDefault(reportItem, "IsStatic", false)},")
+            .Append($"{GetPropertyOrDefault(reportItem, "IsGeneric", false)},")
+            .Append($"{GetPropertyOrDefault(reportItem, "IsExtension", false)}");
 
         foreach (var column in _customColumns)
         {
@@ -106,16 +109,41 @@ public class CsvReportWriter
 
     private void WriteRelationshipsHeader(StreamWriter writer)
     {
-        writer.WriteLine("From,To");
+        writer.WriteLine("From,To,RelationType");
     }
 
     private void WriteRelationshipsData(StreamWriter writer)
     {
         foreach (var item in _reportItems.Where(r => !string.IsNullOrEmpty(r.Parent)))
         {
-            writer.WriteLine($"{item.Parent},{item.Id}");
+            var relationType = DetermineRelationType(item);
+            writer.WriteLine($"{item.Parent},{item.Id},{relationType}");
         }
     }
 
+    private string DetermineRelationType(ReportItem item)
+    {
+        if (GetPropertyOrDefault(item, "IsStatic", false))
+            return "Static";
+        if (GetPropertyOrDefault(item, "IsExtension", false))
+            return "Extension";
+        if (GetPropertyOrDefault(item, "IsGeneric", false))
+            return "Generic";
+        return "Regular";
+    }
+
     private static string ReplaceCommas(string value) => value.Replace(",", ";");
+
+    private static T GetPropertyOrDefault<T>(ReportItem item, string propertyName, T defaultValue)
+    {
+        if (item.Parameters.TryGetValue(propertyName, out var value))
+        {
+            if (typeof(T) == typeof(bool) && bool.TryParse(value, out var boolValue))
+            {
+                return (T)(object)boolValue;
+            }
+            // Add more type checks if needed for other property types
+        }
+        return defaultValue;
+    }
 }

@@ -4,81 +4,64 @@ namespace Orc.Monitoring;
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Logging;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Filters;
-using System.Linq;
 using System.Reflection;
+using System.Linq;
+using Orc.Monitoring.MethodLifeCycleItems;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Filters;
 
-
-internal class ClassMonitor : IClassMonitor
+public class StaticMethodMonitor : IClassMonitor
 {
-    private readonly Type _classType;
+    private readonly ILogger<StaticMethodMonitor> _logger;
     private readonly CallStack _callStack;
     private readonly HashSet<string> _trackedMethodNames;
     private readonly MonitoringConfiguration _monitoringConfig;
-    private readonly ILogger<ClassMonitor> _logger;
+    private readonly Type _classType;
 
-    public ClassMonitor(Type classType, CallStack callStack, HashSet<string> trackedMethodNames, MonitoringConfiguration monitoringConfig)
+    public StaticMethodMonitor(Type classType, CallStack callStack, HashSet<string> trackedMethodNames, MonitoringConfiguration monitoringConfig)
     {
         _classType = classType;
         _callStack = callStack;
         _trackedMethodNames = trackedMethodNames;
         _monitoringConfig = monitoringConfig;
-        _logger = MonitoringController.CreateLogger<ClassMonitor>();
-        _logger.LogInformation($"ClassMonitor created for {classType.Name}. Tracked methods: {string.Join(", ", trackedMethodNames)}");
+        _logger = MonitoringController.CreateLogger<StaticMethodMonitor>();
+        _logger.LogInformation($"StaticMethodMonitor created for {classType.Name}. Tracked static methods: {string.Join(", ", trackedMethodNames)}");
     }
 
     public AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
     {
-        return (AsyncMethodCallContext)StartMethodInternal(config, callerMethod, async: true);
+        return StartMethodInternal<AsyncMethodCallContext>(config, callerMethod, async: true);
     }
 
-    public MethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
+    public MethodCallContext StartMethod(MethodConfiguration config, string callerMethod = "")
     {
-        return (MethodCallContext)StartMethodInternal(config, callerMethod, async: false);
+        return StartMethodInternal<MethodCallContext>(config, callerMethod, async: false);
     }
 
-    private object StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
+    private T StartMethodInternal<T>(MethodConfiguration config, string callerMethod, bool async)
     {
         var currentVersion = MonitoringController.GetCurrentVersion();
-        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}, Method tracked: {_trackedMethodNames.Contains(callerMethod)}");
+        _logger.LogDebug($"StartMethodInternal called for static method {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}, Method tracked: {_trackedMethodNames.Contains(callerMethod)}");
 
         if (!IsMonitoringEnabled(callerMethod, currentVersion))
         {
-            return GetDummyContext(async);
+            return GetDummyContext<T>(async);
         }
 
         using var operation = MonitoringController.BeginOperation(out var operationVersion);
 
-        // Create MethodCallInfo without pushing it to the stack yet
         var methodCallInfo = CreateMethodCallInfo(config, callerMethod);
         if (methodCallInfo.IsNull)
         {
             _logger.LogDebug("MethodCallInfo is null, returning Dummy context");
-            return GetDummyContext(async);
+            return GetDummyContext<T>(async);
         }
 
         var methodInfo = methodCallInfo.MethodInfo;
-        if (methodInfo is null)
+        if (methodInfo is null || !methodInfo.IsStatic)
         {
-            _logger.LogDebug("MethodInfo is null, returning Dummy context");
-            return GetDummyContext(async);
-        }
-
-        // Handle static methods
-        if (methodInfo.IsStatic)
-        {
-            _logger.LogDebug($"Handling static method: {methodInfo.Name}");
-            methodCallInfo.IsStatic = true;
-        }
-
-        // Handle generic methods
-        if (methodInfo.IsGenericMethod)
-        {
-            _logger.LogDebug($"Handling generic method: {methodInfo.Name}");
-            methodCallInfo.SetGenericArguments(methodInfo.GetGenericArguments());
+            _logger.LogWarning($"Method {callerMethod} is not static or MethodInfo is null. Returning Dummy context");
+            return GetDummyContext<T>(async);
         }
 
         // Set RootMethod on reporters before starting them
@@ -87,35 +70,35 @@ internal class ClassMonitor : IClassMonitor
             reporter.RootMethod = methodInfo;
         }
 
-        // Now start the reporters
+        // Start the reporters
         var disposables = StartReporters(config, operationVersion);
 
-        // Push the method call to the stack after starting reporters
+        // Push the method call to the stack
         PushMethodCallInfoToStack(methodCallInfo);
 
         var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
 
         if (ShouldReturnDummyContext(methodCallInfo, operationVersion))
         {
-            return GetDummyContext(async);
+            return GetDummyContext<T>(async);
         }
 
         if (!ShouldTrackMethod(methodCallInfo, applicableFilters, operationVersion))
         {
-            _logger.LogDebug("Method filtered out, returning Dummy context");
-            return GetDummyContext(async);
+            _logger.LogDebug("Static method filtered out, returning Dummy context");
+            return GetDummyContext<T>(async);
         }
 
-        _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
-        return CreateMethodCallContext(async, methodCallInfo, disposables);
+        _logger.LogDebug($"Returning {(async ? "async" : "sync")} context for static method");
+        return CreateMethodCallContext<T>(async, methodCallInfo, disposables);
     }
 
     private MethodCallInfo CreateMethodCallInfo(MethodConfiguration config, string callerMethod)
     {
-        var methodInfo = FindMethod(callerMethod, config);
+        var methodInfo = FindStaticMethod(callerMethod, config);
         if (methodInfo is null)
         {
-            _logger.LogWarning($"Method not found: {callerMethod}");
+            _logger.LogWarning($"Static method not found: {callerMethod}");
             return MethodCallInfo.CreateNull();
         }
 
@@ -128,10 +111,11 @@ internal class ClassMonitor : IClassMonitor
         });
     }
 
-    private MethodInfo? FindMethod(string methodName, MethodConfiguration config)
+    private MethodInfo? FindStaticMethod(string methodName, MethodConfiguration config)
     {
-        var methods = _classType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
-            .Where(m => m.Name == methodName)
+        var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        var methods = _classType.GetMethods(bindingFlags)
+            .Where(m => m.Name == methodName && m.IsStatic)
             .ToList();
 
         if (methods.Count == 0)
@@ -144,7 +128,7 @@ internal class ClassMonitor : IClassMonitor
             return methods[0];
         }
 
-        // If we have multiple methods with the same name, try to match based on parameter types
+        // If we have multiple static methods with the same name, try to match based on parameter types
         var matchedMethod = methods.FirstOrDefault(m => ParametersMatch(m.GetParameters(), config.ParameterTypes));
         if (matchedMethod is not null)
         {
@@ -162,7 +146,7 @@ internal class ClassMonitor : IClassMonitor
         }
 
         // If we still can't determine, log a warning and return the first method
-        _logger.LogWarning($"Multiple methods found with name {methodName}, unable to determine exact match. Using first method.");
+        _logger.LogWarning($"Multiple static methods found with name {methodName}, unable to determine exact match. Using first method.");
         return methods[0];
     }
 
@@ -198,7 +182,7 @@ internal class ClassMonitor : IClassMonitor
     private void PushMethodCallInfoToStack(MethodCallInfo methodCallInfo)
     {
         _callStack.Push(methodCallInfo);
-        _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.Version}");
+        _logger.LogDebug($"Static MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.Version}");
     }
 
     private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MonitoringVersion operationVersion)
@@ -208,7 +192,7 @@ internal class ClassMonitor : IClassMonitor
         {
             if (MonitoringController.IsReporterEnabled(reporter.GetType()) && MonitoringController.ShouldTrack(operationVersion, reporter.GetType()))
             {
-                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
+                _logger.LogDebug($"Starting reporter for static method: {reporter.GetType().Name}");
                 var reporterDisposable = reporter.StartReporting(_callStack);
                 disposables.Add(reporterDisposable);
             }
@@ -221,10 +205,12 @@ internal class ClassMonitor : IClassMonitor
         return MonitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
     }
 
-    private object GetDummyContext(bool async)
+    private T GetDummyContext<T>(bool async)
     {
-        _logger.LogDebug("Returning Dummy context");
-        return async ? AsyncMethodCallContext.Dummy : MethodCallContext.Dummy;
+        _logger.LogDebug("Returning Dummy context for static method");
+        return async
+            ? (T)(object)AsyncMethodCallContext.Dummy
+            : (T)(object)MethodCallContext.Dummy;
     }
 
     private bool ShouldReturnDummyContext(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
@@ -232,11 +218,11 @@ internal class ClassMonitor : IClassMonitor
         return methodCallInfo.IsNull || !MonitoringController.ShouldTrack(operationVersion);
     }
 
-    private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)
+    private T CreateMethodCallContext<T>(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)
     {
         return async
-            ? new AsyncMethodCallContext(this, methodCallInfo, disposables)
-            : new MethodCallContext(this, methodCallInfo, disposables);
+            ? (T)(object)new AsyncMethodCallContext(this, methodCallInfo, disposables)
+            : (T)(object)new MethodCallContext(this, methodCallInfo, disposables);
     }
 
     private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, IEnumerable<Type> applicableFilters, MonitoringVersion operationVersion)
@@ -254,11 +240,11 @@ internal class ClassMonitor : IClassMonitor
 
     public void LogStatus(IMethodLifeCycleItem status)
     {
-        _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
+        _logger.LogDebug($"LogStatus called for static method with {status.GetType().Name}");
         var currentVersion = MonitoringController.GetCurrentVersion();
         if (!MonitoringController.ShouldTrack(currentVersion))
         {
-            _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
+            _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status for static method");
             return;
         }
 
@@ -266,11 +252,11 @@ internal class ClassMonitor : IClassMonitor
 
         if (status is MethodCallEnd endStatus && !endStatus.MethodCallInfo.IsNull)
         {
-            _logger.LogDebug($"Popping MethodCallInfo for {endStatus.MethodCallInfo}");
+            _logger.LogDebug($"Popping MethodCallInfo for static method {endStatus.MethodCallInfo}");
             _callStack.Pop(endStatus.MethodCallInfo);
         }
 
-        _logger.LogDebug($"Logging status to CallStack: {status}");
+        _logger.LogDebug($"Logging status to CallStack for static method: {status}");
         _callStack.LogStatus(status);
     }
 }
