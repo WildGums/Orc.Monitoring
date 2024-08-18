@@ -78,7 +78,7 @@ public static class MonitoringController
     private static readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
     private static readonly AsyncLocal<OperationContext?> _currentOperationContext = new();
 
-    private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?), bool> _shouldTrackCache = new();
+    private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?, long), bool> _shouldTrackCache = new();
 
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
@@ -234,7 +234,7 @@ public static class MonitoringController
             throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
         }
 
-        return IsComponentEnabled(_reporterEffectiveStates, reporterType);
+        return _reporterEffectiveStates.TryGetValue(reporterType, out var isEnabled) && isEnabled && IsEnabled;
     }
 
     public static void EnableFilter<T>() where T : IMethodFilter => EnableFilter(typeof(T));
@@ -334,17 +334,25 @@ public static class MonitoringController
             return true;
         }
 
-        return _shouldTrackCache.GetOrAdd((version, reporterType, filterType, outputType), key =>
+        var result = _shouldTrackCache.GetOrAdd((version, reporterType, filterType, outputType, _cacheVersion), key =>
         {
-            var (v, reporter, filter, output) = key;
+            var (v, reporter, filter, output, _) = key;
 
-            var result = IsEnabled
-                         && (reporter is null || IsReporterEnabled(reporter))
-                         && (filter is null || IsFilterEnabled(filter))
-                         && (output is null || IsOutputTypeEnabled(output));
+            var isEnabled = IsEnabled;
+            var reporterEnabled = reporter is null || IsReporterEnabled(reporter);
+            var filterEnabled = filter is null || IsFilterEnabled(filter);
+            var outputEnabled = output is null || IsOutputTypeEnabled(output);
+
+            var result = isEnabled && reporterEnabled && filterEnabled && outputEnabled;
+
+            _logger.LogDebug($"ShouldTrack cache miss. Version: {v}, Reporter: {reporter?.Name ?? "null"}, Filter: {filter?.Name ?? "null"}, Output: {output?.Name ?? "null"}, " +
+                             $"IsEnabled: {isEnabled}, ReporterEnabled: {reporterEnabled}, FilterEnabled: {filterEnabled}, OutputEnabled: {outputEnabled}, Result: {result}");
 
             return result;
         });
+
+        _logger.LogDebug($"ShouldTrack result: {result}");
+        return result;
     }
 
     private static void InvalidateShouldTrackCache()
@@ -459,7 +467,7 @@ public static class MonitoringController
 
             trueStates[type] = enabled;
             effectiveStates[type] = enabled && IsEnabled;
-            UpdateVersionNoLock(); // Change this line
+            UpdateVersionNoLock();
             _logger.LogDebug($"{componentType} {type.Name} {(enabled ? "enabled" : "disabled")}. New version: {_currentVersion}");
             OnStateChanged(componentType, type.Name, effectiveStates[type], _currentVersion);
             InvalidateShouldTrackCache();

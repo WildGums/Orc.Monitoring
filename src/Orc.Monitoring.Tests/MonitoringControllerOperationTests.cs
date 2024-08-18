@@ -5,6 +5,7 @@ using NUnit.Framework;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 
@@ -95,19 +96,31 @@ public class MonitoringControllerOperationTests
     [Test]
     public void ShouldTrack_DuringOperation_UsesOperationVersion()
     {
+        MonitoringController.ResetForTesting();
+        MonitoringController.Enable();
+        Console.WriteLine($"Test start - IsEnabled: {MonitoringController.IsEnabled}");
+
         var initialVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Initial version: {initialVersion}");
 
         using (MonitoringController.BeginOperation(out var operationVersion))
         {
-            Assert.That(operationVersion, Is.EqualTo(initialVersion));
+            Console.WriteLine($"Operation version: {operationVersion}");
+            Assert.That(operationVersion, Is.EqualTo(initialVersion), "Operation version should initially match the current version");
 
             // ShouldTrack should return true for the operation version initially
             Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.True, "Should track for operation version initially");
 
-            MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
+            Thread.Sleep(10); // Ensure a new timestamp for the next version
+
+            Console.WriteLine($"Before enabling reporter - IsEnabled: {MonitoringController.IsEnabled}, DummyReporter enabled: {MonitoringController.IsReporterEnabled(typeof(DummyReporter))}");
+            MonitoringController.EnableReporter(typeof(DummyReporter)); // This should update the version
+            Console.WriteLine($"After enabling reporter - DummyReporter enabled: {MonitoringController.IsReporterEnabled(typeof(DummyReporter))}");
 
             var currentVersion = MonitoringController.GetCurrentVersion();
-            Assert.That(currentVersion, Is.GreaterThan(initialVersion));
+            Console.WriteLine($"Current version after EnableReporter: {currentVersion}");
+
+            Assert.That(currentVersion, Is.GreaterThan(initialVersion), "Version should increment after enabling reporter");
 
             // ShouldTrack should return false for the operation version after global version change
             Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.False, "Should not track for operation version after global version change");
@@ -124,6 +137,13 @@ public class MonitoringControllerOperationTests
 
         // Outside the operation, ShouldTrack should return true for the current version
         Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion()), Is.True, "Should track for current version outside operation");
+
+        Console.WriteLine("Printing version history:");
+        var versionHistory = MonitoringDiagnostics.GetVersionHistory();
+        foreach (var change in versionHistory)
+        {
+            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+        }
     }
 
     [Test]
@@ -160,7 +180,8 @@ public class MonitoringControllerOperationTests
 
         public IAsyncDisposable StartReporting(IObservable<MethodLifeCycleItems.ICallStackItem> callStack)
         {
-            throw new NotImplementedException();
+            Console.WriteLine("DummyReporter.StartReporting called");
+            return new AsyncDisposable(async () => { });
         }
 
         public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()

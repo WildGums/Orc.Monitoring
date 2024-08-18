@@ -47,6 +47,7 @@ internal class ClassMonitor : IClassMonitor
 
         if (!IsMonitoringEnabled(callerMethod, currentVersion))
         {
+            _logger.LogDebug($"Monitoring not enabled for {callerMethod}, returning Dummy context");
             return GetDummyContext(async);
         }
 
@@ -81,24 +82,28 @@ internal class ClassMonitor : IClassMonitor
             methodCallInfo.SetGenericArguments(methodInfo.GetGenericArguments());
         }
 
+        // Handle extension methods
+        if (methodInfo.IsDefined(typeof(ExtensionAttribute), false))
+        {
+            _logger.LogDebug($"Handling extension method: {methodInfo.Name}");
+            methodCallInfo.IsExtensionMethod = true;
+            methodCallInfo.ExtendedType = methodInfo.GetParameters()[0].ParameterType;
+        }
+
         // Set RootMethod on reporters before starting them
         foreach (var reporter in config.Reporters)
         {
             reporter.RootMethod = methodInfo;
+            _logger.LogDebug($"Set RootMethod for reporter: {reporter.GetType().Name}");
         }
 
-        // Now start the reporters
         var disposables = StartReporters(config, operationVersion);
+        _logger.LogDebug($"Started {disposables.Count} reporters for {callerMethod}");
 
         // Push the method call to the stack after starting reporters
         PushMethodCallInfoToStack(methodCallInfo);
 
         var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
-
-        if (ShouldReturnDummyContext(methodCallInfo, operationVersion))
-        {
-            return GetDummyContext(async);
-        }
 
         if (!ShouldTrackMethod(methodCallInfo, applicableFilters, operationVersion))
         {
@@ -206,11 +211,17 @@ internal class ClassMonitor : IClassMonitor
         var disposables = new List<IAsyncDisposable>();
         foreach (var reporter in config.Reporters)
         {
-            if (MonitoringController.IsReporterEnabled(reporter.GetType()) && MonitoringController.ShouldTrack(operationVersion, reporter.GetType()))
+            _logger.LogDebug($"Checking if reporter is enabled: {reporter.GetType().Name}");
+            if (MonitoringController.IsReporterEnabled(reporter.GetType()))
             {
                 _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
                 var reporterDisposable = reporter.StartReporting(_callStack);
                 disposables.Add(reporterDisposable);
+                _logger.LogDebug($"Reporter started: {reporter.GetType().Name}");
+            }
+            else
+            {
+                _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name}");
             }
         }
         return disposables;
@@ -218,7 +229,9 @@ internal class ClassMonitor : IClassMonitor
 
     private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
     {
-        return MonitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
+        var isEnabled = MonitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
+        _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}");
+        return isEnabled;
     }
 
     private object GetDummyContext(bool async)

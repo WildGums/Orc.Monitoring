@@ -117,6 +117,11 @@ public class MonitoringConfiguration
         _reporters.Add(typeof(T));
     }
 
+    public void AddReporter(Type reporterType)
+    {
+        _reporters.Add(reporterType);
+    }
+
     public IReadOnlyList<Type> GetReporters()
     {
         return _reporters;
