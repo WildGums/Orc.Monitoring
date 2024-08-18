@@ -8,56 +8,37 @@ using System.Threading.Tasks;
 using NUnit.Framework;
 using Moq;
 using Orc.Monitoring;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters;
+using Filters;
+
 
 [TestFixture]
 public class SpecialCaseTests
 {
-    private TestReporter _testReporter;
+    private MockReporter _mockReporter;
     private Mock<IMethodFilter> _mockFilter;
     private MonitoringConfiguration _config;
     private CallStack _callStack;
-
-    public class TestReporter : IMethodCallReporter
-    {
-        public string Name => "TestReporter";
-        public string FullName => "TestReporter";
-        public MethodInfo? RootMethod { get; set; }
-
-        public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
-        {
-            Console.WriteLine("TestReporter.StartReporting called");
-            return new AsyncDisposable(async () => { });
-        }
-
-        public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
-        {
-            return this;
-        }
-    }
 
     [SetUp]
     public void Setup()
     {
         MonitoringController.ResetForTesting();
-        _testReporter = new TestReporter();
+        _mockReporter = new MockReporter();
         _mockFilter = new Mock<IMethodFilter>();
         _config = new MonitoringConfiguration();
         _callStack = new CallStack(_config);
 
-        _config.AddReporter(typeof(TestReporter));
+        _config.AddReporter(_mockReporter.GetType());
         _config.AddFilter(_mockFilter.Object);
 
         MonitoringController.Configuration = _config;
         MonitoringController.Enable();
-        MonitoringController.EnableReporter(typeof(TestReporter));
+        MonitoringController.EnableReporter(_mockReporter.GetType());
 
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        Console.WriteLine($"Initial setup - IsEnabled: {MonitoringController.IsEnabled}, TestReporter enabled: {MonitoringController.IsReporterEnabled(typeof(TestReporter))}");
+        Console.WriteLine($"Initial setup - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
     }
 
     [Test]
@@ -68,14 +49,18 @@ public class SpecialCaseTests
 
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, new HashSet<string> { nameof(TestClass.StaticMethod) }, _config);
 
-        Console.WriteLine($"Before static method - IsEnabled: {MonitoringController.IsEnabled}, TestReporter enabled: {MonitoringController.IsReporterEnabled(typeof(TestReporter))}");
+        Console.WriteLine($"Before static method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
-        using (var context = monitor.StartMethod(new MethodConfiguration { Reporters = new List<IMethodCallReporter> { _testReporter } }, nameof(TestClass.StaticMethod)))
+        using (var context = monitor.StartMethod(new MethodConfiguration
+               {
+                   Reporters = new List<IMethodCallReporter> { _mockReporter }
+               }, nameof(TestClass.StaticMethod)))
         {
             TestClass.StaticMethod();
         }
 
-        Console.WriteLine($"After static method - StartReporting called: Check console output");
+        Console.WriteLine($"After static method - StartReporting called: {_mockReporter.StartReportingCallCount}");
+        Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for static method");
     }
 
     [Test]
@@ -87,20 +72,20 @@ public class SpecialCaseTests
         var tracker = new GenericMethodTracker();
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, new HashSet<string> { nameof(TestClass.GenericMethod) }, _config);
 
-        Console.WriteLine($"Before generic method - IsEnabled: {MonitoringController.IsEnabled}, TestReporter enabled: {MonitoringController.IsReporterEnabled(typeof(TestReporter))}");
+        Console.WriteLine($"Before generic method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context = monitor.StartMethod(new MethodConfiguration
-        {
-            Reporters = new List<IMethodCallReporter> { _testReporter },
-            GenericArguments = new List<Type> { typeof(int) }
-        }, nameof(TestClass.GenericMethod)))
+               {
+                   Reporters = new List<IMethodCallReporter> { _mockReporter },
+                   GenericArguments = new List<Type> { typeof(int) }
+               }, nameof(TestClass.GenericMethod)))
         {
             TestClass.GenericMethod<int>(5);
             tracker.TrackGenericMethodInstantiation(genericMethod, new[] { typeof(int) });
         }
 
-        Console.WriteLine($"After generic method - StartReporting called: Check console output");
-
+        Console.WriteLine($"After generic method - StartReporting called: {_mockReporter.StartReportingCallCount}");
+        Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for generic method");
         Assert.That(tracker.GetInstantiations(genericMethod).Any(t => t[0] == typeof(int)), Is.True);
     }
 
@@ -112,18 +97,24 @@ public class SpecialCaseTests
 
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, new HashSet<string> { nameof(TestClass.AsyncMethodAsync) }, _config);
 
-        Console.WriteLine($"Before async method - IsEnabled: {MonitoringController.IsEnabled}, TestReporter enabled: {MonitoringController.IsReporterEnabled(typeof(TestReporter))}");
+        Console.WriteLine($"Before async method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
+
+        var completionSource = new TaskCompletionSource<bool>();
+        _mockReporter.OnStartReporting = _ => completionSource.SetResult(true);
 
         await using (var context = monitor.StartAsyncMethod(new MethodConfiguration
-        {
-            Reporters = new List<IMethodCallReporter> { _testReporter },
-            ParameterTypes = new List<Type>() // Empty list for no parameters
-        }, nameof(TestClass.AsyncMethodAsync)))
+                     {
+                         Reporters = new List<IMethodCallReporter> { _mockReporter },
+                         ParameterTypes = new List<Type>() // Empty list for no parameters
+                     }, nameof(TestClass.AsyncMethodAsync)))
         {
             await TestClass.AsyncMethodAsync();
         }
 
-        Console.WriteLine($"After async method - StartReporting called: Check console output");
+        await Task.WhenAny(completionSource.Task, Task.Delay(5000)); // 5 second timeout
+
+        Console.WriteLine($"After async method - StartReporting called: {_mockReporter.StartReportingCallCount}");
+        Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for async method");
     }
 
     [Test]
@@ -135,17 +126,17 @@ public class SpecialCaseTests
         var handler = new ExtensionMethodHandler();
         var monitor = new ClassMonitor(typeof(TestExtensions), _callStack, new HashSet<string> { nameof(TestExtensions.ExtensionMethod) }, _config);
 
-        Console.WriteLine($"Before extension method - IsEnabled: {MonitoringController.IsEnabled}, TestReporter enabled: {MonitoringController.IsReporterEnabled(typeof(TestReporter))}");
+        Console.WriteLine($"Before extension method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
-        using (var context = monitor.StartMethod(new MethodConfiguration { Reporters = new List<IMethodCallReporter> { _testReporter } }, nameof(TestExtensions.ExtensionMethod)))
+        using (var context = monitor.StartMethod(new MethodConfiguration { Reporters = new List<IMethodCallReporter> { _mockReporter } }, nameof(TestExtensions.ExtensionMethod)))
         {
             "test".ExtensionMethod();
             handler.RegisterExtensionMethod(extensionMethod);
             handler.TrackInvocation(extensionMethod);
         }
 
-        Console.WriteLine($"After extension method - StartReporting called: Check console output");
-
+        Console.WriteLine($"After extension method - StartReporting called: {_mockReporter.StartReportingCallCount}");
+        Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for extension method");
         Assert.That(handler.IsExtensionMethod(extensionMethod), Is.True);
         Assert.That(handler.GetInvocationCount(extensionMethod), Is.EqualTo(1));
     }
@@ -159,33 +150,28 @@ public class SpecialCaseTests
 
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, new HashSet<string> { nameof(TestClass.OverloadedMethod) }, _config);
 
-        Console.WriteLine($"Before overloaded methods - IsEnabled: {MonitoringController.IsEnabled}, TestReporter enabled: {MonitoringController.IsReporterEnabled(typeof(TestReporter))}");
-
-        int startReportingCallCount = 0;
+        Console.WriteLine($"Before overloaded methods - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context1 = monitor.StartMethod(new MethodConfiguration
                {
-                   Reporters = new List<IMethodCallReporter> { _testReporter },
+                   Reporters = new List<IMethodCallReporter> { _mockReporter },
                    ParameterTypes = new List<Type> { typeof(int) }
                }, nameof(TestClass.OverloadedMethod)))
         {
             TestClass.OverloadedMethod(5);
-            startReportingCallCount++;
         }
 
         using (var context2 = monitor.StartMethod(new MethodConfiguration
                {
-                   Reporters = new List<IMethodCallReporter> { _testReporter },
+                   Reporters = new List<IMethodCallReporter> { _mockReporter },
                    ParameterTypes = new List<Type> { typeof(string) }
                }, nameof(TestClass.OverloadedMethod)))
         {
             TestClass.OverloadedMethod("test");
-            startReportingCallCount++;
         }
 
-        Console.WriteLine($"After overloaded methods - StartReporting called: {startReportingCallCount} times");
-
-        Assert.That(startReportingCallCount, Is.EqualTo(2), "StartReporting should be called twice for two different overloaded methods");
+        Console.WriteLine($"After overloaded methods - StartReporting called: {_mockReporter.StartReportingCallCount}");
+        Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(2), "StartReporting should be called twice for two different overloaded methods");
     }
 }
 

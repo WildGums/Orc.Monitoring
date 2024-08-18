@@ -1,13 +1,10 @@
-﻿#pragma warning disable CL0002
-namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Filters;
 using MethodLifeCycleItems;
 using Reporters;
-using Reporters.ReportOutputs;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -17,7 +14,7 @@ using System.Threading.Tasks;
 [TestFixture]
 public class MonitoringIntegrationTests
 {
-    private MockSequenceReporter? _sequenceReporter;
+    private MockReporter _mockReporter;
 
     [SetUp]
     public void Setup()
@@ -26,11 +23,15 @@ public class MonitoringIntegrationTests
         {
             MonitoringController.ResetForTesting();
 
-            _sequenceReporter = new MockSequenceReporter();
+            _mockReporter = new MockReporter
+            {
+                Name = "MockSequenceReporter",
+                FullName = "MockSequenceReporter"
+            };
 
             PerformanceMonitor.Configure(config =>
             {
-                config.AddReporter(_sequenceReporter.GetType());
+                config.AddReporter(_mockReporter.GetType());
                 config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
             });
 
@@ -41,12 +42,13 @@ public class MonitoringIntegrationTests
             }
 
             MonitoringController.Enable();
-            MonitoringController.EnableReporter(_sequenceReporter.GetType());
+            // Remove this line as the reporter is already added in PerformanceMonitor.Configure
+            // MonitoringController.EnableReporter(_mockReporter.GetType());
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error during test setup: {ex}");
-            throw; // Rethrow the exception to fail the test
+            throw;
         }
     }
 
@@ -109,18 +111,21 @@ public class MonitoringIntegrationTests
             throw new InvalidOperationException("Monitor not initialized");
         }
 
-        if (_sequenceReporter is null)
+        if (_mockReporter is null)
         {
             throw new InvalidOperationException("Reporter not initialized");
         }
 
-        using (var context = monitor.Start(builder => builder.AddReporter(_sequenceReporter)))
+        _mockReporter.Reset(); // Reset the reporter before the test
+
+        using (var context = monitor.Start(builder => builder.AddReporter(_mockReporter)))
         {
             System.Threading.Thread.Sleep(10);
         }
 
-        Assert.That(_sequenceReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
-        Assert.That(_sequenceReporter.RootMethodName, Is.EqualTo(nameof(RootMethod_SetsRootMethodBeforeStartingReporting)));
+        Console.WriteLine($"OperationSequence: {string.Join(", ", _mockReporter.OperationSequence)}");
+        Assert.That(_mockReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
+        Assert.That(_mockReporter.RootMethodName, Is.EqualTo(nameof(RootMethod_SetsRootMethodBeforeStartingReporting)));
     }
 
     [Test]
@@ -132,18 +137,19 @@ public class MonitoringIntegrationTests
             throw new InvalidOperationException("Monitor not initialized");
         }
 
-        if (_sequenceReporter is null)
+        if (_mockReporter is null)
         {
             throw new InvalidOperationException("Reporter not initialized");
         }
 
-        await using (var context = monitor.AsyncStart(builder => builder.AddReporter(_sequenceReporter)))
+        await using (var context = monitor.AsyncStart(builder => builder.AddReporter(_mockReporter)))
         {
             await Task.Delay(10);
         }
 
-        Assert.That(_sequenceReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
-        Assert.That(_sequenceReporter.RootMethodName, Is.EqualTo(nameof(AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync)));
+        Console.WriteLine($"OperationSequence: {string.Join(", ", _mockReporter.OperationSequence)}");
+        Assert.That(_mockReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
+        Assert.That(_mockReporter.RootMethodName, Is.EqualTo(nameof(AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync)));
     }
 
     [Test, Retry(3)] // Retry up to 3 times
@@ -188,11 +194,11 @@ public class MonitoringIntegrationTests
     }
 
     [Test]
-    public async Task ConcurrentOperations_MaintainVersionIntegrity()
+    public async Task ConcurrentOperations_MaintainVersionIntegrityAsync()
     {
         const int concurrentTasks = 50;
         var tasks = new Task[concurrentTasks];
-        var versions = new ConcurrentBag<MonitoringVersion>();
+        var versions = new System.Collections.Concurrent.ConcurrentBag<MonitoringVersion>();
 
         for (int i = 0; i < concurrentTasks; i++)
         {
@@ -218,7 +224,7 @@ public class MonitoringIntegrationTests
     }
 
     [Test]
-    public async Task LongRunningOperation_MaintainsConsistentView()
+    public async Task LongRunningOperation_MaintainsConsistentViewAsync()
     {
         var initialVersion = MonitoringController.GetCurrentVersion();
 
@@ -245,42 +251,10 @@ public class MonitoringIntegrationTests
 
     private class TestObserver : IObserver<ICallStackItem>
     {
-        public List<ICallStackItem> ReceivedItems { get; } = [];
+        public List<ICallStackItem> ReceivedItems { get; } = new List<ICallStackItem>();
 
         public void OnCompleted() { }
         public void OnError(Exception error) { }
         public void OnNext(ICallStackItem value) => ReceivedItems.Add(value);
-    }
-
-    private class MockSequenceReporter : IMethodCallReporter
-    {
-        public List<string> OperationSequence { get; } = [];
-        public string? RootMethodName { get; private set; }
-
-        public string Name => "MockSequenceReporter";
-        public string FullName => "MockSequenceReporter";
-
-        private MethodInfo? _rootMethod;
-        public MethodInfo? RootMethod
-        {
-            get => _rootMethod;
-            set
-            {
-                _rootMethod = value;
-                RootMethodName = value?.Name;
-                OperationSequence.Add("SetRootMethod");
-            }
-        }
-
-        public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
-        {
-            OperationSequence.Add("StartReporting");
-            return new AsyncDisposable(async () => { });
-        }
-
-        public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
-        {
-            return this;
-        }
     }
 }

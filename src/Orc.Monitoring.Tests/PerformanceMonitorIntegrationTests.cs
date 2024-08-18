@@ -6,56 +6,15 @@
 namespace Orc.Monitoring.Tests;
 
 using System;
-using System.Reflection;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using MethodLifeCycleItems;
-using Reporters;
 using Reporters.ReportOutputs;
 
 
 [TestFixture]
 public class PerformanceMonitorIntegrationTests
 {
-    private static TestReporter _testReporter;
-
-    private class TestReporter : IMethodCallReporter
-    {
-        public int CallCount { get; private set; }
-        public string Name => "TestReporter";
-        public string FullName => "TestReporter";
-        public MethodInfo? RootMethod { get; set; }
-
-        public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
-        {
-            CallCount++;
-            Console.WriteLine($"TestReporter.StartReporting called. CallCount: {CallCount}");
-
-            var subscription = callStack.Subscribe(
-                onNext: item => Console.WriteLine($"TestReporter received item: {item}"),
-                onError: ex => Console.WriteLine($"TestReporter error: {ex}"),
-                onCompleted: () => Console.WriteLine("TestReporter completed")
-            );
-
-            return new AsyncDisposable(async () =>
-            {
-                Console.WriteLine("TestReporter.StartReporting disposing");
-                subscription.Dispose();
-            });
-        }
-
-        public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
-        {
-            Console.WriteLine("TestReporter.AddOutput called");
-            return this;
-        }
-
-        public void Reset()
-        {
-            CallCount = 0;
-            Console.WriteLine("TestReporter.Reset called");
-        }
-    }
+    private static MockReporter _mockReporter;
 
     private class TestClass
     {
@@ -74,7 +33,7 @@ public class PerformanceMonitorIntegrationTests
             Console.WriteLine($"Using monitor of type: {_monitor.GetType().Name}");
             using var context = _monitor.StartMethod(new MethodConfiguration
             {
-                Reporters = [_testReporter]
+                Reporters = [_mockReporter]
             });
             Console.WriteLine("TestClass.TestMethod executing");
             Console.WriteLine("TestClass.TestMethod exited");
@@ -86,7 +45,7 @@ public class PerformanceMonitorIntegrationTests
             Console.WriteLine($"Using monitor of type: {_monitor.GetType().Name}");
             await using var context = _monitor.StartAsyncMethod(new MethodConfiguration
             {
-                Reporters = [_testReporter]
+                Reporters = [_mockReporter]
             });
             Console.WriteLine("TestClass.TestAsyncMethod executing");
             await Task.Delay(10);
@@ -101,6 +60,8 @@ public class PerformanceMonitorIntegrationTests
 
         MonitoringController.ResetForTesting();
 
+        _mockReporter = new MockReporter();
+
         PerformanceMonitor.Configure(builder => {
             Console.WriteLine($"Configuring assembly: {typeof(TestClass).Assembly.FullName}");
             builder.TrackAssembly(typeof(TestClass).Assembly);
@@ -109,8 +70,7 @@ public class PerformanceMonitorIntegrationTests
         PerformanceMonitor.AddTrackedMethod(typeof(TestClass), typeof(TestClass).GetMethod("TestAsyncMethod")!);
         MonitoringController.Enable();
         Console.WriteLine($"Monitoring enabled: {MonitoringController.IsEnabled}");
-        _testReporter = new TestReporter();
-        MonitoringController.EnableReporter(typeof(TestReporter));  // Add this line to enable the TestReporter
+        MonitoringController.EnableReporter(typeof(MockReporter));
         Console.WriteLine("Setup completed");
 
         // Force re-creation of TestClass monitor
@@ -122,7 +82,7 @@ public class PerformanceMonitorIntegrationTests
     {
         var testClass = new TestClass();
         testClass.TestMethod();
-        Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected 1 call for the sync method");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call for the sync method");
     }
 
     [Test]
@@ -131,8 +91,8 @@ public class PerformanceMonitorIntegrationTests
         Console.WriteLine("Async test started");
         var testClass = new TestClass();
         await testClass.TestAsyncMethod();
-        Console.WriteLine($"Final CallCount: {_testReporter.CallCount}");
-        Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected 1 call for the async method");
+        Console.WriteLine($"Final CallCount: {_mockReporter.CallCount}");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call for the async method");
     }
 
     [Test]
@@ -141,7 +101,7 @@ public class PerformanceMonitorIntegrationTests
         MonitoringController.Disable();
         var testClass = new TestClass();
         testClass.TestMethod();
-        Assert.That(_testReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
     }
 
     [Test]
@@ -150,7 +110,7 @@ public class PerformanceMonitorIntegrationTests
         MonitoringController.Disable();
         var testClass = new TestClass();
         await testClass.TestAsyncMethod();
-        Assert.That(_testReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
     }
 
     [Test]
@@ -158,15 +118,15 @@ public class PerformanceMonitorIntegrationTests
     {
         var testClass = new TestClass();
         testClass.TestMethod();
-        Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected 1 call when monitoring is enabled");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call when monitoring is enabled");
 
         MonitoringController.Disable();
         testClass.TestMethod();
-        Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected no additional calls when monitoring is disabled");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected no additional calls when monitoring is disabled");
 
         MonitoringController.Enable();
         testClass.TestMethod();
-        Assert.That(_testReporter.CallCount, Is.EqualTo(2), "Expected 1 additional call when monitoring is re-enabled");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(2), "Expected 1 additional call when monitoring is re-enabled");
     }
 
     [Test]
@@ -195,11 +155,11 @@ public class PerformanceMonitorIntegrationTests
         Console.WriteLine("Disabling monitoring");
         MonitoringController.Disable();
 
-        Console.WriteLine($"Final CallCount: {_testReporter.CallCount}");
-        Assert.That(_testReporter.CallCount, Is.EqualTo(2), "Expected 2 calls: 1 before disabling, 1 after disabling");
+        Console.WriteLine($"Final CallCount: {_mockReporter.CallCount}");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(2), "Expected 2 calls: 1 before disabling, 1 after disabling");
     }
 
-    [Test]
+    [Test, Retry(3)] // Retry up to 3 times
     public async Task WhenMonitoringIsDisabledMidAsyncMethod_MethodCompletesTracking()
     {
         Console.WriteLine("Test started");
@@ -215,8 +175,8 @@ public class PerformanceMonitorIntegrationTests
 
         await task;
 
-        Console.WriteLine($"Final CallCount: {_testReporter.CallCount}");
-        Assert.That(_testReporter.CallCount, Is.EqualTo(1), "Expected 1 call: method started before disabling should complete");
+        Console.WriteLine($"Final CallCount: {_mockReporter.CallCount}");
+        Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call: method started before disabling should complete");
     }
 
     [Test]

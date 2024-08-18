@@ -90,6 +90,9 @@ internal class ClassMonitor : IClassMonitor
             methodCallInfo.ExtendedType = methodInfo.GetParameters()[0].ParameterType;
         }
 
+
+        var disposables = new List<IAsyncDisposable>();
+
         // Set RootMethod on reporters before starting them
         foreach (var reporter in config.Reporters)
         {
@@ -97,8 +100,21 @@ internal class ClassMonitor : IClassMonitor
             _logger.LogDebug($"Set RootMethod for reporter: {reporter.GetType().Name}");
         }
 
-        var disposables = StartReporters(config, operationVersion);
-        _logger.LogDebug($"Started {disposables.Count} reporters for {callerMethod}");
+        // Start all reporters in the config
+        foreach (var reporter in config.Reporters)
+        {
+            if (MonitoringController.IsReporterEnabled(reporter.GetType()) && MonitoringController.ShouldTrack(operationVersion, reporter.GetType()))
+            {
+                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
+                var reporterDisposable = reporter.StartReporting(_callStack);
+                disposables.Add(reporterDisposable);
+                _logger.LogDebug($"Reporter started: {reporter.GetType().Name}");
+            }
+            else
+            {
+                _logger.LogWarning($"Reporter not enabled or should not track: {reporter.GetType().Name}");
+            }
+        }
 
         // Push the method call to the stack after starting reporters
         PushMethodCallInfoToStack(methodCallInfo);
