@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-
+using System.Reflection;
 
 public class MethodOverrideManager
 {
@@ -81,13 +81,17 @@ public class MethodOverrideManager
         using var writer = new StreamWriter(_overrideFilePath, false, Encoding.UTF8);
 
         // Write header
-        writer.WriteLine(ToCsvLine(new[] { "FullName" }.Concat(allColumns.OrderBy(c => c)).ToArray()));
+        writer.WriteLine(ToCsvLine(new[] { "FullName", "IsStatic", "IsExtension" }.Concat(allColumns.OrderBy(c => c)).ToArray()));
 
         // Write data rows
         foreach (var item in uniqueReportItems)
         {
             var fullName = item.FullName ?? string.Empty;
-            var row = new List<string> { fullName };
+            var row = new List<string> {
+                fullName,
+                GetPropertyOrDefault(item, "IsStatic", false).ToString(),
+                GetPropertyOrDefault(item, "IsExtension", false).ToString()
+            };
 
             foreach (var column in allColumns.OrderBy(c => c))
             {
@@ -111,7 +115,7 @@ public class MethodOverrideManager
         // Preserve any existing rows that weren't in the reportItems
         foreach (var fullName in _overrides.Keys.Except(uniqueReportItems.Select(i => i.FullName)))
         {
-            var row = new List<string> { fullName ?? string.Empty };
+            var row = new List<string> { fullName ?? string.Empty, "False", "False" };
 
             foreach (var column in allColumns.OrderBy(c => c))
             {
@@ -189,5 +193,55 @@ public class MethodOverrideManager
     public void AddCustomColumn(string columnName)
     {
         _customColumns.Add(columnName);
+    }
+
+    public void AddOverride(string fullName, string key, string value)
+    {
+        if (!_overrides.TryGetValue(fullName, out var methodOverrides))
+        {
+            methodOverrides = new Dictionary<string, string>();
+            _overrides[fullName] = methodOverrides;
+        }
+        methodOverrides[key] = value;
+    }
+
+    public void RemoveOverride(string fullName, string key)
+    {
+        if (_overrides.TryGetValue(fullName, out var methodOverrides))
+        {
+            methodOverrides.Remove(key);
+            if (methodOverrides.Count == 0)
+            {
+                _overrides.Remove(fullName);
+            }
+        }
+    }
+
+    public bool HasOverrides(string fullName)
+    {
+        return _overrides.ContainsKey(fullName);
+    }
+
+    public IEnumerable<string> GetMethodsWithOverrides()
+    {
+        return _overrides.Keys;
+    }
+
+    public void ClearAllOverrides()
+    {
+        _overrides.Clear();
+    }
+
+    private static T GetPropertyOrDefault<T>(ReportItem item, string propertyName, T defaultValue)
+    {
+        if (item.Parameters.TryGetValue(propertyName, out var value))
+        {
+            if (typeof(T) == typeof(bool) && bool.TryParse(value, out var boolValue))
+            {
+                return (T)(object)boolValue;
+            }
+            // Add more type checks if needed for other property types
+        }
+        return defaultValue;
     }
 }

@@ -7,11 +7,12 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime;
+using System.Runtime.CompilerServices;
 using System.Text;
-using MethodLifeCycleItems;
+using Orc.Monitoring.MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
-using Filters;
+using Orc.Monitoring.Filters;
+using System.Runtime;
 
 public class CallStack : IObservable<ICallStackItem>
 {
@@ -31,7 +32,6 @@ public class CallStack : IObservable<ICallStackItem>
     public CallStack(MonitoringConfiguration monitoringConfig)
     {
         ArgumentNullException.ThrowIfNull(monitoringConfig);
-
         _monitoringConfig = monitoringConfig;
     }
 
@@ -55,6 +55,14 @@ public class CallStack : IObservable<ICallStackItem>
         if (result.IsNull)
         {
             _logger.LogWarning($"Created Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}. Monitoring enabled: {MonitoringController.IsEnabled}");
+        }
+
+        // Set properties for static and extension methods
+        result.IsStatic = methodInfo.IsStatic;
+        result.IsExtensionMethod = methodInfo.IsDefined(typeof(ExtensionAttribute), false);
+        if (result.IsExtensionMethod)
+        {
+            result.ExtendedType = methodInfo.GetParameters()[0].ParameterType;
         }
 
         return result;

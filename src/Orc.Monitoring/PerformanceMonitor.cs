@@ -6,7 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Reporters.ReportOutputs;
+using Orc.Monitoring.Reporters.ReportOutputs;
 
 public static class PerformanceMonitor
 {
@@ -86,13 +86,7 @@ public static class PerformanceMonitor
                     TargetMethods[type] = methods;
                 }
 
-                foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static))
-                {
-                    if (ShouldIncludeMethod(method, config))
-                    {
-                        methods.Add(method);
-                    }
-                }
+                DiscoverMethods(type, methods, config);
             }
         }
 
@@ -108,9 +102,30 @@ public static class PerformanceMonitor
         }
     }
 
+    private static void DiscoverMethods(Type type, HashSet<MethodInfo> methods, MonitoringConfiguration config)
+    {
+        var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var allMethods = type.GetMethods(bindingFlags);
+
+        foreach (var method in allMethods)
+        {
+            if (ShouldIncludeMethod(method, config))
+            {
+                methods.Add(method);
+                Console.WriteLine($"Discovered method: {type.Name}.{method.Name} (Static: {method.IsStatic}, Generic: {method.IsGenericMethod}, Extension: {IsExtensionMethod(method)})");
+            }
+        }
+    }
+
     private static bool ShouldIncludeMethod(MethodInfo method, MonitoringConfiguration config)
     {
+        // Include the method if any filter allows it
         return config.GetFilters().Any(filter => filter.ShouldInclude(method));
+    }
+
+    private static bool IsExtensionMethod(MethodInfo method)
+    {
+        return method.IsDefined(typeof(System.Runtime.CompilerServices.ExtensionAttribute), false);
     }
 
     public static IClassMonitor ForCurrentClass()
@@ -140,7 +155,7 @@ public static class PerformanceMonitor
             TargetMethods[type] = methods;
         }
         methods.Add(method);
-        Console.WriteLine($"Added tracked method: {type.Name}.{method.Name}");
+        Console.WriteLine($"Added tracked method: {type.Name}.{method.Name} (Static: {method.IsStatic}, Generic: {method.IsGenericMethod}, Extension: {IsExtensionMethod(method)})");
     }
 
     private static IClassMonitor CreateClassMonitor(Type? callingType)
@@ -167,9 +182,27 @@ public static class PerformanceMonitor
             methods = new HashSet<MethodInfo>();
         }
 
-        var trackedMethodNames = methods.Select(m => m.Name).ToHashSet();
+        var trackedMethodNames = methods.Select(m => GetUniqueMethodName(m)).ToHashSet();
         Console.WriteLine($"Creating ClassMonitor for {callingType.Name} with tracked methods: {string.Join(", ", trackedMethodNames)}");
         return new ClassMonitor(callingType, _callStack, trackedMethodNames, MonitoringController.Configuration);
+    }
+
+    private static string GetUniqueMethodName(MethodInfo method)
+    {
+        var name = method.Name;
+        if (method.IsGenericMethod)
+        {
+            name += $"<{string.Join(",", method.GetGenericArguments().Select(t => t.Name))}>";
+        }
+        if (IsExtensionMethod(method))
+        {
+            name = $"Extension_{name}";
+        }
+        if (method.IsStatic)
+        {
+            name = $"Static_{name}";
+        }
+        return name;
     }
 
     private static Type? GetCallingType()

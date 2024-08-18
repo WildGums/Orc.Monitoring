@@ -6,7 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Reporters;
+using System.Runtime.CompilerServices;
+using Orc.Monitoring.Reporters;
 
 
 public class MethodCallInfo
@@ -44,6 +45,13 @@ public class MethodCallInfo
     public HashSet<string>? AttributeParameters { get; private set; }
     public MonitoringVersion Version { get; private set; }
 
+    // New properties for static, generic, and extension methods
+    public bool IsStatic { get; set; }
+    public bool IsGenericMethod { get; set; }
+    public Type[]? GenericArguments { get; private set; }
+    public bool IsExtensionMethod { get; set; }
+    public Type? ExtendedType { get; set; }
+
     private MethodCallInfo(MethodCallInfoPool? pool)
     {
         _pool = pool;
@@ -74,12 +82,16 @@ public class MethodCallInfo
         ThreadId = Environment.CurrentManagedThreadId;
         Elapsed = TimeSpan.Zero;
 
-        // Remove setting of Parent, Level, and ParentThreadId here
-        // They will be set in the CallStack.Push method
-
         AttributeParameters = new HashSet<string>(attributeParameters.Keys);
         Parameters = new Dictionary<string, string>(attributeParameters);
         Version = MonitoringController.GetCurrentVersion();
+
+        // Set properties for static, generic, and extension methods
+        IsStatic = methodInfo.IsStatic;
+        IsGenericMethod = methodInfo.IsGenericMethod;
+        GenericArguments = IsGenericMethod ? methodInfo.GetGenericArguments() : null;
+        IsExtensionMethod = methodInfo.IsDefined(typeof(ExtensionAttribute), false);
+        ExtendedType = IsExtensionMethod ? methodInfo.GetParameters()[0].ParameterType : null;
     }
 
     public void Clear()
@@ -103,6 +115,13 @@ public class MethodCallInfo
         Parent = null;
         ParentThreadId = -1;
         Version = default;
+
+        // Clear properties for static, generic, and extension methods
+        IsStatic = false;
+        IsGenericMethod = false;
+        GenericArguments = null;
+        IsExtensionMethod = false;
+        ExtendedType = null;
     }
 
     public void TryReturnToPool()
@@ -145,11 +164,19 @@ public class MethodCallInfo
         return IsNull ? AsyncMethodCallContext.Dummy : new AsyncMethodCallContext(_classMonitor, this, disposables);
     }
 
+    public void SetGenericArguments(Type[] genericArguments)
+    {
+        IsGenericMethod = true;
+        GenericArguments = genericArguments;
+    }
+
     public override string ToString()
     {
         if (IsNull) return "Null MethodCallInfo";
         var classTypeName = ClassType?.Name ?? string.Empty;
-        return $"{classTypeName}.{MethodName} (Id: {Id}, ThreadId: {ThreadId}, ParentId: {Parent?.Id ?? "None"}, Level: {Level}, Version: {Version})";
+        var methodType = IsStatic ? "Static" : IsExtensionMethod ? "Extension" : "Instance";
+        var genericInfo = IsGenericMethod ? $"<{string.Join(", ", GenericArguments?.Select(t => t.Name) ?? Array.Empty<string>())}>" : string.Empty;
+        return $"{methodType} {classTypeName}.{MethodName}{genericInfo} (Id: {Id}, ThreadId: {ThreadId}, ParentId: {Parent?.Id ?? "None"}, Level: {Level}, Version: {Version})";
     }
 
     private static string GetMethodName(MethodInfo methodInfo, IReadOnlyCollection<Type> genericArguments)
@@ -198,7 +225,10 @@ public class MethodCallInfo
                ThreadId == other.ThreadId &&
                ParentThreadId == other.ParentThreadId &&
                Level == other.Level &&
-               MethodName == other.MethodName;
+               MethodName == other.MethodName &&
+               IsStatic == other.IsStatic &&
+               IsGenericMethod == other.IsGenericMethod &&
+               IsExtensionMethod == other.IsExtensionMethod;
     }
 
     public override int GetHashCode()
@@ -206,7 +236,7 @@ public class MethodCallInfo
         return IsNull switch
         {
             true => 0,
-            _ => HashCode.Combine(Id, ThreadId, ParentThreadId, Level, MethodName)
+            _ => HashCode.Combine(Id, ThreadId, ParentThreadId, Level, MethodName, IsStatic, IsGenericMethod, IsExtensionMethod)
         };
     }
 
@@ -222,8 +252,8 @@ public class MethodCallInfo
             return right is null || right.IsNull;
         }
 
-        return right is null 
-            ? left.IsNull 
+        return right is null
+            ? left.IsNull
             : left.Equals(right);
     }
 

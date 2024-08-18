@@ -1,8 +1,6 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Reporters;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,11 +9,14 @@ using System.Threading.Tasks;
 [TestFixture]
 public class MonitoringControllerShouldTrackTests
 {
+    private MockReporter _mockReporter;
+
     [SetUp]
     public void Setup()
     {
         MonitoringController.ResetForTesting();
         MonitoringController.Enable();
+        _mockReporter = new MockReporter();
     }
 
     [Test]
@@ -43,7 +44,7 @@ public class MonitoringControllerShouldTrackTests
         // Add a small delay to ensure version change
         Thread.Sleep(10);
 
-        MonitoringController.EnableReporter(typeof(DummyReporter)); // This will update the version
+        MonitoringController.EnableReporter(typeof(MockReporter)); // This will update the version
         var newVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"New version: {newVersion}");
 
@@ -63,17 +64,17 @@ public class MonitoringControllerShouldTrackTests
     [Test]
     public void ShouldTrack_WithEnabledReporter_ReturnsTrue()
     {
-        MonitoringController.EnableReporter(typeof(DummyReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
         var version = MonitoringController.GetCurrentVersion();
-        Assert.That(MonitoringController.ShouldTrack(version, typeof(DummyReporter)), Is.True);
+        Assert.That(MonitoringController.ShouldTrack(version, typeof(MockReporter)), Is.True);
     }
 
     [Test]
     public void ShouldTrack_WithDisabledReporter_ReturnsFalse()
     {
-        MonitoringController.DisableReporter(typeof(DummyReporter));
+        MonitoringController.DisableReporter(typeof(MockReporter));
         var version = MonitoringController.GetCurrentVersion();
-        Assert.That(MonitoringController.ShouldTrack(version, typeof(DummyReporter)), Is.False);
+        Assert.That(MonitoringController.ShouldTrack(version, typeof(MockReporter)), Is.False);
     }
 
     [Test]
@@ -97,7 +98,7 @@ public class MonitoringControllerShouldTrackTests
 
         Assert.That(result1, Is.True, "Initial ShouldTrack should return true");
 
-        MonitoringController.EnableReporter(typeof(DummyReporter)); // This should update the version
+        MonitoringController.EnableReporter(typeof(MockReporter)); // This should update the version
         var newVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"New version after enabling reporter: {newVersion}");
 
@@ -119,7 +120,7 @@ public class MonitoringControllerShouldTrackTests
         }
 
         Console.WriteLine($"Is Monitoring Enabled: {MonitoringController.IsEnabled}");
-        Console.WriteLine($"Is DummyReporter Enabled: {MonitoringController.IsReporterEnabled(typeof(DummyReporter))}");
+        Console.WriteLine($"Is MockReporter Enabled: {MonitoringController.IsReporterEnabled(typeof(MockReporter))}");
     }
 
     [Test]
@@ -142,22 +143,5 @@ public class MonitoringControllerShouldTrackTests
         Task.WaitAll(tasks);
 
         Assert.That(results, Is.All.True);
-    }
-
-    private class DummyReporter : IMethodCallReporter
-    {
-        public string Name => "DummyReporter";
-        public string FullName => "DummyReporter";
-        public System.Reflection.MethodInfo? RootMethod { get; set; }
-
-        public IAsyncDisposable StartReporting(IObservable<MethodLifeCycleItems.ICallStackItem> callStack)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
-        {
-            throw new NotImplementedException();
-        }
     }
 }
