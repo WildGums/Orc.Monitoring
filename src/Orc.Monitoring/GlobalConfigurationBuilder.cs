@@ -63,6 +63,27 @@ public class GlobalConfigurationBuilder
         return this;
     }
 
+    public GlobalConfigurationBuilder AddFilter(Type filterType, bool initialState = true)
+    {
+        if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
+        {
+            throw new ArgumentException($"Type {filterType.Name} does not implement IMethodFilter", nameof(filterType));
+        }
+
+        var methodFilter = Activator.CreateInstance(filterType);
+        if(methodFilter is null)
+        {
+            throw new InvalidOperationException($"Failed to create instance of {filterType.Name}");
+        }
+
+        _config.AddFilter((IMethodFilter)methodFilter);
+        if (initialState)
+        {
+            MonitoringController.EnableFilter(filterType);
+        }
+        return this;
+    }
+
     public GlobalConfigurationBuilder AddReporter<T>(bool initialState = true) where T : IMethodCallReporter, new()
     {
         _config.AddReporter<T>();

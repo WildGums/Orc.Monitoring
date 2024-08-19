@@ -3,38 +3,56 @@
 namespace Orc.Monitoring;
 
 using System;
-using Reporters.ReportOutputs;
+using System.Collections.Generic;
+using System.Reflection;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Reporters;
+using Orc.Monitoring.Reporters.ReportOutputs;
 
 public static class PerformanceMonitor
 {
     private static readonly object _configLock = new object();
+    private static CallStack? _callStack;
+    private static MonitoringConfiguration? _configuration;
+    private static readonly ILogger _logger = CreateLogger(typeof(PerformanceMonitor));
 
     public static void Configure(Action<GlobalConfigurationBuilder> configAction)
     {
-        Console.WriteLine("PerformanceMonitor.Configure called");
+        _logger.LogInformation("PerformanceMonitor.Configure called");
         var builder = new GlobalConfigurationBuilder();
 
         lock (_configLock)
         {
             try
             {
-                // Enable default output types first
+                _logger.LogDebug("Enabling default output types");
                 EnableDefaultOutputTypes();
 
-                // Apply custom configuration
+                _logger.LogDebug("Applying custom configuration");
                 configAction(builder);
 
-                var config = builder.Build();
-                MonitoringController.Configuration = config;
+                _logger.LogDebug("Building configuration");
+                _configuration = builder.Build();
 
-                // Enable monitoring by default when configured
+                _logger.LogDebug("Setting MonitoringController Configuration");
+                MonitoringController.Configuration = _configuration;
+
+                _logger.LogDebug("Creating CallStack instance");
+                _callStack = new CallStack(_configuration);
+                _logger.LogInformation($"CallStack instance created: {_callStack is not null}");
+
+                if (_callStack is null)
+                {
+                    _logger.LogError("Failed to create CallStack instance");
+                }
+
+                _logger.LogDebug("Enabling monitoring");
                 MonitoringController.Enable();
-                Console.WriteLine("Monitoring enabled after configuration");
+                _logger.LogInformation("Monitoring enabled after configuration");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error during PerformanceMonitor configuration: {ex.Message}");
-                // Consider logging the exception or rethrowing if necessary
+                _logger.LogError(ex, "Error during PerformanceMonitor configuration");
             }
         }
     }
@@ -58,8 +76,7 @@ public static class PerformanceMonitor
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error enabling output type {outputType.Name}: {ex.Message}");
-                    // Consider logging the exception or rethrowing if necessary
+                    _logger.LogError(ex, $"Error enabling output type {outputType.Name}");
                 }
             }
         }
@@ -73,14 +90,14 @@ public static class PerformanceMonitor
 
     public static IClassMonitor ForClass<T>()
     {
-        Console.WriteLine($"PerformanceMonitor.ForClass<{typeof(T).Name}> called");
+        _logger.LogDebug($"PerformanceMonitor.ForClass<{typeof(T).Name}> called");
         if (!MonitoringController.IsEnabled)
         {
-            Console.WriteLine("Monitoring is disabled. Returning NullClassMonitor.");
+            _logger.LogWarning("Monitoring is disabled. Returning NullClassMonitor.");
             return new NullClassMonitor();
         }
         var monitor = CreateClassMonitor(typeof(T));
-        Console.WriteLine($"Created monitor of type: {monitor.GetType().Name}");
+        _logger.LogDebug($"Created monitor of type: {monitor.GetType().Name}");
         return monitor;
     }
 
@@ -88,18 +105,16 @@ public static class PerformanceMonitor
     {
         ArgumentNullException.ThrowIfNull(callingType);
 
-        if (MonitoringController.Configuration is null)
+        if (_configuration is null || _callStack is null)
         {
-            Console.WriteLine("MonitoringConfiguration is null. Returning NullClassMonitor");
+            _logger.LogWarning("MonitoringConfiguration or CallStack is null. Returning NullClassMonitor");
             return new NullClassMonitor();
         }
 
-        Console.WriteLine($"CreateClassMonitor called for {callingType.Name}");
+        _logger.LogDebug($"CreateClassMonitor called for {callingType.Name}");
 
-        var callStack = new CallStack(MonitoringController.Configuration);
-
-        Console.WriteLine($"Creating ClassMonitor for {callingType.Name}");
-        return new ClassMonitor(callingType, callStack, MonitoringController.Configuration);
+        _logger.LogDebug($"Creating ClassMonitor for {callingType.Name}");
+        return new ClassMonitor(callingType, _callStack, _configuration);
     }
 
     private static Type? GetCallingType()
@@ -107,4 +122,34 @@ public static class PerformanceMonitor
         var frame = new System.Diagnostics.StackFrame(2, false);
         return frame.GetMethod()?.DeclaringType;
     }
+
+    public static ILogger<T> CreateLogger<T>() => MonitoringController.CreateLogger<T>();
+    public static ILogger CreateLogger(Type type) => MonitoringController.CreateLogger(type);
+
+    // Method to reset the configuration and CallStack if needed
+    public static void Reset()
+    {
+        lock (_configLock)
+        {
+            _logger.LogDebug("Resetting PerformanceMonitor");
+            _configuration = null;
+            _callStack = null;
+            MonitoringController.Disable();
+            _logger.LogInformation("PerformanceMonitor reset");
+        }
+    }
+
+    // Method to check if PerformanceMonitor is configured
+    public static bool IsConfigured
+    {
+        get
+        {
+            var isConfigured = _configuration is not null && _callStack is not null;
+            _logger.LogDebug($"IsConfigured called, returning: {isConfigured}. Configuration: {_configuration is not null}, CallStack: {_callStack is not null}");
+            return isConfigured;
+        }
+    }
+
+    // Method to get the current configuration (if needed)
+    public static MonitoringConfiguration? GetCurrentConfiguration() => _configuration;
 }
