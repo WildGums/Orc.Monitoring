@@ -23,7 +23,6 @@ public class MonitoringIntegrationExamples
         {
             config.AddReporter<WorkflowReporter>();
             config.AddFilter<WorkflowItemFilter>();
-            config.AddFilter<PerformanceFilter>();
             config.TrackAssembly(typeof(MonitoringIntegrationExamples).Assembly);
         });
 
@@ -31,7 +30,6 @@ public class MonitoringIntegrationExamples
         MonitoringController.Enable();
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
-        MonitoringController.EnableFilter(typeof(PerformanceFilter));
 
         Console.WriteLine("Using PerformanceMonitor...");
         var monitor = PerformanceMonitor.ForCurrentClass();

@@ -58,7 +58,6 @@ public class MonitoringIntegrationTests
         PerformanceMonitor.Configure(config =>
         {
             config.AddReporter<MockReporter>();
-            config.AddFilter<PerformanceFilter>();
         });
 
         MonitoringController.EnableReporter(typeof(MockReporter));
