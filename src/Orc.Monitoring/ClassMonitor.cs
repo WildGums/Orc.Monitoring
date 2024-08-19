@@ -6,8 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Filters;
+using MethodLifeCycleItems;
+using Filters;
 using System.Linq;
 using System.Reflection;
 
@@ -16,18 +16,18 @@ internal class ClassMonitor : IClassMonitor
 {
     private readonly Type _classType;
     private readonly CallStack _callStack;
-    private readonly HashSet<string> _trackedMethodNames;
     private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ILogger<ClassMonitor> _logger;
+    
+    private HashSet<string>? _trackedMethodNames;
 
-    public ClassMonitor(Type classType, CallStack callStack, HashSet<string> trackedMethodNames, MonitoringConfiguration monitoringConfig)
+    public ClassMonitor(Type classType, CallStack callStack, MonitoringConfiguration monitoringConfig)
     {
         _classType = classType;
         _callStack = callStack;
-        _trackedMethodNames = trackedMethodNames;
         _monitoringConfig = monitoringConfig;
         _logger = MonitoringController.CreateLogger<ClassMonitor>();
-        _logger.LogInformation($"ClassMonitor created for {classType.Name}. Tracked methods: {string.Join(", ", trackedMethodNames)}");
+        _logger.LogInformation($"ClassMonitor created for {classType.Name}");
     }
 
     public AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
@@ -43,7 +43,7 @@ internal class ClassMonitor : IClassMonitor
     private object StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
     {
         var currentVersion = MonitoringController.GetCurrentVersion();
-        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}, Method tracked: {_trackedMethodNames.Contains(callerMethod)}");
+        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}");
 
         if (!IsMonitoringEnabled(callerMethod, currentVersion))
         {
@@ -245,20 +245,39 @@ internal class ClassMonitor : IClassMonitor
 
     private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
     {
+        EnsureMethodsLoaded();
+
+        if(_trackedMethodNames is null)
+        {
+            return false;
+        }
+
         var isEnabled = MonitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
         _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}");
         return isEnabled;
+    }
+
+    private void EnsureMethodsLoaded()
+    {
+        if (_trackedMethodNames is not null)
+        {
+            return;
+        }
+
+        _trackedMethodNames = GetAllMethodNames();
+    }
+
+    private HashSet<string>? GetAllMethodNames()
+    {
+        return _classType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
+            .Select(m => m.Name)
+            .ToHashSet();
     }
 
     private object GetDummyContext(bool async)
     {
         _logger.LogDebug("Returning Dummy context");
         return async ? AsyncMethodCallContext.Dummy : MethodCallContext.Dummy;
-    }
-
-    private bool ShouldReturnDummyContext(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
-    {
-        return methodCallInfo.IsNull || !MonitoringController.ShouldTrack(operationVersion);
     }
 
     private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)

@@ -32,11 +32,6 @@ public class MonitoringIntegrationTests
             config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
         });
 
-        foreach (var method in typeof(MonitoringIntegrationTests).GetMethods(BindingFlags.Public | BindingFlags.Instance))
-        {
-            PerformanceMonitor.AddTrackedMethod(typeof(MonitoringIntegrationTests), method);
-        }
-
         MonitoringController.Enable();
         MonitoringController.EnableReporter(_mockReporter.GetType());
 

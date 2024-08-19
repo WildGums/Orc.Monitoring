@@ -6,6 +6,8 @@
 namespace Orc.Monitoring.Tests;
 
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using Reporters.ReportOutputs;
@@ -53,6 +55,13 @@ public class PerformanceMonitorIntegrationTests
         }
     }
 
+    private class TestClass2
+    {
+        public  void TestMethod()
+        {
+        }
+    }
+
     [SetUp]
     public void Setup()
     {
@@ -66,8 +75,7 @@ public class PerformanceMonitorIntegrationTests
             Console.WriteLine($"Configuring assembly: {typeof(TestClass).Assembly.FullName}");
             builder.TrackAssembly(typeof(TestClass).Assembly);
         });
-        PerformanceMonitor.AddTrackedMethod(typeof(TestClass), typeof(TestClass).GetMethod("TestMethod")!);
-        PerformanceMonitor.AddTrackedMethod(typeof(TestClass), typeof(TestClass).GetMethod("TestAsyncMethod")!);
+
         MonitoringController.Enable();
         Console.WriteLine($"Monitoring enabled: {MonitoringController.IsEnabled}");
         MonitoringController.EnableReporter(typeof(MockReporter));
@@ -75,6 +83,31 @@ public class PerformanceMonitorIntegrationTests
 
         // Force re-creation of TestClass monitor
         typeof(TestClass).TypeInitializer?.Invoke(null, null);
+    }
+
+
+    [Test]
+    public void ForClass_WithFilterButNoExplicitMethods_ShouldTrackAllMethods()
+    {
+        // Arrange
+        MonitoringController.ResetForTesting();
+        MonitoringController.Enable();
+
+        PerformanceMonitor.Configure(config =>
+        {
+            config.TrackAssembly(typeof(TestClass2).Assembly);
+            config.AddFilter<AlwaysIncludeFilter>();
+        });
+
+        // Act
+        var monitor = PerformanceMonitor.ForClass<TestClass2>();
+
+        // Assert
+        using (var context = monitor.Start(builder => { }, nameof(TestClass2.TestMethod)))
+        {
+            Assert.That(context, Is.Not.EqualTo(MethodCallContext.Dummy),
+                "The context should not be a Dummy context when the filter includes all methods");
+        }
     }
 
     [Test]
