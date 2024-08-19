@@ -57,21 +57,21 @@ public class MonitoringIntegrationTests
     {
         PerformanceMonitor.Configure(config =>
         {
-            config.AddReporter<PerformanceReporter>();
+            config.AddReporter<MockReporter>();
             config.AddFilter<PerformanceFilter>();
         });
 
-        MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
 
-        using var context = monitor.Start(builder => builder.AddReporter<PerformanceReporter>());
+        using var context = monitor.Start(builder => builder.AddReporter<MockReporter>());
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.True);
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.True);
 
         MonitoringController.Disable();
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.False);
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.False);
     }
 
     [Test]
@@ -159,7 +159,7 @@ public class MonitoringIntegrationTests
         var initialVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"Initial Version: {initialVersion}");
 
-        MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
         Task.Delay(50).Wait(); // Add a small delay
         var afterFirstEnableVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"After First Enable Version: {afterFirstEnableVersion}");
@@ -204,9 +204,9 @@ public class MonitoringIntegrationTests
         {
             tasks[i] = Task.Run(() =>
             {
-                MonitoringController.EnableReporter(typeof(PerformanceReporter));
+                MonitoringController.EnableReporter(typeof(MockReporter));
                 versions.Add(MonitoringController.GetCurrentVersion());
-                MonitoringController.DisableReporter(typeof(PerformanceReporter));
+                MonitoringController.DisableReporter(typeof(MockReporter));
                 versions.Add(MonitoringController.GetCurrentVersion());
             });
         }
@@ -234,19 +234,19 @@ public class MonitoringIntegrationTests
             {
                 Assert.That(operationVersion, Is.EqualTo(initialVersion));
                 await Task.Delay(1000); // Simulate long-running operation
-                return MonitoringController.ShouldTrack(operationVersion, typeof(PerformanceReporter));
+                return MonitoringController.ShouldTrack(operationVersion, typeof(MockReporter));
             }
         });
 
         await Task.Delay(100); // Give some time for the operation to start
 
-        MonitoringController.EnableReporter(typeof(PerformanceReporter));
-        MonitoringController.DisableReporter(typeof(PerformanceReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
+        MonitoringController.DisableReporter(typeof(MockReporter));
 
         var result = await operationTask;
 
         Assert.That(result, Is.False);
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(PerformanceReporter)), Is.False);
+        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.False);
     }
 
     private class TestObserver : IObserver<ICallStackItem>

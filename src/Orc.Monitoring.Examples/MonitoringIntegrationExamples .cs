@@ -22,7 +22,6 @@ public class MonitoringIntegrationExamples
         PerformanceMonitor.Configure(config =>
         {
             config.AddReporter<WorkflowReporter>();
-            config.AddReporter<PerformanceReporter>();
             config.AddFilter<WorkflowItemFilter>();
             config.AddFilter<PerformanceFilter>();
             config.TrackAssembly(typeof(MonitoringIntegrationExamples).Assembly);
@@ -31,15 +30,13 @@ public class MonitoringIntegrationExamples
         Console.WriteLine("Enabling monitoring...");
         MonitoringController.Enable();
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        MonitoringController.EnableReporter(typeof(PerformanceReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
         MonitoringController.EnableFilter(typeof(PerformanceFilter));
 
         Console.WriteLine("Using PerformanceMonitor...");
         var monitor = PerformanceMonitor.ForCurrentClass();
         using (var context = monitor.Start(builder =>
-                   builder.AddReporter<WorkflowReporter>()
-                       .AddReporter<PerformanceReporter>()))
+                   builder.AddReporter<WorkflowReporter>()))
         {
             try
             {
@@ -130,14 +127,12 @@ public class MonitoringIntegrationExamples
     {
         Console.WriteLine("Enabling monitoring...");
         MonitoringController.Enable();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        MonitoringController.EnableReporter(typeof(WorkflowReporter)); 
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationExamples>();
 
         using (var context = monitor.Start(builder =>
                    builder.AddReporter<WorkflowReporter>()
-                       .AddReporter<PerformanceReporter>()
                        .WithArguments("ComplexScenario", DateTime.Now)))
         {
             Console.WriteLine("Starting complex monitored workflow");
@@ -146,7 +141,7 @@ public class MonitoringIntegrationExamples
             SimulateWork(300);
             context.Log("Step", "Initial processing completed");
 
-            using (var subContext = monitor.Start(builder => builder.AddReporter<PerformanceReporter>()))
+            using (var subContext = monitor.Start(builder => builder.AddReporter<WorkflowReporter>()))
             {
                 SimulateWork(200);
                 subContext.Log("SubStep", "Detailed calculation performed");

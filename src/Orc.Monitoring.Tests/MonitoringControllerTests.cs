@@ -225,7 +225,7 @@ public class MonitoringControllerTests
         Assert.That(afterFirstEnableVersion, Is.Not.EqualTo(initialVersion));
         Assert.That(MonitoringController.ShouldTrack(afterFirstEnableVersion, reporterType), Is.True);
 
-        MonitoringController.EnableReporter(typeof(PerformanceReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
         var finalVersion = MonitoringController.GetCurrentVersion();
 
         Assert.Multiple(() =>
@@ -253,7 +253,7 @@ public class MonitoringControllerTests
         });
 
         await Task.Delay(200); // Give some time for the operation to start
-        MonitoringController.EnableReporter(typeof(PerformanceReporter)); // This should change the version
+        MonitoringController.EnableReporter(typeof(MockReporter)); // This should change the version
 
         var result = await operationTask;
         Assert.That(result, Is.False,  "Long-running operation should not track after version change");
