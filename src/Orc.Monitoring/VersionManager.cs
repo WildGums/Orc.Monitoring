@@ -1,42 +1,30 @@
 ﻿namespace Orc.Monitoring;
 
 using System;
-using System.Threading;
-
 
 public class VersionManager
 {
     private long _lastTimestamp;
     private int _counter;
+    private readonly object _lock = new object();
 
     public MonitoringVersion GetNextVersion()
     {
-        long timestamp;
-        int counter;
-
-        while (true)
+        lock (_lock)
         {
-            long currentTimestamp = GetTimestamp();
-            long lastTimestamp = Interlocked.Read(ref _lastTimestamp);
-
-            if (currentTimestamp > lastTimestamp)
+            var currentTimestamp = GetTimestamp();
+            if (currentTimestamp > _lastTimestamp)
             {
-                if (Interlocked.CompareExchange(ref _lastTimestamp, currentTimestamp, lastTimestamp) == lastTimestamp)
-                {
-                    timestamp = currentTimestamp;
-                    counter = Interlocked.Exchange(ref _counter, 0);
-                    break;
-                }
+                _lastTimestamp = currentTimestamp;
+                _counter = 0;
             }
             else
             {
-                counter = Interlocked.Increment(ref _counter);
-                timestamp = lastTimestamp;
-                break;
+                _counter++;
             }
-        }
 
-        return new MonitoringVersion(timestamp, counter, Guid.NewGuid());
+            return new MonitoringVersion(_lastTimestamp, _counter, Guid.NewGuid());
+        }
     }
 
     private static long GetTimestamp() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

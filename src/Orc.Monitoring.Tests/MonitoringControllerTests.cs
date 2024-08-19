@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Reporters;
 using Filters;
@@ -119,9 +120,23 @@ public class MonitoringControllerTests
     public void GetCurrentVersion_IncreasesAfterStateChange()
     {
         var initialVersion = MonitoringController.GetCurrentVersion();
+        Console.WriteLine($"Initial version: {initialVersion}");
+
+        // Add a small delay to ensure timestamp change
+        Thread.Sleep(10);
+
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         var newVersion = MonitoringController.GetCurrentVersion();
-        Assert.That(newVersion, Is.GreaterThanOrEqualTo(initialVersion), "Version should not decrease after state change");
+        Console.WriteLine($"New version: {newVersion}");
+
+        Assert.That(newVersion, Is.GreaterThan(initialVersion), "Version should increase after state change");
+
+        var versionHistory = MonitoringDiagnostics.GetVersionHistory();
+        Console.WriteLine("Version History:");
+        foreach (var change in versionHistory)
+        {
+            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+        }
     }
 
     [Test]
