@@ -32,7 +32,6 @@ public static class PerformanceMonitor
 
                 var config = builder.Build();
                 MonitoringController.Configuration = config;
-                ApplyGlobalConfiguration(config);
 
                 // Enable monitoring by default when configured
                 MonitoringController.Enable();
@@ -170,11 +169,7 @@ public static class PerformanceMonitor
 
         Console.WriteLine($"CreateClassMonitor called for {callingType.Name}");
 
-        if (_callStack is null)
-        {
-            Console.WriteLine("CallStack is null. Returning NullClassMonitor");
-            return new NullClassMonitor();
-        }
+        var callStack = new CallStack(MonitoringController.Configuration);
 
         if (!TargetMethods.TryGetValue(callingType, out var methods))
         {
@@ -184,7 +179,7 @@ public static class PerformanceMonitor
 
         var trackedMethodNames = methods.Select(m => GetUniqueMethodName(m)).ToHashSet();
         Console.WriteLine($"Creating ClassMonitor for {callingType.Name} with tracked methods: {string.Join(", ", trackedMethodNames)}");
-        return new ClassMonitor(callingType, _callStack, trackedMethodNames, MonitoringController.Configuration);
+        return new ClassMonitor(callingType, callStack, trackedMethodNames, MonitoringController.Configuration);
     }
 
     private static string GetUniqueMethodName(MethodInfo method)

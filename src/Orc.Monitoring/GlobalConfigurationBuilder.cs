@@ -53,9 +53,9 @@ public class GlobalConfigurationBuilder
         return this;
     }
 
-    public GlobalConfigurationBuilder AddFilter<T>(bool initialState = true) where T : IMethodFilter
+    public GlobalConfigurationBuilder AddFilter<T>(bool initialState = true) where T : IMethodFilter, new()
     {
-        _config.AddFilter(Activator.CreateInstance<T>());
+        _config.AddFilter(new T());
         if (initialState)
         {
             MonitoringController.EnableFilter(typeof(T));
@@ -63,8 +63,9 @@ public class GlobalConfigurationBuilder
         return this;
     }
 
-    public GlobalConfigurationBuilder AddReporter<T>(bool initialState = true) where T : IMethodCallReporter
+    public GlobalConfigurationBuilder AddReporter<T>(bool initialState = true) where T : IMethodCallReporter, new()
     {
+        _config.AddReporter<T>();
         if (initialState)
         {
             MonitoringController.EnableReporter(typeof(T));
@@ -72,13 +73,18 @@ public class GlobalConfigurationBuilder
         return this;
     }
 
-    public GlobalConfigurationBuilder AddReporter(Type reporterType, bool initialState = true) 
+    public GlobalConfigurationBuilder AddReporter(Type reporterType, bool initialState = true)
     {
+        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
+        {
+            throw new ArgumentException($"Type {reporterType.Name} does not implement IMethodCallReporter", nameof(reporterType));
+        }
+
+        _config.AddReporter(reporterType);
         if (initialState)
         {
             MonitoringController.EnableReporter(reporterType);
         }
-
         return this;
     }
 
@@ -97,19 +103,6 @@ public class GlobalConfigurationBuilder
         else
         {
             MonitoringController.DisableOutputType<T>();
-        }
-        return this;
-    }
-
-    public GlobalConfigurationBuilder SetOutputTypeState(Type outputType, bool enabled)
-    {
-        if (enabled)
-        {
-            MonitoringController.EnableOutputType(outputType);
-        }
-        else
-        {
-            MonitoringController.DisableOutputType(outputType);
         }
         return this;
     }

@@ -119,6 +119,10 @@ public class MonitoringConfiguration
 
     public void AddReporter(Type reporterType)
     {
+        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
+        {
+            throw new ArgumentException($"Type {reporterType.Name} does not implement IMethodCallReporter", nameof(reporterType));
+        }
         _reporters.Add(reporterType);
     }
 

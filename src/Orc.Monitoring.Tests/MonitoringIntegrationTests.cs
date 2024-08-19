@@ -19,37 +19,29 @@ public class MonitoringIntegrationTests
     [SetUp]
     public void Setup()
     {
-        try
+        MonitoringController.ResetForTesting();
+        _mockReporter = new MockReporter
         {
-            MonitoringController.ResetForTesting();
+            Name = "MockSequenceReporter",
+            FullName = "MockSequenceReporter"
+        };
 
-            _mockReporter = new MockReporter
-            {
-                Name = "MockSequenceReporter",
-                FullName = "MockSequenceReporter"
-            };
-
-            PerformanceMonitor.Configure(config =>
-            {
-                config.AddReporter(_mockReporter.GetType());
-                config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
-            });
-
-            // Add all public methods of the test class to tracked methods
-            foreach (var method in typeof(MonitoringIntegrationTests).GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            {
-                PerformanceMonitor.AddTrackedMethod(typeof(MonitoringIntegrationTests), method);
-            }
-
-            MonitoringController.Enable();
-            // Remove this line as the reporter is already added in PerformanceMonitor.Configure
-            // MonitoringController.EnableReporter(_mockReporter.GetType());
-        }
-        catch (Exception ex)
+        PerformanceMonitor.Configure(config =>
         {
-            Console.WriteLine($"Error during test setup: {ex}");
-            throw;
+            config.AddReporter(_mockReporter.GetType());
+            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
+        });
+
+        foreach (var method in typeof(MonitoringIntegrationTests).GetMethods(BindingFlags.Public | BindingFlags.Instance))
+        {
+            PerformanceMonitor.AddTrackedMethod(typeof(MonitoringIntegrationTests), method);
         }
+
+        MonitoringController.Enable();
+        MonitoringController.EnableReporter(_mockReporter.GetType());
+
+        // Force re-initialization of the CallStack
+        MonitoringController.Configuration = new MonitoringConfiguration();
     }
 
     [Test]

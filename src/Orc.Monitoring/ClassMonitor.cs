@@ -103,7 +103,7 @@ internal class ClassMonitor : IClassMonitor
         // Start all reporters in the config
         foreach (var reporter in config.Reporters)
         {
-            if (MonitoringController.IsReporterEnabled(reporter.GetType()) && MonitoringController.ShouldTrack(operationVersion, reporter.GetType()))
+            if (MonitoringController.IsReporterEnabled(reporter.GetType()))
             {
                 _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
                 var reporterDisposable = reporter.StartReporting(_callStack);
@@ -112,7 +112,7 @@ internal class ClassMonitor : IClassMonitor
             }
             else
             {
-                _logger.LogWarning($"Reporter not enabled or should not track: {reporter.GetType().Name}");
+                _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name}");
             }
         }
 
