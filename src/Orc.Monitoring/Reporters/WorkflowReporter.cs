@@ -35,7 +35,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     private bool _disposing;
 #pragma warning disable IDISP006
-    private AsyncCompositeDisposable? _disposables;
+    private List<IAsyncDisposable>? _disposables;
 #pragma warning restore IDISP006
 
     public WorkflowReporter()
@@ -81,8 +81,12 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         _logger.LogInformation("WorkflowReporter started reporting");
 
-        _disposables?.DisposeAsync().AsTask().Wait();
-        _disposables = new AsyncCompositeDisposable();
+        foreach (var disposable in _disposables ?? [])
+        {
+            disposable.DisposeAsync().AsTask().Wait(100);
+        }
+
+        _disposables = new ();
 
         InitializeOutputs();
 
@@ -101,7 +105,10 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
             await _tcs.Task.ConfigureAwait(false);
 
-            await _disposables.DisposeAsync();
+            foreach (var asyncDisposable in _disposables ?? [])
+            {
+                await asyncDisposable.DisposeAsync();
+            }
 
             ProcessBatch();
         });
