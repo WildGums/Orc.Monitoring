@@ -5,12 +5,12 @@ using System.Collections.Generic;
 using System.Reflection;
 using Filters;
 
-public class TypeAndMethodTracker
+public class AssemblyTracker
 {
     private readonly HashSet<Type> _trackedTypes = [];
     private readonly List<IMethodFilter> _filters = [];
 
-    public TypeAndMethodTracker TrackAssembly(Assembly assembly)
+    public AssemblyTracker TrackAssembly(Assembly assembly)
     {
         foreach (var type in assembly.GetTypes())
         {
@@ -20,7 +20,7 @@ public class TypeAndMethodTracker
         return this;
     }
 
-    public TypeAndMethodTracker TrackType(Type type)
+    public AssemblyTracker TrackType(Type type)
     {
         if (!_trackedTypes.Add(type))
         {
@@ -30,7 +30,7 @@ public class TypeAndMethodTracker
         return this;
     }
 
-    public TypeAndMethodTracker AddFilter(IMethodFilter filter)
+    public AssemblyTracker AddFilter(IMethodFilter filter)
     {
         _filters.Add(filter);
 

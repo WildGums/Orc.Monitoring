@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 public class MonitoringConfiguration
 {
     private readonly HierarchicalRuleManager _ruleManager = new();
-    private readonly TypeAndMethodTracker _typeAndMethodTracker = new();
+    private readonly AssemblyTracker _assemblyTracker = new();
     private readonly List<Assembly> _trackedAssemblies = [];
     private readonly List<Type> _reporters = [];
     private readonly List<IMethodFilter> _filters = [];
@@ -39,14 +39,14 @@ public class MonitoringConfiguration
 
     public void TrackAssembly(Assembly assembly)
     {
-        _typeAndMethodTracker.TrackAssembly(assembly);
+        _assemblyTracker.TrackAssembly(assembly);
         _trackedAssemblies.Add(assembly);
     }
 
     public void AddFilter(IMethodFilter filter)
     {
         _filters.Add(filter);
-        _typeAndMethodTracker.AddFilter(filter);
+        _assemblyTracker.AddFilter(filter);
     }
 
     public void AddReporter<T>() where T : IMethodCallReporter
