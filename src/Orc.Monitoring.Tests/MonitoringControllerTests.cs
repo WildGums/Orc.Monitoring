@@ -121,7 +121,17 @@ public class MonitoringControllerTests
         var initialVersion = MonitoringController.GetCurrentVersion();
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         var newVersion = MonitoringController.GetCurrentVersion();
-        Assert.That(newVersion, Is.GreaterThan(initialVersion));
+        Assert.That(newVersion, Is.GreaterThanOrEqualTo(initialVersion), "Version should not decrease after state change");
+    }
+
+    [Test]
+    public void GetCurrentVersion_ChangesAfterStateChange()
+    {
+        var initialVersion = MonitoringController.GetCurrentVersion();
+        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        var newVersion = MonitoringController.GetCurrentVersion();
+
+        Assert.That(newVersion, Is.Not.EqualTo(initialVersion), "Version should change after state change");
     }
 
     [Test]
