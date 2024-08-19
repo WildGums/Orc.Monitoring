@@ -6,8 +6,6 @@
 namespace Orc.Monitoring.Tests;
 
 using System;
-using System.Collections.Generic;
-using System.Reflection;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using Reporters.ReportOutputs;
