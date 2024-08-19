@@ -4,9 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Configuration;
+using Reporters;
+using Filters;
+using Configuration;
 using System.Threading.Tasks;
 
 public class MonitoringConfiguration
@@ -17,11 +17,9 @@ public class MonitoringConfiguration
     private readonly List<Type> _reporters = [];
     private readonly List<IMethodFilter> _filters = [];
 
-    // New properties for handling special cases
     public bool TrackStaticMethods { get; set; } = true;
     public bool TrackGenericMethods { get; set; } = true;
     public bool TrackExtensionMethods { get; set; } = true;
-    public bool IncludeGenericTypeParameters { get; set; } = true;
     public bool TrackAsyncMethods { get; set; } = true;
 
     public void AddHierarchicalRule(HierarchicalMonitoringRule rule)
@@ -64,7 +62,6 @@ public class MonitoringConfiguration
 
         return true;
     }
-
     public bool ShouldMonitor(Type type)
     {
         return _ruleManager.ShouldMonitor(type);
@@ -141,20 +138,6 @@ public class MonitoringConfiguration
         return _filters.Select(f => f.GetType());
     }
 
-    // New method to get method name with generic type parameters if configured
-    public string GetMethodDisplayName(MethodInfo method)
-    {
-        string methodName = method.Name;
-
-        if (method.IsGenericMethod && IncludeGenericTypeParameters)
-        {
-            var genericArgs = method.GetGenericArguments();
-            string genericParams = string.Join(", ", genericArgs.Select(t => t.Name));
-            methodName += $"<{genericParams}>";
-        }
-
-        return methodName;
-    }
 
     // Helper method to check if a method is async
     private bool IsAsyncMethod(MethodInfo method)
