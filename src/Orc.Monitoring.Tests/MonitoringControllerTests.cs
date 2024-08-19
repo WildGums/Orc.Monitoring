@@ -70,22 +70,22 @@ public class MonitoringControllerTests
         DisableFilter(typeof(WorkflowItemFilter));
     }
 
-    [Test]
-    public void ShouldTrack_WhenMonitoringEnabledAndReporterEnabled_ReturnsTrue()
+    [TestCase(true, true, ExpectedResult = true)]
+    [TestCase(false, true, ExpectedResult = false)]
+    public bool ShouldTrack_ReturnsExpectedResult(bool monitoringEnabled, bool reporterEnabled)
     {
-        MonitoringController.Enable();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        var currentVersion = MonitoringController.GetCurrentVersion();
-        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter)), Is.True);
-    }
+        if (monitoringEnabled)
+            MonitoringController.Enable();
+        else
+            MonitoringController.Disable();
 
-    [Test]
-    public void ShouldTrack_WhenMonitoringDisabled_ReturnsFalse()
-    {
-        MonitoringController.Disable();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        if (reporterEnabled)
+            MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        else
+            MonitoringController.DisableReporter(typeof(WorkflowReporter));
+
         var currentVersion = MonitoringController.GetCurrentVersion();
-        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter)), Is.False);
+        return MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter));
     }
 
     [Test]
@@ -117,19 +117,22 @@ public class MonitoringControllerTests
     }
 
     [Test]
-    public void GetCurrentVersion_IncreasesAfterStateChange()
+    public void GetCurrentVersion_ChangesAndIncreasesAfterStateChange()
     {
         var initialVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"Initial version: {initialVersion}");
 
-        // Add a small delay to ensure timestamp change
-        Thread.Sleep(10);
+        Thread.Sleep(10); // Ensure timestamp change
 
         MonitoringController.EnableReporter(typeof(WorkflowReporter));
         var newVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"New version: {newVersion}");
 
-        Assert.That(newVersion, Is.GreaterThan(initialVersion), "Version should increase after state change");
+        Assert.Multiple(() =>
+        {
+            Assert.That(newVersion, Is.GreaterThan(initialVersion), "Version should increase after state change");
+            Assert.That(newVersion, Is.Not.EqualTo(initialVersion), "Version should change after state change");
+        });
 
         var versionHistory = MonitoringDiagnostics.GetVersionHistory();
         Console.WriteLine("Version History:");
@@ -137,16 +140,6 @@ public class MonitoringControllerTests
         {
             Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
         }
-    }
-
-    [Test]
-    public void GetCurrentVersion_ChangesAfterStateChange()
-    {
-        var initialVersion = MonitoringController.GetCurrentVersion();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        var newVersion = MonitoringController.GetCurrentVersion();
-
-        Assert.That(newVersion, Is.Not.EqualTo(initialVersion), "Version should change after state change");
     }
 
     [Test]

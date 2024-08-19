@@ -93,55 +93,38 @@ public class MonitoringIntegrationTests
     }
 
     [Test]
-    public void RootMethod_SetsRootMethodBeforeStartingReporting()
+    public async Task RootMethod_SetsRootMethodBeforeStartingReporting_SyncAndAsync()
     {
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
-
-        if (monitor is null)
+        if (monitor is null || _mockReporter is null)
         {
-            throw new InvalidOperationException("Monitor not initialized");
+            throw new InvalidOperationException("Monitor or reporter not initialized");
         }
 
-        if (_mockReporter is null)
-        {
-            throw new InvalidOperationException("Reporter not initialized");
-        }
+        _mockReporter.Reset();
 
-        _mockReporter.Reset(); // Reset the reporter before the test
-
+        // Test synchronous method
         using (var context = monitor.Start(builder => builder.AddReporter(_mockReporter)))
         {
-            System.Threading.Thread.Sleep(10);
+            await Task.Delay(10);
         }
 
-        Console.WriteLine($"OperationSequence: {string.Join(", ", _mockReporter.OperationSequence)}");
         Assert.That(_mockReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
-        Assert.That(_mockReporter.RootMethodName, Is.EqualTo(nameof(RootMethod_SetsRootMethodBeforeStartingReporting)));
-    }
+        Assert.That(_mockReporter.RootMethodName, Is.EqualTo(nameof(RootMethod_SetsRootMethodBeforeStartingReporting_SyncAndAsync)));
 
-    [Test]
-    public async Task AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync()
-    {
-        var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
-        if (monitor is null)
-        {
-            throw new InvalidOperationException("Monitor not initialized");
-        }
+        // Reset for async test
+        _mockReporter.Reset();
 
-        if (_mockReporter is null)
-        {
-            throw new InvalidOperationException("Reporter not initialized");
-        }
-
+        // Test asynchronous method
         await using (var context = monitor.AsyncStart(builder => builder.AddReporter(_mockReporter)))
         {
             await Task.Delay(10);
         }
 
-        Console.WriteLine($"OperationSequence: {string.Join(", ", _mockReporter.OperationSequence)}");
         Assert.That(_mockReporter.OperationSequence, Is.EqualTo(new[] { "SetRootMethod", "StartReporting" }));
-        Assert.That(_mockReporter.RootMethodName, Is.EqualTo(nameof(AsyncRootMethod_SetsRootMethodBeforeStartingReportingAsync)));
+        Assert.That(_mockReporter.RootMethodName, Is.EqualTo(nameof(RootMethod_SetsRootMethodBeforeStartingReporting_SyncAndAsync)));
     }
+
 
     [Test, Retry(3)] // Retry up to 3 times
     public void VersionChanges_AreReflectedInMonitoring()
