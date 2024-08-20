@@ -105,7 +105,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
             await _tcs.Task.ConfigureAwait(false);
 
-            foreach (var asyncDisposable in _disposables ?? [])
+            foreach (var asyncDisposable in _disposables?.ToArray() ?? [])
             {
                 await asyncDisposable.DisposeAsync();
             }
