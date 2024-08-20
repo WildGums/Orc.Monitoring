@@ -79,6 +79,7 @@ public static class MonitoringController
     private static readonly AsyncLocal<OperationContext?> _currentOperationContext = new();
 
     private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?, long), bool> _shouldTrackCache = new();
+    private static readonly ConcurrentDictionary<(Type ReporterType, Type FilterType), bool> _reporterSpecificFilterStates = new();
 
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
@@ -116,6 +117,22 @@ public static class MonitoringController
                 _stateLock.ExitWriteLock();
             }
         }
+    }
+
+    public static void EnableFilterForReporterType(Type reporterType, Type filterType)
+    {
+        SetFilterStateForReporterType(reporterType, filterType, true);
+    }
+
+    private static void SetFilterStateForReporterType(Type reporterType, Type filterType, bool enabled)
+    {
+        _reporterSpecificFilterStates[(reporterType, filterType)] = enabled;
+        UpdateVersion();
+    }
+
+    public static bool IsFilterEnabledForReporterType(Type reporterType, Type filterType)
+    {
+        return _reporterSpecificFilterStates.TryGetValue((reporterType, filterType), out var isEnabled) && isEnabled;
     }
 
     private static void ApplyConfiguration(MonitoringConfiguration oldConfig, MonitoringConfiguration newConfig)
@@ -241,7 +258,7 @@ public static class MonitoringController
     {
         if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
         {
-            throw new ArgumentException("Type must implement IFilter", nameof(filterType));
+            throw new ArgumentException($"Type {filterType.Name} does not implement IMethodFilter", nameof(filterType));
         }
 
         SetComponentState(MonitoringComponentType.Filter, filterType, true);
@@ -298,57 +315,54 @@ public static class MonitoringController
 
     public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, Type? outputType = null, bool allowOlderVersions = false)
     {
-        var currentContext = _currentOperationContext.Value;
+        var logger = CreateLogger(typeof(MonitoringController));
         var currentVersion = GetCurrentVersion();
 
-        // If we're in an operation
-        if (currentContext is not null)
+        logger.LogDebug($"ShouldTrack called. Version: {version}, ReporterType: {reporterType?.Name}, FilterType: {filterType?.Name}, OutputType: {outputType?.Name}, AllowOlderVersions: {allowOlderVersions}");
+        logger.LogDebug($"Current version: {currentVersion}, IsEnabled: {IsEnabled}");
+
+        if (!IsEnabled || (!allowOlderVersions && version != currentVersion) || (allowOlderVersions && version > currentVersion))
         {
-            // If the provided version is equal to the operation version, we should track only if the global version hasn't changed
-            if (version == currentContext.OperationVersion)
-            {
-                return version == currentVersion;
-            }
-            // If the provided version is older than the operation version, don't track unless allowOlderVersions is true
-            if (version < currentContext.OperationVersion && !allowOlderVersions)
-            {
-                return false;
-            }
-        }
-        else
-        {
-            // If we're not in an operation, check against the current global version
-            if (version > currentVersion || (!allowOlderVersions && version < currentVersion))
-            {
-                return false;
-            }
+            logger.LogDebug($"ShouldTrack returning false. IsEnabled: {IsEnabled}, Version match: {version == currentVersion}, AllowOlderVersions: {allowOlderVersions}");
+            return false;
         }
 
-        // If we've made it this far and allowOlderVersions is true, we should track
-        if (allowOlderVersions && version < currentVersion)
+        if (reporterType is not null && !IsReporterEnabled(reporterType))
         {
-            return true;
+            logger.LogDebug($"Reporter {reporterType.Name} is not enabled");
+            return false;
         }
 
-        var result = _shouldTrackCache.GetOrAdd((version, reporterType, filterType, outputType, _cacheVersion), key =>
+        if (filterType is not null)
         {
-            var (v, reporter, filter, output, _) = key;
+            if (reporterType is not null)
+            {
+                var isEnabled = IsFilterEnabledForReporterType(reporterType, filterType);
+                logger.LogDebug($"Filter {filterType.Name} enabled for reporter {reporterType.Name}: {isEnabled}");
+                if (!isEnabled)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                var isEnabled = IsFilterEnabled(filterType);
+                logger.LogDebug($"Filter {filterType.Name} globally enabled: {isEnabled}");
+                if (!isEnabled)
+                {
+                    return false;
+                }
+            }
+        }
 
-            var isEnabled = IsEnabled;
-            var reporterEnabled = reporter is null || IsReporterEnabled(reporter);
-            var filterEnabled = filter is null || IsFilterEnabled(filter);
-            var outputEnabled = output is null || IsOutputTypeEnabled(output);
+        if (outputType is not null && !IsOutputTypeEnabled(outputType))
+        {
+            logger.LogDebug($"OutputType {outputType.Name} is not enabled");
+            return false;
+        }
 
-            var result = isEnabled && reporterEnabled && filterEnabled && outputEnabled;
-
-            _logger.LogDebug($"ShouldTrack cache miss. Version: {v}, Reporter: {reporter?.Name ?? "null"}, Filter: {filter?.Name ?? "null"}, Output: {output?.Name ?? "null"}, " +
-                             $"IsEnabled: {isEnabled}, ReporterEnabled: {reporterEnabled}, FilterEnabled: {filterEnabled}, OutputEnabled: {outputEnabled}, Result: {result}");
-
-            return result;
-        });
-
-        _logger.LogDebug($"ShouldTrack result: {result}");
-        return result;
+        logger.LogDebug("ShouldTrack returning true");
+        return true;
     }
 
     private static void InvalidateShouldTrackCache()

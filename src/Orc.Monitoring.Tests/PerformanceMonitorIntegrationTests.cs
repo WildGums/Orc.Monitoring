@@ -7,6 +7,7 @@ namespace Orc.Monitoring.Tests;
 
 using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using Reporters.ReportOutputs;
 
@@ -87,22 +88,50 @@ public class PerformanceMonitorIntegrationTests
     [Test]
     public void ForClass_WithFilterButNoExplicitMethods_ShouldTrackAllMethods()
     {
+        var logger = MonitoringController.CreateLogger<PerformanceMonitorIntegrationTests>();
+
         // Arrange
+        logger.LogInformation("Starting test setup");
         MonitoringController.ResetForTesting();
         MonitoringController.Enable();
+        logger.LogInformation($"Monitoring enabled: {MonitoringController.IsEnabled}");
 
         PerformanceMonitor.Configure(config =>
         {
+            logger.LogInformation($"Configuring PerformanceMonitor. Tracking assembly: {typeof(TestClass2).Assembly.FullName}");
             config.TrackAssembly(typeof(TestClass2).Assembly);
-            config.AddFilter<AlwaysIncludeFilter>();
+            var filter = new AlwaysIncludeFilter();
+            config.AddFilter(filter);
+            config.AddReporter<MockReporter>();
+            config.AddFilterToReporter<MockReporter, AlwaysIncludeFilter>();
+            logger.LogInformation($"Added AlwaysIncludeFilter: {filter.GetType().FullName}");
+            logger.LogInformation("Added MockReporter");
         });
 
+        PerformanceMonitor.LogCurrentConfiguration();
+
+        // Explicitly enable the reporter and filter
+        MonitoringController.EnableReporter(typeof(MockReporter));
+        MonitoringController.EnableFilter(typeof(AlwaysIncludeFilter));
+        MonitoringController.EnableFilterForReporterType(typeof(MockReporter), typeof(AlwaysIncludeFilter));
+        logger.LogInformation($"MockReporter enabled: {MonitoringController.IsReporterEnabled(typeof(MockReporter))}");
+        logger.LogInformation($"AlwaysIncludeFilter enabled: {MonitoringController.IsFilterEnabled(typeof(AlwaysIncludeFilter))}");
+        logger.LogInformation($"AlwaysIncludeFilter enabled for MockReporter: {MonitoringController.IsFilterEnabledForReporterType(typeof(MockReporter), typeof(AlwaysIncludeFilter))}");
+
         // Act
+        logger.LogInformation("Creating monitor for TestClass2");
         var monitor = PerformanceMonitor.ForClass<TestClass2>();
+        logger.LogInformation($"Monitor type: {monitor.GetType().Name}");
 
         // Assert
-        using (var context = monitor.Start(builder => { }, nameof(TestClass2.TestMethod)))
+        logger.LogInformation("Starting method and creating context");
+        using (var context = monitor.Start(builder =>
         {
+            builder.AddReporter<MockReporter>();
+            logger.LogInformation("Added MockReporter to method configuration");
+        }, nameof(TestClass2.TestMethod)))
+        {
+            logger.LogInformation($"Context type: {context.GetType().Name}");
             Assert.That(context, Is.Not.EqualTo(MethodCallContext.Dummy),
                 "The context should not be a Dummy context when the filter includes all methods");
         }

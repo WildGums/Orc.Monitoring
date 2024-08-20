@@ -51,6 +51,13 @@ public sealed class WorkflowReporter : IMethodCallReporter
         _filters.Add(filter);
     }
 
+    public void RemoveFilter(IMethodFilter filter)
+    {
+        _filters.Remove(filter);
+    }
+
+    public IReadOnlyList<IMethodFilter> GetFilters() => _filters.AsReadOnly();
+
 
     public string Name { get; } = "Workflow";
     public string FullName => $"{Name} - {GetRootWorkflowItemName() ?? string.Empty}";

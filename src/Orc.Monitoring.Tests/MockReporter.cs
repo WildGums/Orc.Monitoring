@@ -6,6 +6,7 @@ using System.Reflection;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
+using Orc.Monitoring.Filters;
 
 public class MockReporter : IMethodCallReporter
 {
@@ -16,6 +17,9 @@ public class MockReporter : IMethodCallReporter
     public string? RootMethodName { get; private set; }
     public int CallCount { get; private set; }
     public Action<IObservable<ICallStackItem>>? OnStartReporting { get; set; }
+
+    private MethodInfo? _rootMethod;
+    private readonly List<IMethodFilter> _filters = new();
 
     public MethodInfo? RootMethod
     {
@@ -31,8 +35,6 @@ public class MockReporter : IMethodCallReporter
             }
         }
     }
-
-    private MethodInfo? _rootMethod;
 
     public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
     {
@@ -52,6 +54,24 @@ public class MockReporter : IMethodCallReporter
         return this;
     }
 
+    public void AddFilter(IMethodFilter filter)
+    {
+        _filters.Add(filter);
+        OperationSequence.Add($"AddFilter: {filter.GetType().Name}");
+    }
+
+    public void RemoveFilter(IMethodFilter filter)
+    {
+        _filters.Remove(filter);
+        OperationSequence.Add($"RemoveFilter: {filter.GetType().Name}");
+    }
+
+    public IReadOnlyList<IMethodFilter> GetFilters()
+    {
+        OperationSequence.Add("GetFilters");
+        return _filters.AsReadOnly();
+    }
+
     public void Reset()
     {
         StartReportingCallCount = 0;
@@ -60,5 +80,6 @@ public class MockReporter : IMethodCallReporter
         RootMethodName = null;
         OnStartReporting = null;
         _rootMethod = null;
+        _filters.Clear();
     }
 }

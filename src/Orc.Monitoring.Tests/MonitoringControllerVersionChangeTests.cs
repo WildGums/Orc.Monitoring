@@ -33,7 +33,7 @@ public class MonitoringControllerVersionChangeTests
         };
 
         var initialVersion = MonitoringController.GetCurrentVersion();
-        MonitoringController.EnableReporter(typeof(DummyReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
 
         Assert.Multiple(() =>
         {
@@ -55,7 +55,7 @@ public class MonitoringControllerVersionChangeTests
             MonitoringController.VersionChanged += (sender, args) => notifiedSubscribers++;
         }
 
-        MonitoringController.EnableReporter(typeof(DummyReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
 
         Assert.That(notifiedSubscribers, Is.EqualTo(subscriberCount), "All subscribers should have been notified");
     }
@@ -67,11 +67,11 @@ public class MonitoringControllerVersionChangeTests
         EventHandler<VersionChangedEventArgs> handler = (sender, args) => notificationCount++;
 
         MonitoringController.VersionChanged += handler;
-        MonitoringController.EnableReporter(typeof(DummyReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
         Assert.That(notificationCount, Is.EqualTo(1), "Subscriber should have been notified once");
 
         MonitoringController.VersionChanged -= handler;
-        MonitoringController.DisableReporter(typeof(DummyReporter));
+        MonitoringController.DisableReporter(typeof(MockReporter));
         Assert.That(notificationCount, Is.EqualTo(1), "Unsubscribed handler should not have been notified");
     }
 
@@ -93,7 +93,7 @@ public class MonitoringControllerVersionChangeTests
 
         Task.WaitAll(tasks.ToArray());
 
-        MonitoringController.EnableReporter(typeof(DummyReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
 
         Assert.That(notifiedSubscribers, Is.All.True, "All concurrent subscribers should have been notified");
     }
@@ -108,7 +108,7 @@ public class MonitoringControllerVersionChangeTests
         MonitoringController.RegisterContext(context2);
 
         var initialVersion = MonitoringController.GetCurrentVersion();
-        MonitoringController.EnableReporter(typeof(DummyReporter));
+        MonitoringController.EnableReporter(typeof(MockReporter));
         var newVersion = MonitoringController.GetCurrentVersion();
 
         Assert.Multiple(() =>
@@ -118,23 +118,6 @@ public class MonitoringControllerVersionChangeTests
             Assert.That(context1.CurrentVersion, Is.Not.EqualTo(initialVersion), "Context 1 should not have the initial version");
             Assert.That(context2.CurrentVersion, Is.Not.EqualTo(initialVersion), "Context 2 should not have the initial version");
         });
-    }
-
-    private class DummyReporter : IMethodCallReporter
-    {
-        public string Name => "DummyReporter";
-        public string FullName => "DummyReporter";
-        public System.Reflection.MethodInfo? RootMethod { get; set; }
-
-        public IAsyncDisposable StartReporting(IObservable<MethodLifeCycleItems.ICallStackItem> callStack)
-        {
-            throw new NotImplementedException();
-        }
-
-        public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
-        {
-            throw new NotImplementedException();
-        }
     }
 
     private class TestVersionedMonitoringContext : VersionedMonitoringContext

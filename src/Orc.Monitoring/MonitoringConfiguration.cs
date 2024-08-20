@@ -8,22 +8,14 @@ using Orc.Monitoring.Reporters;
 
 public class MonitoringConfiguration
 {
-    // List of assemblies to be tracked
     public List<Assembly> TrackedAssemblies { get; } = new List<Assembly>();
-
-    // List of filters
     public List<IMethodFilter> Filters { get; } = new List<IMethodFilter>();
-
-    // List of reporter types
     public List<Type> ReporterTypes { get; } = new List<Type>();
-
-    // Dictionary to store output type states
     public Dictionary<Type, bool> OutputTypeStates { get; } = new Dictionary<Type, bool>();
-
-    // Global monitoring state
     public bool IsGloballyEnabled { get; set; } = true;
 
-    // Internal methods to add items to the configuration
+    public Dictionary<Type, HashSet<IMethodFilter>> ReporterFilterMappings { get; } = new();
+
     internal void AddFilter(IMethodFilter filter)
     {
         Filters.Add(filter);
@@ -54,5 +46,23 @@ public class MonitoringConfiguration
     internal void SetOutputTypeState(Type outputType, bool enabled)
     {
         OutputTypeStates[outputType] = enabled;
+    }
+
+    internal void AddFilterMappingForReporter(Type reporterType, Type filterType)
+    {
+        if (!ReporterFilterMappings.TryGetValue(reporterType, out var filters))
+        {
+            filters = new HashSet<IMethodFilter>();
+            ReporterFilterMappings[reporterType] = filters;
+        }
+
+        var filter = Activator.CreateInstance(filterType) as IMethodFilter;
+        if (filter is null)
+        {
+            throw new InvalidOperationException($"Failed to create instance of {filterType.Name}");
+        }
+
+        filters.Add(filter);
+        Filters.Add(filter);
     }
 }

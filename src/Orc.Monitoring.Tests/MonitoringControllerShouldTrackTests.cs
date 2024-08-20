@@ -35,7 +35,7 @@ public class MonitoringControllerShouldTrackTests
     }
 
     [Test]
-    public void ShouldTrack_WithOlderVersion_ReturnsTrue()
+    public void ShouldTrack_WithOlderVersion_ReturnsExpectedResult()
     {
         MonitoringController.Enable();
         var oldVersion = MonitoringController.GetCurrentVersion();

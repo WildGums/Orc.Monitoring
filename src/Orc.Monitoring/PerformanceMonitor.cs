@@ -4,6 +4,7 @@ namespace Orc.Monitoring;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters;
@@ -62,6 +63,24 @@ public static class PerformanceMonitor
             }
         }
     }
+
+    public static void LogCurrentConfiguration()
+    {
+        var logger = CreateLogger(typeof(PerformanceMonitor));
+        var config = GetCurrentConfiguration();
+        if (config is not null)
+        {
+            logger.LogInformation($"Current configuration: Reporters: {string.Join(", ", config.ReporterTypes.Select(r => r.Name))}, " +
+                                  $"Filters: {string.Join(", ", config.Filters.Select(f => f.GetType().Name))}, " +
+                                  $"ReporterFilterMappings: {string.Join(", ", config.ReporterFilterMappings.Select(m => $"{m.Key.Name}: {string.Join(", ", m.Value.Select(f => f.GetType().Name))}"))}, " +
+                                  $"TrackedAssemblies: {string.Join(", ", config.TrackedAssemblies.Select(a => a.GetName().Name))}");
+        }
+        else
+        {
+            logger.LogWarning("Current configuration is null");
+        }
+    }
+
     private static void EnableDefaultOutputTypes(ConfigurationBuilder builder)
     {
         var outputTypes = new[]

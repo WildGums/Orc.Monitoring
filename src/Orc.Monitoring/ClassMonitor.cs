@@ -42,7 +42,7 @@ internal class ClassMonitor : IClassMonitor
     private object StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
     {
         var currentVersion = MonitoringController.GetCurrentVersion();
-        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}");
+        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}, Version: {currentVersion}");
 
         if (!IsMonitoringEnabled(callerMethod, currentVersion))
         {
@@ -119,7 +119,7 @@ internal class ClassMonitor : IClassMonitor
 
         if (!ShouldTrackMethod(methodCallInfo, operationVersion))
         {
-            _logger.LogDebug("Method filtered out, returning Dummy context");
+            _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}, Filters: {string.Join(", ", _monitoringConfig.Filters.Select(f => f.GetType().Name))}");
             return GetDummyContext(async);
         }
 
@@ -224,11 +224,12 @@ internal class ClassMonitor : IClassMonitor
 
         if (_trackedMethodNames is null)
         {
+            _logger.LogWarning($"_trackedMethodNames is null for {callerMethod}");
             return false;
         }
 
         var isEnabled = MonitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
-        _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}");
+        _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}. ShouldTrack: {MonitoringController.ShouldTrack(currentVersion)}, Contains: {_trackedMethodNames.Contains(callerMethod)}");
         return isEnabled;
     }
 
@@ -264,14 +265,51 @@ internal class ClassMonitor : IClassMonitor
 
     private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
     {
-        return _monitoringConfig.Filters.Any(filter =>
+        _logger.LogDebug($"ShouldTrackMethod called for {methodCallInfo.MethodName}");
+
+        foreach (var reporterType in _monitoringConfig.ReporterTypes)
         {
-            if (MonitoringController.IsFilterEnabled(filter.GetType()) && MonitoringController.ShouldTrack(operationVersion, filterType: filter.GetType()))
+            _logger.LogDebug($"Checking reporter: {reporterType.Name}");
+            if (MonitoringController.IsReporterEnabled(reporterType))
             {
-                return filter.ShouldInclude(methodCallInfo);
+                _logger.LogDebug($"Reporter {reporterType.Name} is enabled");
+                if (MonitoringController.ShouldTrack(operationVersion, reporterType: reporterType))
+                {
+                    _logger.LogDebug($"ShouldTrack returned true for reporter {reporterType.Name}");
+                    if (_monitoringConfig.ReporterFilterMappings.TryGetValue(reporterType, out var filters))
+                    {
+                        foreach (var filter in filters)
+                        {
+                            _logger.LogDebug($"Checking filter: {filter.GetType().Name}");
+                            if (MonitoringController.IsFilterEnabledForReporterType(reporterType, filter.GetType()))
+                            {
+                                _logger.LogDebug($"Filter {filter.GetType().Name} is enabled for reporter {reporterType.Name}");
+                                if (filter.ShouldInclude(methodCallInfo))
+                                {
+                                    _logger.LogDebug($"Filter {filter.GetType().Name} includes method {methodCallInfo.MethodName}");
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogDebug($"No filters found for reporter: {reporterType.Name}");
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug($"ShouldTrack returned false for reporter {reporterType.Name}");
+                }
             }
-            return false;
-        });
+            else
+            {
+                _logger.LogDebug($"Reporter {reporterType.Name} is not enabled");
+            }
+        }
+
+        _logger.LogDebug($"Method should not be tracked: {methodCallInfo.MethodName}");
+        return false;
     }
 
     public void LogStatus(IMethodLifeCycleItem status)

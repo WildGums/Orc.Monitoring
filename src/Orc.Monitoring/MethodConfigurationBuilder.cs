@@ -2,11 +2,19 @@
 
 using System;
 using System.Linq;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Filters;
 using Reporters;
 
 public class MethodConfigurationBuilder
 {
+    private readonly ILogger<MethodConfigurationBuilder> _logger;
     private readonly MethodConfiguration _config = new();
+
+    public MethodConfigurationBuilder()
+    {
+        _logger = MonitoringController.CreateLogger<MethodConfigurationBuilder>();
+    }
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
     {
@@ -20,6 +28,21 @@ public class MethodConfigurationBuilder
         var reporter = new TReporter();
         configAction?.Invoke(reporter);
         _config.Reporters.Add(reporter);
+
+        // Apply filters based on global configuration
+        var globalConfig = MonitoringController.Configuration;
+        if (globalConfig.ReporterFilterMappings.TryGetValue(typeof(TReporter), out var filters))
+        {
+            foreach (var filter in filters)
+            {
+                if (MonitoringController.IsFilterEnabledForReporterType(typeof(TReporter), filter.GetType()))
+                {
+                    _logger.LogDebug($"Adding filter {filter.GetType().Name} to reporter {typeof(TReporter).Name}");
+                    reporter.AddFilter(filter);
+                }
+            }
+        }
+
         return this;
     }
 

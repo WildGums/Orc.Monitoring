@@ -145,7 +145,7 @@ public class MonitoringControllerTests
     {
         var builder = new ConfigurationBuilder();
         builder.AddReporter<WorkflowReporter>();
-        builder.AddFilter<WorkflowItemFilter>();
+        builder.AddFilter<AlwaysIncludeFilter>();
         MonitoringController.Configuration = builder.Build();
 
         MonitoringController.Disable();
@@ -154,7 +154,7 @@ public class MonitoringControllerTests
         Assert.Multiple(() =>
         {
             Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
-            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
+            Assert.That(MonitoringController.IsFilterEnabled(typeof(AlwaysIncludeFilter)), Is.True);
         });
     }
 

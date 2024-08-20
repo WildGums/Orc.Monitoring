@@ -1,6 +1,7 @@
 ﻿namespace Orc.Monitoring;
 
 using System;
+using System.Linq;
 using System.Reflection;
 using Orc.Monitoring.Filters;
 using Orc.Monitoring.Reporters;
@@ -82,6 +83,18 @@ public class ConfigurationBuilder
         return this;
     }
 
+    public ConfigurationBuilder AddFilterToReporter<TReporter, TFilter>(bool initialState = true)
+        where TReporter : IMethodCallReporter
+        where TFilter : IMethodFilter, new()
+    {
+        _config.AddFilterMappingForReporter(typeof(TReporter), typeof(TFilter));
+        if (initialState)
+        {
+            MonitoringController.EnableFilterForReporterType(typeof(TReporter), typeof(TFilter));
+        }
+        return this;
+    }
+
     public ConfigurationBuilder TrackAssembly(Assembly assembly)
     {
         _config.TrackAssembly(assembly);
@@ -130,6 +143,15 @@ public class ConfigurationBuilder
         if (!_config.OutputTypeStates.ContainsKey(typeof(TxtReportOutput)))
         {
             SetOutputTypeState<TxtReportOutput>(true);
+        }
+
+        // Ensure all reporters in ReporterFilterMappings are added to ReporterTypes
+        foreach (var reporterType in _config.ReporterFilterMappings.Keys)
+        {
+            if (!_config.ReporterTypes.Contains(reporterType))
+            {
+                _config.AddReporter(reporterType);
+            }
         }
 
         return _config;
