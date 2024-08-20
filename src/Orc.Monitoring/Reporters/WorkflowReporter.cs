@@ -24,10 +24,11 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
     private readonly List<IReportOutput> _outputs = [];
-    private readonly List<IMethodFilter> _filters = [];
+    private readonly HashSet<Type> _filterTypes = [];
     private readonly Dictionary<int, int> _activeThreads = new();
     private readonly TaskCompletionSource _tcs = new();
 
+    private MonitoringConfiguration? _monitoringConfiguration;
     private MethodInfo? _rootMethod;
     private MethodCallInfo? _rootMethodCallInfo;
     private CallProcessingContext? _callProcessingContext;
@@ -46,20 +47,22 @@ public sealed class WorkflowReporter : IMethodCallReporter
         Name = "Workflow";
 
         // Add default WorkflowItemFilter
-        _filters.Add(new WorkflowItemFilter());
+        _filterTypes.Add(typeof(WorkflowItemFilter));
     }
 
-    public void AddFilter(IMethodFilter filter)
+    public void Initialize(MonitoringConfiguration monitoringConfiguration)
     {
-        _filters.Add(filter);
+        ArgumentNullException.ThrowIfNull(monitoringConfiguration);
+
+        _monitoringConfiguration = monitoringConfiguration;
     }
 
-    public void RemoveFilter(IMethodFilter filter)
+    public IOutputContainer AddFilter<T>() where T : IMethodFilter
     {
-        _filters.Remove(filter);
-    }
+        _filterTypes.Add(typeof(T));
 
-    public IReadOnlyList<IMethodFilter> GetFilters() => _filters.AsReadOnly();
+        return this;
+    }
 
 
     public string Name { get; } = "Workflow";
@@ -168,7 +171,13 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     private bool ShouldIncludeMethodCall(MethodCallInfo methodCallInfo)
     {
-        return _filters.Any(filter => filter.ShouldInclude(methodCallInfo));
+        if (_monitoringConfiguration is null)
+        {
+            throw new InvalidOperationException("Monitoring configuration is not set");
+        }
+
+        return _filterTypes.Any(filterType =>
+            _monitoringConfiguration.FilterDictionary[filterType].ShouldInclude(methodCallInfo));
     }
 
     private IAsyncDisposable CreateReportingObservable(IObservable<ICallStackItem> callStack)

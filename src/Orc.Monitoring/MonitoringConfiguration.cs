@@ -8,10 +8,11 @@ using Orc.Monitoring.Reporters;
 
 public class MonitoringConfiguration
 {
-    private readonly HashSet<IMethodFilter> _filters = new();
+    private readonly Dictionary<Type, IMethodFilter> _filters = new();
     private readonly HashSet<Type> _reporterTypes = new();
 
-    public IReadOnlyCollection<IMethodFilter> Filters => _filters;
+    public IReadOnlyCollection<IMethodFilter> Filters => _filters.Values;
+    public IReadOnlyDictionary<Type, IMethodFilter> FilterDictionary => _filters.AsReadOnly();
     public IReadOnlyCollection<Type> ReporterTypes => _reporterTypes;
 
     public List<Assembly> TrackedAssemblies { get; } = new List<Assembly>();
@@ -24,7 +25,8 @@ public class MonitoringConfiguration
         {
             throw new ArgumentNullException(nameof(filter));
         }
-        _filters.Add(filter);
+
+        _filters[filter.GetType()] = filter;
     }
 
     internal void AddReporter<T>() where T : IMethodCallReporter

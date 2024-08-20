@@ -74,6 +74,8 @@ internal class ClassMonitor : IClassMonitor
 
         foreach (var reporter in config.Reporters)
         {
+            reporter.Initialize(_monitoringConfig);
+
             if (MonitoringController.IsReporterEnabled(reporter.GetType()))
             {
                 reporter.RootMethod = methodInfo;  // Set RootMethod before starting reporting

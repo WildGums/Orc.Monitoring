@@ -12,6 +12,7 @@ public class MockReporter : IMethodCallReporter
 {
     private int _callCount;
     private string _id;
+    private MonitoringConfiguration _monitoringConfiguration;
 
     public MockReporter()
     {
@@ -48,7 +49,7 @@ public class MockReporter : IMethodCallReporter
     public Action<IObservable<ICallStackItem>>? OnStartReporting { get; set; }
 
     private MethodInfo? _rootMethod;
-    private readonly List<IMethodFilter> _filters = new();
+    private readonly List<Type> _filters = new();
 
     public MethodInfo? RootMethod
     {
@@ -79,28 +80,24 @@ public class MockReporter : IMethodCallReporter
         });
     }
 
+    public IOutputContainer AddFilter<T>() where T : IMethodFilter
+    {
+        _filters.Add(typeof(T));
+        OperationSequence.Add($"AddFilter: {typeof(T).Name}");
+
+        return this;
+    }
+
+    public void Initialize(MonitoringConfiguration monitoringConfiguration)
+    {
+        _monitoringConfiguration = monitoringConfiguration;
+    }
+
     public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
     {
         return this;
     }
 
-    public void AddFilter(IMethodFilter filter)
-    {
-        _filters.Add(filter);
-        OperationSequence.Add($"AddFilter: {filter.GetType().Name}");
-    }
-
-    public void RemoveFilter(IMethodFilter filter)
-    {
-        _filters.Remove(filter);
-        OperationSequence.Add($"RemoveFilter: {filter.GetType().Name}");
-    }
-
-    public IReadOnlyList<IMethodFilter> GetFilters()
-    {
-        OperationSequence.Add("GetFilters");
-        return _filters.AsReadOnly();
-    }
 
     public void Reset()
     {

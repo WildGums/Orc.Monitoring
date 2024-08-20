@@ -39,21 +39,5 @@ public interface IMethodCallReporter : IOutputContainer
     /// <returns>An IAsyncDisposable that can be used to stop reporting.</returns>
     IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack);
 
-    /// <summary>
-    /// Adds a filter to the reporter.
-    /// </summary>
-    /// <param name="filter">The filter to add.</param>
-    void AddFilter(IMethodFilter filter);
-
-    /// <summary>
-    /// Removes a filter from the reporter.
-    /// </summary>
-    /// <param name="filter">The filter to remove.</param>
-    void RemoveFilter(IMethodFilter filter);
-
-    /// <summary>
-    /// Gets the list of filters currently applied to this reporter.
-    /// </summary>
-    /// <returns>A read-only list of method filters.</returns>
-    IReadOnlyList<IMethodFilter> GetFilters();
+    void Initialize(MonitoringConfiguration monitoringConfiguration);
 }
