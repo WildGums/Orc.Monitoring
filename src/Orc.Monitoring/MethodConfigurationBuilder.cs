@@ -26,23 +26,13 @@ public class MethodConfigurationBuilder
     public MethodConfigurationBuilder AddReporter<TReporter>(Action<TReporter>? configAction = null) where TReporter : IMethodCallReporter, new()
     {
         var reporter = new TReporter();
+        if (string.IsNullOrEmpty(reporter.Id))
+        {
+            reporter.Id = Guid.NewGuid().ToString(); // Assign a unique Id only if one doesn't exist
+        }
         configAction?.Invoke(reporter);
         _config.Reporters.Add(reporter);
-
-        // Apply filters based on global configuration
-        var globalConfig = MonitoringController.Configuration;
-        if (globalConfig.ReporterFilterMappings.TryGetValue(typeof(TReporter), out var filters))
-        {
-            foreach (var filter in filters)
-            {
-                if (MonitoringController.IsFilterEnabledForReporterType(typeof(TReporter), filter.GetType()))
-                {
-                    _logger.LogDebug($"Adding filter {filter.GetType().Name} to reporter {typeof(TReporter).Name}");
-                    reporter.AddFilter(filter);
-                }
-            }
-        }
-
+        _logger.LogDebug($"Added reporter: {reporter.GetType().Name} with ID: {reporter.Id}");
         return this;
     }
 

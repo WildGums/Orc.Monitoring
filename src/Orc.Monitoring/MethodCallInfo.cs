@@ -154,16 +154,6 @@ public class MethodCallInfo
         });
     }
 
-    public MethodCallContext Start(List<IAsyncDisposable> disposables)
-    {
-        return IsNull ? MethodCallContext.Dummy : new MethodCallContext(_classMonitor, this, disposables);
-    }
-
-    public AsyncMethodCallContext StartAsync(List<IAsyncDisposable> disposables)
-    {
-        return IsNull ? AsyncMethodCallContext.Dummy : new AsyncMethodCallContext(_classMonitor, this, disposables);
-    }
-
     public void SetGenericArguments(Type[] genericArguments)
     {
         IsGenericMethod = true;

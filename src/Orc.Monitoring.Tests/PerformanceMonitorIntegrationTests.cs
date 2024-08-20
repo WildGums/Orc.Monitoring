@@ -9,6 +9,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
+using NUnit.Framework.Internal;
 using Reporters.ReportOutputs;
 
 
@@ -16,6 +17,7 @@ using Reporters.ReportOutputs;
 public class PerformanceMonitorIntegrationTests
 {
     private static MockReporter _mockReporter;
+    private static readonly string reporterId = "TestReporter";
 
     private class TestClass
     {
@@ -68,11 +70,18 @@ public class PerformanceMonitorIntegrationTests
 
         MonitoringController.ResetForTesting();
 
-        _mockReporter = new MockReporter();
+        _mockReporter = new MockReporter { Id = reporterId };
+        Console.WriteLine($"Setup completed at {DateTime.Now:HH:mm:ss.fff}"); _mockReporter.Reset(); 
 
-        PerformanceMonitor.Configure(builder => {
-            Console.WriteLine($"Configuring assembly: {typeof(TestClass).Assembly.FullName}");
-            builder.TrackAssembly(typeof(TestClass).Assembly);
+        PerformanceMonitor.Configure(config =>
+        {
+            Console.WriteLine($"Configuring PerformanceMonitor. Tracking assembly: {typeof(TestClass).Assembly.FullName}");
+            config.TrackAssembly(typeof(TestClass).Assembly);
+            var filter = new AlwaysIncludeFilter();
+            config.AddFilter(filter);
+            config.AddReporter(typeof(MockReporter));
+            Console.WriteLine($"Added AlwaysIncludeFilter: {filter.GetType().FullName}");
+            Console.WriteLine($"Added MockReporter with ID: {reporterId}");
         });
 
         MonitoringController.Enable();
@@ -82,6 +91,13 @@ public class PerformanceMonitorIntegrationTests
 
         // Force re-creation of TestClass monitor
         typeof(TestClass).TypeInitializer?.Invoke(null, null);
+    }
+
+    [TearDown]
+    public void Teardown()
+    {
+        Console.WriteLine($"TearDown started at {DateTime.Now:HH:mm:ss.fff}");
+        Console.WriteLine($"Final CallCount: {_mockReporter.CallCount}");
     }
 
 
@@ -96,16 +112,16 @@ public class PerformanceMonitorIntegrationTests
         MonitoringController.Enable();
         logger.LogInformation($"Monitoring enabled: {MonitoringController.IsEnabled}");
 
+        var reporterId = "TestReporter";
         PerformanceMonitor.Configure(config =>
         {
             logger.LogInformation($"Configuring PerformanceMonitor. Tracking assembly: {typeof(TestClass2).Assembly.FullName}");
             config.TrackAssembly(typeof(TestClass2).Assembly);
             var filter = new AlwaysIncludeFilter();
             config.AddFilter(filter);
-            config.AddReporter<MockReporter>();
-            config.AddFilterToReporter<MockReporter, AlwaysIncludeFilter>();
+            config.AddReporter(typeof(MockReporter));
             logger.LogInformation($"Added AlwaysIncludeFilter: {filter.GetType().FullName}");
-            logger.LogInformation("Added MockReporter");
+            logger.LogInformation($"Added MockReporter with ID: {reporterId}");
         });
 
         PerformanceMonitor.LogCurrentConfiguration();
@@ -127,8 +143,8 @@ public class PerformanceMonitorIntegrationTests
         logger.LogInformation("Starting method and creating context");
         using (var context = monitor.Start(builder =>
         {
-            builder.AddReporter<MockReporter>();
-            logger.LogInformation("Added MockReporter to method configuration");
+            builder.AddReporter(new MockReporter { Id = reporterId });
+            logger.LogInformation($"Added MockReporter with ID: {reporterId} to method configuration");
         }, nameof(TestClass2.TestMethod)))
         {
             logger.LogInformation($"Context type: {context.GetType().Name}");
@@ -142,6 +158,7 @@ public class PerformanceMonitorIntegrationTests
     {
         var testClass = new TestClass();
         testClass.TestMethod();
+        Console.WriteLine($"CallCount after method execution: {_mockReporter.CallCount}");
         Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call for the sync method");
     }
 
@@ -177,15 +194,22 @@ public class PerformanceMonitorIntegrationTests
     public void WhenMonitoringIsToggled_TrackingRespondsAccordingly()
     {
         var testClass = new TestClass();
+
+        Console.WriteLine("Running first method call with monitoring enabled");
         testClass.TestMethod();
+        Console.WriteLine($"CallCount after first call: {_mockReporter.CallCount}");
         Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call when monitoring is enabled");
 
+        Console.WriteLine("Disabling monitoring");
         MonitoringController.Disable();
         testClass.TestMethod();
+        Console.WriteLine($"CallCount after second call (monitoring disabled): {_mockReporter.CallCount}");
         Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected no additional calls when monitoring is disabled");
 
+        Console.WriteLine("Re-enabling monitoring");
         MonitoringController.Enable();
         testClass.TestMethod();
+        Console.WriteLine($"CallCount after third call (monitoring re-enabled): {_mockReporter.CallCount}");
         Assert.That(_mockReporter.CallCount, Is.EqualTo(2), "Expected 1 additional call when monitoring is re-enabled");
     }
 

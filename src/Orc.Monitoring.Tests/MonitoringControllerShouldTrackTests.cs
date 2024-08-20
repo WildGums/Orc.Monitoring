@@ -49,8 +49,26 @@ public class MonitoringControllerShouldTrackTests
         Console.WriteLine($"New version: {newVersion}");
 
         Assert.That(oldVersion, Is.LessThan(newVersion), "New version should be greater than old version");
-        Assert.That(MonitoringController.ShouldTrack(oldVersion, allowOlderVersions: true), Is.True, "Should track older version when allowOlderVersions is true");
-        Assert.That(MonitoringController.ShouldTrack(oldVersion, allowOlderVersions: false), Is.False, "Should not track older version when allowOlderVersions is false");
+        Assert.That(MonitoringController.ShouldTrack(oldVersion), Is.False, "Should not track older version");
+        Assert.That(MonitoringController.ShouldTrack(newVersion), Is.True, "Should track current version");
+    }
+
+    [Test]
+    public void ShouldTrack_WithReporterIds_ReturnsExpectedResult()
+    {
+        MonitoringController.Enable();
+        var reporter1 = new MockReporter { Id = "Reporter1" };
+        var reporter2 = new MockReporter { Id = "Reporter2" };
+        MonitoringController.EnableReporter(typeof(MockReporter));
+
+        var version = MonitoringController.GetCurrentVersion();
+
+        Assert.That(MonitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter1" }), Is.True);
+        Assert.That(MonitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter2" }), Is.True);
+        Assert.That(MonitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter3" }), Is.True);
+
+        MonitoringController.DisableReporter(typeof(MockReporter));
+        Assert.That(MonitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter1" }), Is.False);
     }
 
     [Test]

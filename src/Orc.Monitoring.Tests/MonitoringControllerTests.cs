@@ -45,6 +45,19 @@ public class MonitoringControllerTests
     }
 
     [Test]
+    public void EnableFilterForReporterType_EnablesFilterForSpecificReporter()
+    {
+        var reporterType = typeof(WorkflowReporter);
+        var filterType = typeof(WorkflowItemFilter);
+
+        MonitoringController.EnableReporter(reporterType);
+        MonitoringController.EnableFilterForReporterType(reporterType, filterType);
+
+        Assert.That(MonitoringController.IsFilterEnabledForReporterType(reporterType, filterType), Is.True);
+    }
+
+
+    [Test]
     public void EnableReporter_WhenCalled_EnablesReporter()
     {
         EnableReporter(typeof(WorkflowReporter));
@@ -77,13 +90,14 @@ public class MonitoringControllerTests
         var builder = new ConfigurationBuilder();
         builder.SetGlobalState(monitoringEnabled);
 
+        var reporter = new MockReporter(); // Use MockReporter instead of WorkflowReporter
         if (reporterEnabled)
-            builder.AddReporter<WorkflowReporter>();
+            builder.AddReporter(typeof(WorkflowReporter));
 
         MonitoringController.Configuration = builder.Build();
 
         var currentVersion = MonitoringController.GetCurrentVersion();
-        return MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter));
+        return MonitoringController.ShouldTrack(currentVersion, reporterIds: new[] { reporter.Id });
     }
 
     [Test]
@@ -144,7 +158,7 @@ public class MonitoringControllerTests
     public void GlobalDisableEnable_RestoresCorrectComponentStates()
     {
         var builder = new ConfigurationBuilder();
-        builder.AddReporter<WorkflowReporter>();
+        builder.AddReporter(typeof(WorkflowReporter));
         builder.AddFilter<AlwaysIncludeFilter>();
         MonitoringController.Configuration = builder.Build();
 
@@ -214,7 +228,7 @@ public class MonitoringControllerTests
         Console.WriteLine($"Initial version: {initialVersion}");
 
         var builder = new ConfigurationBuilder();
-        builder.AddReporter<WorkflowReporter>();
+        builder.AddReporter(typeof(WorkflowReporter));
         MonitoringController.Configuration = builder.Build();
 
         var newVersion = MonitoringController.GetCurrentVersion();

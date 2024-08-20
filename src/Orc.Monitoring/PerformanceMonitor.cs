@@ -72,7 +72,6 @@ public static class PerformanceMonitor
         {
             logger.LogInformation($"Current configuration: Reporters: {string.Join(", ", config.ReporterTypes.Select(r => r.Name))}, " +
                                   $"Filters: {string.Join(", ", config.Filters.Select(f => f.GetType().Name))}, " +
-                                  $"ReporterFilterMappings: {string.Join(", ", config.ReporterFilterMappings.Select(m => $"{m.Key.Name}: {string.Join(", ", m.Value.Select(f => f.GetType().Name))}"))}, " +
                                   $"TrackedAssemblies: {string.Join(", ", config.TrackedAssemblies.Select(a => a.GetName().Name))}");
         }
         else

@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using MethodLifeCycleItems;
 
@@ -17,17 +18,21 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
 
     public MethodCallInfo? MethodCallInfo { get; }
 
+    public IReadOnlyList<string> ReporterIds { get; }
+
     private MethodCallContext() : base()
     {
         // Dummy constructor
+        ReporterIds = Array.Empty<string>();
     }
 
-    public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)
+    public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
         : base()
     {
         _classMonitor = classMonitor;
         _disposables = disposables;
         MethodCallInfo = methodCallInfo;
+        ReporterIds = reporterIds.ToList().AsReadOnly();
         _stopwatch.Start();
 
         // Log the start of the method only if we have a valid MethodCallInfo
@@ -121,7 +126,7 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
             MethodCallInfo.Elapsed = _stopwatch.Elapsed;
             var endStatus = new MethodCallEnd(MethodCallInfo);
 
-            if (MonitoringController.ShouldTrack(ContextVersion))
+            if (MonitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
             {
                 (_classMonitor as ClassMonitor)?.LogStatus(endStatus);
             }
@@ -130,7 +135,7 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
         {
             // Log that the context was operating under an outdated version
             MonitoringController.CreateLogger<MethodCallContext>().LogWarning(
-                $"Method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, Context Version: {ContextVersion}, Current Version: {MonitoringController.GetCurrentVersion()}");
+                $"Method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, ReporterId: {ReporterIds.FirstOrDefault()}, Context Version: {ContextVersion}, Current Version: {MonitoringController.GetCurrentVersion()}");
         }
         finally
         {
@@ -147,6 +152,7 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
             }
 
             MethodCallInfo.TryReturnToPool();
+            Console.WriteLine($"MethodCallContext disposed at {DateTime.Now:HH:mm:ss.fff}");
             _isDisposed = true;
         }
     }

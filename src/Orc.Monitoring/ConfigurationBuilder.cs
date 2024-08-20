@@ -7,7 +7,6 @@ using Orc.Monitoring.Filters;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
 
-
 public class ConfigurationBuilder
 {
     private readonly MonitoringConfiguration _config = new();
@@ -83,18 +82,6 @@ public class ConfigurationBuilder
         return this;
     }
 
-    public ConfigurationBuilder AddFilterToReporter<TReporter, TFilter>(bool initialState = true)
-        where TReporter : IMethodCallReporter
-        where TFilter : IMethodFilter, new()
-    {
-        _config.AddFilterMappingForReporter(typeof(TReporter), typeof(TFilter));
-        if (initialState)
-        {
-            MonitoringController.EnableFilterForReporterType(typeof(TReporter), typeof(TFilter));
-        }
-        return this;
-    }
-
     public ConfigurationBuilder TrackAssembly(Assembly assembly)
     {
         _config.TrackAssembly(assembly);
@@ -122,6 +109,7 @@ public class ConfigurationBuilder
             throw new ArgumentException($"Type {outputType.Name} does not implement IReportOutput", nameof(outputType));
         }
 
+        _config.SetOutputTypeState(outputType, enabled);
         if (enabled)
         {
             MonitoringController.EnableOutputType(outputType);
@@ -135,7 +123,6 @@ public class ConfigurationBuilder
 
     public MonitoringConfiguration Build()
     {
-        // Enable default output types if not explicitly set
         if (!_config.OutputTypeStates.ContainsKey(typeof(RanttOutput)))
         {
             SetOutputTypeState<RanttOutput>(true);
@@ -143,15 +130,6 @@ public class ConfigurationBuilder
         if (!_config.OutputTypeStates.ContainsKey(typeof(TxtReportOutput)))
         {
             SetOutputTypeState<TxtReportOutput>(true);
-        }
-
-        // Ensure all reporters in ReporterFilterMappings are added to ReporterTypes
-        foreach (var reporterType in _config.ReporterFilterMappings.Keys)
-        {
-            if (!_config.ReporterTypes.Contains(reporterType))
-            {
-                _config.AddReporter(reporterType);
-            }
         }
 
         return _config;

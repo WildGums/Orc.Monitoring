@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Filters;
 using Reporters.ReportOutputs;
 using Reporters;
+using System.Linq;
 
 /// <summary>
 /// Provides centralized control for the monitoring system, including hierarchical control of reporters and filters.
@@ -80,7 +81,8 @@ public static class MonitoringController
 
     private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?, long), bool> _shouldTrackCache = new();
     private static readonly ConcurrentDictionary<(Type ReporterType, Type FilterType), bool> _reporterSpecificFilterStates = new();
-
+    private static readonly ConcurrentDictionary<(string ReporterId, Type FilterType), bool> _reporterInstanceFilterStates = new();
+    
     private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
 
@@ -124,6 +126,11 @@ public static class MonitoringController
         SetFilterStateForReporterType(reporterType, filterType, true);
     }
 
+    public static void DisableFilterForReporterType(Type reporterType, Type filterType)
+    {
+        SetFilterStateForReporterType(reporterType, filterType, false);
+    }
+
     private static void SetFilterStateForReporterType(Type reporterType, Type filterType, bool enabled)
     {
         _reporterSpecificFilterStates[(reporterType, filterType)] = enabled;
@@ -133,6 +140,27 @@ public static class MonitoringController
     public static bool IsFilterEnabledForReporterType(Type reporterType, Type filterType)
     {
         return _reporterSpecificFilterStates.TryGetValue((reporterType, filterType), out var isEnabled) && isEnabled;
+    }
+
+    public static void EnableFilterForReporter(string reporterId, Type filterType)
+    {
+        SetFilterStateForReporter(reporterId, filterType, true);
+    }
+
+    public static void DisableFilterForReporter(string reporterId, Type filterType)
+    {
+        SetFilterStateForReporter(reporterId, filterType, false);
+    }
+
+    private static void SetFilterStateForReporter(string reporterId, Type filterType, bool enabled)
+    {
+        _reporterInstanceFilterStates[(reporterId, filterType)] = enabled;
+        UpdateVersion();
+    }
+
+    public static bool IsFilterEnabledForReporter(string reporterId, Type filterType)
+    {
+        return _reporterInstanceFilterStates.TryGetValue((reporterId, filterType), out var isEnabled) && isEnabled;
     }
 
     private static void ApplyConfiguration(MonitoringConfiguration oldConfig, MonitoringConfiguration newConfig)
@@ -313,56 +341,39 @@ public static class MonitoringController
         return _configuration.OutputTypeStates.TryGetValue(outputType, out var isEnabled) && isEnabled;
     }
 
-    public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, Type? outputType = null, bool allowOlderVersions = false)
+    public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, IEnumerable<string>? reporterIds = null)
     {
-        var logger = CreateLogger(typeof(MonitoringController));
-        var currentVersion = GetCurrentVersion();
+        var shouldTrack = IsEnabled && version == GetCurrentVersion();
+        Console.WriteLine($"ShouldTrack called. IsEnabled: {IsEnabled}, VersionMatch: {version == GetCurrentVersion()}, Result: {shouldTrack}");
 
-        logger.LogDebug($"ShouldTrack called. Version: {version}, ReporterType: {reporterType?.Name}, FilterType: {filterType?.Name}, OutputType: {outputType?.Name}, AllowOlderVersions: {allowOlderVersions}");
-        logger.LogDebug($"Current version: {currentVersion}, IsEnabled: {IsEnabled}");
+        if (!shouldTrack) return false;
 
-        if (!IsEnabled || (!allowOlderVersions && version != currentVersion) || (allowOlderVersions && version > currentVersion))
+        if (reporterType is not null)
         {
-            logger.LogDebug($"ShouldTrack returning false. IsEnabled: {IsEnabled}, Version match: {version == currentVersion}, AllowOlderVersions: {allowOlderVersions}");
-            return false;
+            shouldTrack = IsReporterEnabled(reporterType);
+            Console.WriteLine($"Reporter check. Type: {reporterType.Name}, Enabled: {shouldTrack}");
         }
 
-        if (reporterType is not null && !IsReporterEnabled(reporterType))
+        if (shouldTrack && filterType is not null)
         {
-            logger.LogDebug($"Reporter {reporterType.Name} is not enabled");
-            return false;
-        }
-
-        if (filterType is not null)
-        {
-            if (reporterType is not null)
+            if (reporterIds is not null)
             {
-                var isEnabled = IsFilterEnabledForReporterType(reporterType, filterType);
-                logger.LogDebug($"Filter {filterType.Name} enabled for reporter {reporterType.Name}: {isEnabled}");
-                if (!isEnabled)
-                {
-                    return false;
-                }
+                shouldTrack = reporterIds.Any(id => IsFilterEnabledForReporter(id, filterType));
+                Console.WriteLine($"Filter check for reporters. FilterType: {filterType.Name}, Result: {shouldTrack}");
+            }
+            else if (reporterType is not null)
+            {
+                shouldTrack = IsFilterEnabledForReporterType(reporterType, filterType);
+                Console.WriteLine($"Filter check for reporter type. ReporterType: {reporterType.Name}, FilterType: {filterType.Name}, Result: {shouldTrack}");
             }
             else
             {
-                var isEnabled = IsFilterEnabled(filterType);
-                logger.LogDebug($"Filter {filterType.Name} globally enabled: {isEnabled}");
-                if (!isEnabled)
-                {
-                    return false;
-                }
+                shouldTrack = IsFilterEnabled(filterType);
+                Console.WriteLine($"General filter check. FilterType: {filterType.Name}, Result: {shouldTrack}");
             }
         }
 
-        if (outputType is not null && !IsOutputTypeEnabled(outputType))
-        {
-            logger.LogDebug($"OutputType {outputType.Name} is not enabled");
-            return false;
-        }
-
-        logger.LogDebug("ShouldTrack returning true");
-        return true;
+        return shouldTrack;
     }
 
     private static void InvalidateShouldTrackCache()

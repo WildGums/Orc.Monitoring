@@ -32,6 +32,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private MethodCallInfo? _rootMethodCallInfo;
     private CallProcessingContext? _callProcessingContext;
     private string? _rootWorkflowItemName;
+    private string? _id;
 
     private bool _disposing;
 #pragma warning disable IDISP006
@@ -41,6 +42,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
     public WorkflowReporter()
     {
         _logger = MonitoringController.CreateLogger<WorkflowReporter>();
+
+        Name = "Workflow";
 
         // Add default WorkflowItemFilter
         _filters.Add(new WorkflowItemFilter());
@@ -79,14 +82,26 @@ public sealed class WorkflowReporter : IMethodCallReporter
         set => _rootMethod = value;
     }
 
+    public string Id
+    {
+        get => _id ?? string.Empty;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException("Id cannot be null or whitespace.", nameof(value));
+            }
+            _id = value;
+        }
+    }
     public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
     {
-        if (_rootMethod is null)
+        if (RootMethod is null)
         {
             throw new InvalidOperationException("Unable to start reporting when root method is not set");
         }
 
-        _logger.LogInformation("WorkflowReporter started reporting");
+        _logger.LogInformation($"WorkflowReporter (Id: {Id}) started reporting");
 
         foreach (var disposable in _disposables ?? [])
         {

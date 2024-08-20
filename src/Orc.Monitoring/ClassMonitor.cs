@@ -52,7 +52,6 @@ internal class ClassMonitor : IClassMonitor
 
         using var operation = MonitoringController.BeginOperation(out var operationVersion);
 
-        // Create MethodCallInfo without pushing it to the stack yet
         var methodCallInfo = CreateMethodCallInfo(config, callerMethod);
         if (methodCallInfo.IsNull)
         {
@@ -67,64 +66,61 @@ internal class ClassMonitor : IClassMonitor
             return GetDummyContext(async);
         }
 
-        // Handle static methods
-        if (methodInfo.IsStatic)
-        {
-            _logger.LogDebug($"Handling static method: {methodInfo.Name}");
-            methodCallInfo.IsStatic = true;
-        }
-
-        // Handle generic methods
-        if (methodInfo.IsGenericMethod)
-        {
-            _logger.LogDebug($"Handling generic method: {methodInfo.Name}");
-            methodCallInfo.SetGenericArguments(methodInfo.GetGenericArguments());
-        }
-
-        // Handle extension methods
-        if (methodInfo.IsDefined(typeof(ExtensionAttribute), false))
-        {
-            _logger.LogDebug($"Handling extension method: {methodInfo.Name}");
-            methodCallInfo.IsExtensionMethod = true;
-            methodCallInfo.ExtendedType = methodInfo.GetParameters()[0].ParameterType;
-        }
+        // Handle static, generic, and extension methods
+        HandleSpecialMethodTypes(methodInfo, methodCallInfo);
 
         var disposables = new List<IAsyncDisposable>();
+        var enabledReporterIds = new List<string>();
 
-        // Set RootMethod on reporters before starting them
-        foreach (var reporter in config.Reporters)
-        {
-            reporter.RootMethod = methodInfo;
-            _logger.LogDebug($"Set RootMethod for reporter: {reporter.GetType().Name}");
-        }
-
-        // Start all reporters in the config
         foreach (var reporter in config.Reporters)
         {
             if (MonitoringController.IsReporterEnabled(reporter.GetType()))
             {
-                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
+                reporter.RootMethod = methodInfo;  // Set RootMethod before starting reporting
+                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
                 var reporterDisposable = reporter.StartReporting(_callStack);
                 disposables.Add(reporterDisposable);
-                _logger.LogDebug($"Reporter started: {reporter.GetType().Name}");
+                enabledReporterIds.Add(reporter.Id);
+                _logger.LogDebug($"Reporter started: {reporter.GetType().Name} (Id: {reporter.Id})");
             }
             else
             {
-                _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name}");
+                _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name} (Id: {reporter.Id})");
             }
         }
 
-        // Push the method call to the stack after starting reporters
         PushMethodCallInfoToStack(methodCallInfo);
 
-        if (!ShouldTrackMethod(methodCallInfo, operationVersion))
+        if (!ShouldTrackMethod(methodCallInfo, operationVersion, enabledReporterIds))
         {
             _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}, Filters: {string.Join(", ", _monitoringConfig.Filters.Select(f => f.GetType().Name))}");
             return GetDummyContext(async);
         }
 
         _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
-        return CreateMethodCallContext(async, methodCallInfo, disposables);
+        return CreateMethodCallContext(async, methodCallInfo, disposables, enabledReporterIds);
+    }
+
+    private void HandleSpecialMethodTypes(MethodInfo methodInfo, MethodCallInfo methodCallInfo)
+    {
+        if (methodInfo.IsStatic)
+        {
+            _logger.LogDebug($"Handling static method: {methodInfo.Name}");
+            methodCallInfo.IsStatic = true;
+        }
+
+        if (methodInfo.IsGenericMethod)
+        {
+            _logger.LogDebug($"Handling generic method: {methodInfo.Name}");
+            methodCallInfo.SetGenericArguments(methodInfo.GetGenericArguments());
+        }
+
+        if (methodInfo.IsDefined(typeof(ExtensionAttribute), false))
+        {
+            _logger.LogDebug($"Handling extension method: {methodInfo.Name}");
+            methodCallInfo.IsExtensionMethod = true;
+            methodCallInfo.ExtendedType = methodInfo.GetParameters()[0].ParameterType;
+        }
     }
 
     private MethodCallInfo CreateMethodCallInfo(MethodConfiguration config, string callerMethod)
@@ -256,59 +252,25 @@ internal class ClassMonitor : IClassMonitor
         return async ? AsyncMethodCallContext.Dummy : MethodCallContext.Dummy;
     }
 
-    private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables)
+    private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
     {
         return async
-            ? new AsyncMethodCallContext(this, methodCallInfo, disposables)
-            : new MethodCallContext(this, methodCallInfo, disposables);
+            ? new AsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds)
+            : new MethodCallContext(this, methodCallInfo, disposables, reporterIds);
     }
 
-    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
+    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion, IEnumerable<string> reporterIds)
     {
         _logger.LogDebug($"ShouldTrackMethod called for {methodCallInfo.MethodName}");
+        var shouldTrack = MonitoringController.ShouldTrack(operationVersion, reporterIds: reporterIds);
 
-        foreach (var reporterType in _monitoringConfig.ReporterTypes)
+        if (shouldTrack)
         {
-            _logger.LogDebug($"Checking reporter: {reporterType.Name}");
-            if (MonitoringController.IsReporterEnabled(reporterType))
-            {
-                _logger.LogDebug($"Reporter {reporterType.Name} is enabled");
-                if (MonitoringController.ShouldTrack(operationVersion, reporterType: reporterType))
-                {
-                    _logger.LogDebug($"ShouldTrack returned true for reporter {reporterType.Name}");
-                    if (_monitoringConfig.ReporterFilterMappings.TryGetValue(reporterType, out var filters))
-                    {
-                        foreach (var filter in filters)
-                        {
-                            _logger.LogDebug($"Checking filter: {filter.GetType().Name}");
-                            if (MonitoringController.IsFilterEnabledForReporterType(reporterType, filter.GetType()))
-                            {
-                                _logger.LogDebug($"Filter {filter.GetType().Name} is enabled for reporter {reporterType.Name}");
-                                if (filter.ShouldInclude(methodCallInfo))
-                                {
-                                    _logger.LogDebug($"Filter {filter.GetType().Name} includes method {methodCallInfo.MethodName}");
-                                    return true;
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogDebug($"No filters found for reporter: {reporterType.Name}");
-                    }
-                }
-                else
-                {
-                    _logger.LogDebug($"ShouldTrack returned false for reporter {reporterType.Name}");
-                }
-            }
-            else
-            {
-                _logger.LogDebug($"Reporter {reporterType.Name} is not enabled");
-            }
+            _logger.LogDebug($"ShouldTrack returned true for reporters: {string.Join(", ", reporterIds)}");
+            return true;
         }
 
-        _logger.LogDebug($"Method should not be tracked: {methodCallInfo.MethodName}");
+        _logger.LogDebug($"Method should not be tracked: {methodCallInfo.MethodName}. Checked reporters: {string.Join(", ", reporterIds)}");
         return false;
     }
 
