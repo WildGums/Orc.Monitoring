@@ -60,6 +60,7 @@ public class GlobalConfigurationBuilder
         {
             MonitoringController.EnableFilter(typeof(T));
         }
+
         return this;
     }
 
@@ -81,8 +82,22 @@ public class GlobalConfigurationBuilder
         {
             MonitoringController.EnableFilter(filterType);
         }
+
         return this;
     }
+
+    public GlobalConfigurationBuilder AddFilter(IMethodFilter filter, bool initialState = true)
+    {
+        _config.AddFilter(filter);
+
+        if (initialState)
+        {
+            MonitoringController.EnableFilter(filter.GetType());
+        }
+
+        return this;
+    }
+
 
     public GlobalConfigurationBuilder AddReporter<T>(bool initialState = true) where T : IMethodCallReporter, new()
     {
