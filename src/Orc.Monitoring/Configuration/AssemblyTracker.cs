@@ -3,7 +3,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Filters;
+using Orc.Monitoring.Filters;
+
 
 public class AssemblyTracker
 {
@@ -35,5 +36,15 @@ public class AssemblyTracker
         _filters.Add(filter);
 
         return this;
+    }
+
+    public bool IsTypeTracked(Type type)
+    {
+        return _trackedTypes.Contains(type);
+    }
+
+    public IEnumerable<IMethodFilter> GetFilters()
+    {
+        return _filters;
     }
 }

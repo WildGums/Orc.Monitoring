@@ -93,6 +93,7 @@ public static class MonitoringController
     public static ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();
     public static ILogger CreateLogger(Type type) => _loggerFactory.CreateLogger(type);
 
+
     public static MonitoringConfiguration Configuration
     {
         get => _configuration;
@@ -103,12 +104,12 @@ public static class MonitoringController
             {
                 var oldConfig = _configuration;
                 _configuration = value;
-                UpdateVersionNoLock(); // Ensure version is always updated
+                UpdateVersionNoLock();
                 InvalidateShouldTrackCache();
                 _logger.LogDebug($"Configuration updated. New version: {_currentVersion}");
                 OnStateChanged(MonitoringComponentType.Configuration, "Configuration", true, _currentVersion);
 
-                LogConfigurationChanges(oldConfig, value);
+                ApplyConfiguration(oldConfig, value);
             }
             finally
             {
@@ -117,14 +118,33 @@ public static class MonitoringController
         }
     }
 
-    private static void LogConfigurationChanges(MonitoringConfiguration oldConfig, MonitoringConfiguration newConfig)
+    private static void ApplyConfiguration(MonitoringConfiguration oldConfig, MonitoringConfiguration newConfig)
     {
-        // Implement comparison logic here and log specific changes
-        // For example:
-        // if (oldConfig.SomeProperty != newConfig.SomeProperty)
-        // {
-        //     _logger.LogDebug($"Configuration property changed: {nameof(newConfig.SomeProperty)} from {oldConfig.SomeProperty} to {newConfig.SomeProperty}");
-        // }
+        // Apply global state
+        SetGlobalState(newConfig.IsGloballyEnabled);
+
+        // Apply filters
+        foreach (var filter in newConfig.Filters)
+        {
+            EnableFilter(filter.GetType());
+        }
+
+        // Apply reporters
+        foreach (var reporterType in newConfig.ReporterTypes)
+        {
+            EnableReporter(reporterType);
+        }
+
+        // Apply output type states
+        foreach (var (outputType, isEnabled) in newConfig.OutputTypeStates)
+        {
+            if (isEnabled)
+                EnableOutputType(outputType);
+            else
+                DisableOutputType(outputType);
+        }
+
+        _logger.LogDebug("New configuration applied");
     }
 
     public static bool IsEnabled => Interlocked.CompareExchange(ref _isEnabled, 0, 0) == 1;
@@ -144,38 +164,29 @@ public static class MonitoringController
 
     public static void Enable()
     {
-        if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
-        {
-            try
-            {
-                _stateLock.EnterWriteLock();
-                if (Interlocked.Exchange(ref _isEnabled, 1) == 0)
-                {
-                    UpdateVersionNoLock();
-                    RestoreComponentStates();
-                    _logger.LogDebug($"Monitoring enabled. New version: {_currentVersion}");
-                }
-            }
-            finally
-            {
-                _stateLock.ExitWriteLock();
-                Interlocked.Exchange(ref _isUpdating, 0);
-            }
-        }
+        SetGlobalState(true);
     }
 
     public static void Disable()
+    {
+        SetGlobalState(false);
+    }
+
+    private static void SetGlobalState(bool enabled)
     {
         if (Interlocked.Exchange(ref _isUpdating, 1) == 0)
         {
             try
             {
                 _stateLock.EnterWriteLock();
-                if (Interlocked.Exchange(ref _isEnabled, 0) == 1)
+                if (Interlocked.Exchange(ref _isEnabled, enabled ? 1 : 0) != (enabled ? 1 : 0))
                 {
                     UpdateVersionNoLock();
-                    DisableAllComponents();
-                    _logger.LogDebug($"Monitoring disabled. New version: {_currentVersion}");
+                    if (enabled)
+                        RestoreComponentStates();
+                    else
+                        DisableAllComponents();
+                    _logger.LogDebug($"Monitoring {(enabled ? "enabled" : "disabled")}. New version: {_currentVersion}");
                 }
             }
             finally
@@ -199,22 +210,7 @@ public static class MonitoringController
             throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
         }
 
-        _stateLock.EnterWriteLock();
-        try
-        {
-            _reporterTrueStates[reporterType] = true;
-            _reporterEffectiveStates[reporterType] = IsEnabled;
-
-            // Always update version
-            UpdateVersionNoLock();
-            InvalidateShouldTrackCache();
-            _logger.LogDebug($"Reporter {reporterType.Name} enabled. New version: {_currentVersion}");
-            OnStateChanged(MonitoringComponentType.Reporter, reporterType.Name, true, _currentVersion);
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
-        }
+        SetComponentState(MonitoringComponentType.Reporter, reporterType, true);
     }
 
     public static void DisableReporter(Type reporterType)
@@ -297,7 +293,7 @@ public static class MonitoringController
 
     public static bool IsOutputTypeEnabled(Type outputType)
     {
-        return IsComponentEnabled(_filterEffectiveStates, outputType);
+        return _configuration.OutputTypeStates.TryGetValue(outputType, out var isEnabled) && isEnabled;
     }
 
     public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, Type? outputType = null, bool allowOlderVersions = false)
@@ -462,14 +458,24 @@ public static class MonitoringController
             _stateLock.EnterWriteLock();
             lockTaken = true;
 
-            var trueStates = componentType == MonitoringComponentType.Reporter ? _reporterTrueStates : _filterTrueStates;
-            var effectiveStates = componentType == MonitoringComponentType.Reporter ? _reporterEffectiveStates : _filterEffectiveStates;
+            switch (componentType)
+            {
+                case MonitoringComponentType.Reporter:
+                    _reporterTrueStates[type] = enabled;
+                    _reporterEffectiveStates[type] = enabled && IsEnabled;
+                    break;
+                case MonitoringComponentType.Filter:
+                    _filterTrueStates[type] = enabled;
+                    _filterEffectiveStates[type] = enabled && IsEnabled;
+                    break;
+                case MonitoringComponentType.OutputType:
+                    _configuration.SetOutputTypeState(type, enabled);
+                    break;
+            }
 
-            trueStates[type] = enabled;
-            effectiveStates[type] = enabled && IsEnabled;
             UpdateVersionNoLock();
             _logger.LogDebug($"{componentType} {type.Name} {(enabled ? "enabled" : "disabled")}. New version: {_currentVersion}");
-            OnStateChanged(componentType, type.Name, effectiveStates[type], _currentVersion);
+            OnStateChanged(componentType, type.Name, enabled, _currentVersion);
             InvalidateShouldTrackCache();
         }
         finally

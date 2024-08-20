@@ -10,6 +10,7 @@ using Orc.Monitoring.Reporters.ReportOutputs;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
+
 [TestFixture]
 public class PerformanceMonitorTests
 {
@@ -115,17 +116,18 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_WithCustomConfiguration_ShouldApplyConfiguration()
     {
-        var mockFilter = new Mock<IMethodFilter>();
+        var mockFilter = new AlwaysIncludeFilter();
 
         PerformanceMonitor.Configure(config =>
         {
             config.AddReporter(_mockReporter.GetType());
-            config.AddFilter<AlwaysIncludeFilter>();
+            config.AddFilter(mockFilter);
         });
 
         var configuration = PerformanceMonitor.GetCurrentConfiguration();
         Assert.That(configuration, Is.Not.Null);
         Assert.That(MonitoringController.IsReporterEnabled(_mockReporter.GetType()), Is.True);
+        Assert.That(MonitoringController.IsFilterEnabled(mockFilter.GetType()), Is.True);
     }
 
     [Test]
@@ -192,6 +194,57 @@ public class PerformanceMonitorTests
         PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); });
 
         Assert.That(PerformanceMonitor.IsConfigured, Is.True, "Should be configured after Configure is called");
+    }
+
+    [Test]
+    public void Configure_WithAssemblyTracking_ShouldTrackAssembly()
+    {
+        var assembly = typeof(PerformanceMonitorTests).Assembly;
+
+        PerformanceMonitor.Configure(config =>
+        {
+            config.TrackAssembly(assembly);
+        });
+
+        var configuration = PerformanceMonitor.GetCurrentConfiguration();
+        Assert.That(configuration, Is.Not.Null);
+        Assert.That(configuration.TrackedAssemblies, Does.Contain(assembly));
+    }
+
+    [Test]
+    public void Configure_WithMultipleFilters_ShouldAddAllFilters()
+    {
+        var filter1 = new AlwaysIncludeFilter();
+        var filter2 = new WorkflowItemFilter();
+
+        PerformanceMonitor.Configure(config =>
+        {
+            config.AddFilter(filter1);
+            config.AddFilter(filter2);
+        });
+
+        var configuration = PerformanceMonitor.GetCurrentConfiguration();
+        Assert.That(configuration, Is.Not.Null);
+        Assert.That(configuration.Filters, Does.Contain(filter1));
+        Assert.That(configuration.Filters, Does.Contain(filter2));
+    }
+
+    [Test]
+    public void Configure_WithGlobalState_ShouldSetGlobalState()
+    {
+        PerformanceMonitor.Configure(config =>
+        {
+            config.SetGlobalState(false);
+        });
+
+        Assert.That(MonitoringController.IsEnabled, Is.False);
+
+        PerformanceMonitor.Configure(config =>
+        {
+            config.SetGlobalState(true);
+        });
+
+        Assert.That(MonitoringController.IsEnabled, Is.True);
     }
 
     private CallStack? GetCallStackInstance()

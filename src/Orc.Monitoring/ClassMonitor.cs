@@ -11,14 +11,13 @@ using Filters;
 using System.Linq;
 using System.Reflection;
 
-
 internal class ClassMonitor : IClassMonitor
 {
     private readonly Type _classType;
     private readonly CallStack _callStack;
     private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ILogger<ClassMonitor> _logger;
-    
+
     private HashSet<string>? _trackedMethodNames;
 
     public ClassMonitor(Type classType, CallStack callStack, MonitoringConfiguration monitoringConfig)
@@ -90,7 +89,6 @@ internal class ClassMonitor : IClassMonitor
             methodCallInfo.ExtendedType = methodInfo.GetParameters()[0].ParameterType;
         }
 
-
         var disposables = new List<IAsyncDisposable>();
 
         // Set RootMethod on reporters before starting them
@@ -119,9 +117,7 @@ internal class ClassMonitor : IClassMonitor
         // Push the method call to the stack after starting reporters
         PushMethodCallInfoToStack(methodCallInfo);
 
-        var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
-
-        if (!ShouldTrackMethod(methodCallInfo, applicableFilters, operationVersion))
+        if (!ShouldTrackMethod(methodCallInfo, operationVersion))
         {
             _logger.LogDebug("Method filtered out, returning Dummy context");
             return GetDummyContext(async);
@@ -222,32 +218,11 @@ internal class ClassMonitor : IClassMonitor
         _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.Version}");
     }
 
-    private List<IAsyncDisposable> StartReporters(MethodConfiguration config, MonitoringVersion operationVersion)
-    {
-        var disposables = new List<IAsyncDisposable>();
-        foreach (var reporter in config.Reporters)
-        {
-            _logger.LogDebug($"Checking if reporter is enabled: {reporter.GetType().Name}");
-            if (MonitoringController.IsReporterEnabled(reporter.GetType()))
-            {
-                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
-                var reporterDisposable = reporter.StartReporting(_callStack);
-                disposables.Add(reporterDisposable);
-                _logger.LogDebug($"Reporter started: {reporter.GetType().Name}");
-            }
-            else
-            {
-                _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name}");
-            }
-        }
-        return disposables;
-    }
-
     private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
     {
         EnsureMethodsLoaded();
 
-        if(_trackedMethodNames is null)
+        if (_trackedMethodNames is null)
         {
             return false;
         }
@@ -287,13 +262,12 @@ internal class ClassMonitor : IClassMonitor
             : new MethodCallContext(this, methodCallInfo, disposables);
     }
 
-    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, IEnumerable<Type> applicableFilters, MonitoringVersion operationVersion)
+    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion)
     {
-        return applicableFilters.Any(filterType =>
+        return _monitoringConfig.Filters.Any(filter =>
         {
-            if (MonitoringController.IsFilterEnabled(filterType) && MonitoringController.ShouldTrack(operationVersion, filterType: filterType))
+            if (MonitoringController.IsFilterEnabled(filter.GetType()) && MonitoringController.ShouldTrack(operationVersion, filterType: filter.GetType()))
             {
-                var filter = (IMethodFilter)Activator.CreateInstance(filterType)!;
                 return filter.ShouldInclude(methodCallInfo);
             }
             return false;

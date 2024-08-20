@@ -74,15 +74,13 @@ public class MonitoringControllerTests
     [TestCase(false, true, ExpectedResult = false)]
     public bool ShouldTrack_ReturnsExpectedResult(bool monitoringEnabled, bool reporterEnabled)
     {
-        if (monitoringEnabled)
-            MonitoringController.Enable();
-        else
-            MonitoringController.Disable();
+        var builder = new ConfigurationBuilder();
+        builder.SetGlobalState(monitoringEnabled);
 
         if (reporterEnabled)
-            MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        else
-            MonitoringController.DisableReporter(typeof(WorkflowReporter));
+            builder.AddReporter<WorkflowReporter>();
+
+        MonitoringController.Configuration = builder.Build();
 
         var currentVersion = MonitoringController.GetCurrentVersion();
         return MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter));
@@ -145,15 +143,18 @@ public class MonitoringControllerTests
     [Test]
     public void GlobalDisableEnable_RestoresCorrectComponentStates()
     {
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
-        MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
+        var builder = new ConfigurationBuilder();
+        builder.AddReporter<WorkflowReporter>();
+        builder.AddFilter<WorkflowItemFilter>();
+        MonitoringController.Configuration = builder.Build();
+
         MonitoringController.Disable();
         MonitoringController.Enable();
 
         Assert.Multiple(() =>
         {
             Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
-            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
+            Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.True);
         });
     }
 
@@ -212,7 +213,10 @@ public class MonitoringControllerTests
         var initialVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"Initial version: {initialVersion}");
 
-        MonitoringController.Configuration = new MonitoringConfiguration();
+        var builder = new ConfigurationBuilder();
+        builder.AddReporter<WorkflowReporter>();
+        MonitoringController.Configuration = builder.Build();
+
         var newVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"New version after setting Configuration: {newVersion}");
 

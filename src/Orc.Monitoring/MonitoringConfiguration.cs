@@ -3,73 +3,56 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Linq;
-using Reporters;
-using Filters;
-using Configuration;
-using System.Threading.Tasks;
+using Orc.Monitoring.Filters;
+using Orc.Monitoring.Reporters;
 
 public class MonitoringConfiguration
 {
-    private readonly HierarchicalRuleManager _ruleManager = new();
-    private readonly AssemblyTracker _assemblyTracker = new();
-    private readonly List<Assembly> _trackedAssemblies = [];
-    private readonly List<Type> _reporters = [];
-    private readonly List<IMethodFilter> _filters = [];
+    // List of assemblies to be tracked
+    public List<Assembly> TrackedAssemblies { get; } = new List<Assembly>();
 
-    public void AddHierarchicalRule(HierarchicalMonitoringRule rule)
+    // List of filters
+    public List<IMethodFilter> Filters { get; } = new List<IMethodFilter>();
+
+    // List of reporter types
+    public List<Type> ReporterTypes { get; } = new List<Type>();
+
+    // Dictionary to store output type states
+    public Dictionary<Type, bool> OutputTypeStates { get; } = new Dictionary<Type, bool>();
+
+    // Global monitoring state
+    public bool IsGloballyEnabled { get; set; } = true;
+
+    // Internal methods to add items to the configuration
+    internal void AddFilter(IMethodFilter filter)
     {
-        _ruleManager.AddRule(rule);
+        Filters.Add(filter);
     }
 
-    public void RemoveHierarchicalRule(HierarchicalMonitoringRule rule)
+    internal void AddReporter<T>() where T : IMethodCallReporter
     {
-        _ruleManager.RemoveRule(rule);
+        ReporterTypes.Add(typeof(T));
     }
 
-    public bool ShouldMonitor(Type type)
-    {
-        return _ruleManager.ShouldMonitor(type);
-    }
-
-    public bool ShouldMonitor(string @namespace)
-    {
-        return _ruleManager.ShouldMonitor(@namespace);
-    }
-
-    public void TrackAssembly(Assembly assembly)
-    {
-        _assemblyTracker.TrackAssembly(assembly);
-        _trackedAssemblies.Add(assembly);
-    }
-
-    public void AddFilter(IMethodFilter filter)
-    {
-        _filters.Add(filter);
-        _assemblyTracker.AddFilter(filter);
-    }
-
-    public void AddReporter<T>() where T : IMethodCallReporter
-    {
-        _reporters.Add(typeof(T));
-    }
-
-    public void AddReporter(Type reporterType)
+    internal void AddReporter(Type reporterType)
     {
         if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
         {
             throw new ArgumentException($"Type {reporterType.Name} does not implement IMethodCallReporter", nameof(reporterType));
         }
-        _reporters.Add(reporterType);
+        ReporterTypes.Add(reporterType);
     }
 
-    public IEnumerable<Type> GetReportersForMethod(MethodInfo method)
+    internal void TrackAssembly(Assembly assembly)
     {
-        return _reporters;
+        if (!TrackedAssemblies.Contains(assembly))
+        {
+            TrackedAssemblies.Add(assembly);
+        }
     }
 
-    public IEnumerable<Type> GetFiltersForMethod(MethodInfo method)
+    internal void SetOutputTypeState(Type outputType, bool enabled)
     {
-        return _filters.Select(f => f.GetType());
+        OutputTypeStates[outputType] = enabled;
     }
 }

@@ -1,5 +1,4 @@
 ﻿#pragma warning disable CTL0011
-#pragma warning disable CTL0011
 namespace Orc.Monitoring;
 
 using System;
@@ -221,8 +220,8 @@ public class CallStack : IObservable<ICallStackItem>
             return false;
         }
 
-        var applicableReporters = _monitoringConfig.GetReportersForMethod(methodInfo);
-        var applicableFilters = _monitoringConfig.GetFiltersForMethod(methodInfo);
+        var applicableReporters = _monitoringConfig.ReporterTypes;
+        var applicableFilters = _monitoringConfig.Filters;
 
         // Check if any enabled reporter is interested in this status
         var anyEnabledReporterInterested = applicableReporters.Any(MonitoringController.IsReporterEnabled);
@@ -230,10 +229,9 @@ public class CallStack : IObservable<ICallStackItem>
         // Check if any enabled filter allows this status
         var anyEnabledFilterAllows = applicableFilters.Any(filter =>
         {
-            if (MonitoringController.IsFilterEnabled(filter))
+            if (MonitoringController.IsFilterEnabled(filter.GetType()))
             {
-                var filterInstance = (IMethodFilter)Activator.CreateInstance(filter)!;
-                return filterInstance.ShouldInclude(status.MethodCallInfo);
+                return filter.ShouldInclude(status.MethodCallInfo);
             }
             return false;
         });

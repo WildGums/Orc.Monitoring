@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
 
+
 public static class PerformanceMonitor
 {
     private static readonly object _configLock = new object();
@@ -16,18 +17,15 @@ public static class PerformanceMonitor
     private static MonitoringConfiguration? _configuration;
     private static readonly ILogger _logger = CreateLogger(typeof(PerformanceMonitor));
 
-    public static void Configure(Action<GlobalConfigurationBuilder> configAction)
+    public static void Configure(Action<ConfigurationBuilder> configAction)
     {
         _logger.LogInformation("PerformanceMonitor.Configure called");
-        var builder = new GlobalConfigurationBuilder();
+        var builder = new ConfigurationBuilder();
 
         lock (_configLock)
         {
             try
             {
-                _logger.LogDebug("Enabling default output types");
-                EnableDefaultOutputTypes();
-
                 _logger.LogDebug("Applying custom configuration");
                 configAction(builder);
 
@@ -36,6 +34,16 @@ public static class PerformanceMonitor
 
                 _logger.LogDebug("Setting MonitoringController Configuration");
                 MonitoringController.Configuration = _configuration;
+
+                _logger.LogDebug("Applying global state");
+                if (_configuration.IsGloballyEnabled)
+                {
+                    MonitoringController.Enable();
+                }
+                else
+                {
+                    MonitoringController.Disable();
+                }
 
                 _logger.LogDebug("Creating CallStack instance");
                 _callStack = new CallStack(_configuration);
@@ -46,9 +54,7 @@ public static class PerformanceMonitor
                     _logger.LogError("Failed to create CallStack instance");
                 }
 
-                _logger.LogDebug("Enabling monitoring");
-                MonitoringController.Enable();
-                _logger.LogInformation("Monitoring enabled after configuration");
+                _logger.LogInformation("Monitoring configured");
             }
             catch (Exception ex)
             {
@@ -56,8 +62,7 @@ public static class PerformanceMonitor
             }
         }
     }
-
-    private static void EnableDefaultOutputTypes()
+    private static void EnableDefaultOutputTypes(ConfigurationBuilder builder)
     {
         var outputTypes = new[]
         {
@@ -67,17 +72,13 @@ public static class PerformanceMonitor
 
         foreach (var outputType in outputTypes)
         {
-            // Only enable if not already configured
-            if (!MonitoringController.IsOutputTypeEnabled(outputType))
+            try
             {
-                try
-                {
-                    MonitoringController.EnableOutputType(outputType);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, $"Error enabling output type {outputType.Name}");
-                }
+                builder.SetOutputTypeState(outputType, true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error enabling output type {outputType.Name}");
             }
         }
     }

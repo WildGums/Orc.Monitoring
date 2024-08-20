@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
+
 public class HierarchicalRuleManager
 {
     private readonly List<HierarchicalMonitoringRule> _hierarchicalRules = [];
@@ -36,5 +37,10 @@ public class HierarchicalRuleManager
     {
         var applicableRule = _hierarchicalRules.FirstOrDefault(r => r.Applies(@namespace));
         return applicableRule?.IsEnabled ?? true;
+    }
+
+    public IEnumerable<HierarchicalMonitoringRule> GetRules()
+    {
+        return _hierarchicalRules;
     }
 }
