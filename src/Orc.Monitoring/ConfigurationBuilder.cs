@@ -13,10 +13,15 @@ public class ConfigurationBuilder
 
     public ConfigurationBuilder SetGlobalState(bool enabled)
     {
+        _config.IsGloballyEnabled = enabled;
         if (enabled)
+        {
             MonitoringController.Enable();
+        }
         else
+        {
             MonitoringController.Disable();
+        }
         return this;
     }
 
@@ -85,6 +90,7 @@ public class ConfigurationBuilder
 
     public ConfigurationBuilder SetOutputTypeState<T>(bool enabled) where T : IReportOutput
     {
+        _config.SetOutputTypeState(typeof(T), enabled);
         if (enabled)
         {
             MonitoringController.EnableOutputType<T>();
@@ -114,5 +120,18 @@ public class ConfigurationBuilder
         return this;
     }
 
-    public MonitoringConfiguration Build() => _config;
+    public MonitoringConfiguration Build()
+    {
+        // Enable default output types if not explicitly set
+        if (!_config.OutputTypeStates.ContainsKey(typeof(RanttOutput)))
+        {
+            SetOutputTypeState<RanttOutput>(true);
+        }
+        if (!_config.OutputTypeStates.ContainsKey(typeof(TxtReportOutput)))
+        {
+            SetOutputTypeState<TxtReportOutput>(true);
+        }
+
+        return _config;
+    }
 }
