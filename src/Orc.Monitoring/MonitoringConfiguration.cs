@@ -8,8 +8,9 @@ using Orc.Monitoring.Reporters;
 
 public class MonitoringConfiguration
 {
+    private readonly Dictionary<Type, IMethodFilter> _reporterFilters = new();
     public List<Assembly> TrackedAssemblies { get; } = new List<Assembly>();
-    public List<IMethodFilter> Filters { get; } = new List<IMethodFilter>();
+    public IReadOnlyCollection<IMethodFilter> Filters => _reporterFilters.Values;
     public List<Type> ReporterTypes { get; } = new List<Type>();
     public Dictionary<Type, bool> OutputTypeStates { get; } = new Dictionary<Type, bool>();
     public bool IsGloballyEnabled { get; set; } = true;
@@ -18,7 +19,7 @@ public class MonitoringConfiguration
 
     internal void AddFilter(IMethodFilter filter)
     {
-        Filters.Add(filter);
+        _reporterFilters[filter.GetType()] = filter;
     }
 
     internal void AddReporter<T>() where T : IMethodCallReporter
@@ -50,19 +51,37 @@ public class MonitoringConfiguration
 
     internal void AddFilterMappingForReporter(Type reporterType, Type filterType)
     {
+        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
+        {
+            throw new ArgumentException($"Type {reporterType.Name} does not implement IMethodCallReporter", nameof(reporterType));
+        }
+
+        if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
+        {
+            throw new ArgumentException($"Type {filterType.Name} does not implement IMethodFilter", nameof(filterType));
+        }
+
         if (!ReporterFilterMappings.TryGetValue(reporterType, out var filters))
         {
-            filters = new HashSet<IMethodFilter>();
+            filters = new();
             ReporterFilterMappings[reporterType] = filters;
         }
 
-        var filter = Activator.CreateInstance(filterType) as IMethodFilter;
-        if (filter is null)
+        var filter = _reporterFilters.GetValueOrDefault(filterType);
+        if (filter is null && Activator.CreateInstance(filterType) is IMethodFilter newFilter)
+        {
+            filter = newFilter;
+        }
+
+        if (filter is not null)
+        {
+            filters.Add(filter);
+        }
+        else
         {
             throw new InvalidOperationException($"Failed to create instance of {filterType.Name}");
         }
 
-        filters.Add(filter);
-        Filters.Add(filter);
+        ReporterFilterMappings[reporterType] = filters;
     }
 }
