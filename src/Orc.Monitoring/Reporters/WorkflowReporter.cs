@@ -50,11 +50,14 @@ public sealed class WorkflowReporter : IMethodCallReporter
         _filterTypes.Add(typeof(WorkflowItemFilter));
     }
 
-    public void Initialize(MonitoringConfiguration monitoringConfiguration)
+    public void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod)
     {
         ArgumentNullException.ThrowIfNull(monitoringConfiguration);
+        ArgumentNullException.ThrowIfNull(rootMethod);
 
         _monitoringConfiguration = monitoringConfiguration;
+        RootMethod = rootMethod.MethodInfo;
+        _rootMethodCallInfo = rootMethod;
     }
 
     public IOutputContainer AddFilter<T>() where T : IMethodFilter
@@ -70,11 +73,12 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     private string? GetRootWorkflowItemName()
     {
-        var parameters = _rootMethodCallInfo?.Parameters;
-        if (parameters is null)
+        if (_rootMethodCallInfo is null)
         {
-            return null;
+            throw new InvalidOperationException("Root method call info is not set");
         }
+
+        var parameters = _rootMethodCallInfo?.Parameters;
 
         return _rootWorkflowItemName ??= parameters?[MethodCallParameter.WorkflowItemName];
     }
@@ -176,8 +180,9 @@ public sealed class WorkflowReporter : IMethodCallReporter
             throw new InvalidOperationException("Monitoring configuration is not set");
         }
 
-        return _filterTypes.Any(filterType =>
-            _monitoringConfiguration.FilterDictionary[filterType].ShouldInclude(methodCallInfo));
+        return _filterTypes
+            .Where(filterType => MonitoringController.IsFilterEnabledForReporterType(GetType(), filterType) || MonitoringController.IsFilterEnabledForReporter(Id, filterType))
+            .All(filterType => _monitoringConfiguration.FilterDictionary[filterType].ShouldInclude(methodCallInfo));
     }
 
     private IAsyncDisposable CreateReportingObservable(IObservable<ICallStackItem> callStack)

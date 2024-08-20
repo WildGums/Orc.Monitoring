@@ -80,6 +80,12 @@ public class MockReporter : IMethodCallReporter
         });
     }
 
+    public void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod)
+    {
+        _monitoringConfiguration = monitoringConfiguration;
+        RootMethod = rootMethod.MethodInfo;
+    }
+
     public IOutputContainer AddFilter<T>() where T : IMethodFilter
     {
         _filters.Add(typeof(T));

@@ -74,11 +74,10 @@ internal class ClassMonitor : IClassMonitor
 
         foreach (var reporter in config.Reporters)
         {
-            reporter.Initialize(_monitoringConfig);
+            reporter.Initialize(_monitoringConfig, methodCallInfo);
 
             if (MonitoringController.IsReporterEnabled(reporter.GetType()))
             {
-                reporter.RootMethod = methodInfo;  // Set RootMethod before starting reporting
                 _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
                 var reporterDisposable = reporter.StartReporting(_callStack);
                 disposables.Add(reporterDisposable);
