@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using MethodLifeCycleItems;
 using Reporters;
 
@@ -139,7 +140,8 @@ public class RanttOutput : IReportOutput
         var fullPath = Path.Combine(_outputDirectory, $"{fileName}.csv");
 
         var reportItems = _helper.ReportItems.Values.Concat(_helper.Gaps);
-        var csvReportWriter = new CsvReportWriter(fullPath, reportItems, _overrideManager);
+        using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
+        var csvReportWriter = new CsvReportWriter(writer, reportItems, _overrideManager);
         csvReportWriter.WriteReportItemsCsv();
     }
 
@@ -170,7 +172,8 @@ public class RanttOutput : IReportOutput
         var fullPath = Path.Combine(_outputDirectory, $"{fileName}.csv");
 
         var reportItems = _helper.ReportItems.Values;
-        var csvReportWriter = new CsvReportWriter(fullPath, reportItems, _overrideManager);
+        using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
+        var csvReportWriter = new CsvReportWriter(writer, reportItems, _overrideManager);
         csvReportWriter.WriteRelationshipsCsv(fullPath);
     }
 

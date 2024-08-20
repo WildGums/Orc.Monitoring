@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using MethodLifeCycleItems;
 using Reporters;
 
@@ -64,20 +65,17 @@ public sealed class CsvReportOutput : IReportOutput
 
     private void ExportToCsv()
     {
-        if (_folderPath is null || _fileName is null)
+        if (_methodOverrideManager is null || _folderPath is null || _fileName is null)
         {
             return;
         }
 
-        if (!Directory.Exists(_folderPath))
-        {
-            Directory.CreateDirectory(_folderPath);
-        }
+        Directory.CreateDirectory(_folderPath);
 
         var fullPath = Path.Combine(_folderPath, $"{_fileName}.csv");
 
-        var reportItems = _helper.ReportItems.Values.Concat(_helper.Gaps);
-        var csvReportWriter = new CsvReportWriter(fullPath, reportItems, _methodOverrideManager);
+        using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
+        var csvReportWriter = new CsvReportWriter(writer, _helper.ReportItems.Values.Concat(_helper.Gaps), _methodOverrideManager);
         csvReportWriter.WriteReportItemsCsv();
 
         ReportArchiver.CreateTimestampedFileCopy(fullPath);

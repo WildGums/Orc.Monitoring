@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Reflection;
 
 public class MethodOverrideManager
 {
@@ -22,6 +21,7 @@ public class MethodOverrideManager
         _customColumns = new HashSet<string>();
     }
 
+
     public void LoadOverrides()
     {
         if (!File.Exists(_overrideFilePath))
@@ -29,32 +29,29 @@ public class MethodOverrideManager
             return;
         }
 
-        using var reader = new StreamReader(_overrideFilePath);
-        var headers = ParseCsvLine(reader.ReadLine() ?? string.Empty);
-
-        if (headers.Length == 0)
+        var overrides = CsvUtils.ReadCsv(_overrideFilePath);
+        if (!overrides.Any())
         {
+            // If the file is empty, just clear any existing overrides and return
+            _overrides.Clear();
+            _customColumns.Clear();
             return;
         }
 
+        var headers = overrides.First().Keys.ToArray();
+
         _customColumns = new HashSet<string>(headers.Where(h => h != "FullName"));
 
-        while (!reader.EndOfStream)
+        foreach (var row in overrides)
         {
-            var values = ParseCsvLine(reader.ReadLine() ?? string.Empty);
-            if (values.Length != headers.Length)
-            {
-                continue;
-            }
-
-            var fullName = values[0];
+            var fullName = row["FullName"];
             var methodOverrides = new Dictionary<string, string>();
 
-            for (int i = 1; i < headers.Length; i++)
+            foreach (var header in headers.Where(h => h != "FullName"))
             {
-                if (!string.IsNullOrEmpty(values[i]))
+                if (!string.IsNullOrEmpty(row[header]))
                 {
-                    methodOverrides[headers[i]] = values[i];
+                    methodOverrides[header] = row[header];
                 }
             }
 
@@ -67,117 +64,88 @@ public class MethodOverrideManager
 
     public void SaveOverrides(ICollection<ReportItem> reportItems)
     {
-        var allStaticParameters = new HashSet<string>(reportItems
-            .SelectMany(item => item.AttributeParameters)
-            .Distinct());
-
-        var allColumns = new HashSet<string>(_customColumns.Union(allStaticParameters));
-
-        var uniqueReportItems = reportItems
-            .GroupBy(item => item.FullName)
-            .Select(group => group.Last())
-            .ToList();
+        var allStaticParameters = new HashSet<string>(reportItems.SelectMany(item => item.AttributeParameters));
+        _customColumns = new HashSet<string>(_customColumns.Union(allStaticParameters));
+        var allColumns = new HashSet<string>(_customColumns);
+        var headers = new[] { "FullName", "IsStatic", "IsExtension" }.Concat(allColumns.OrderBy(c => c)).ToArray();
 
         using var writer = new StreamWriter(_overrideFilePath, false, Encoding.UTF8);
+        CsvUtils.WriteCsvLine(writer, headers);
 
-        // Write header
-        writer.WriteLine(ToCsvLine(new[] { "FullName", "IsStatic", "IsExtension" }.Concat(allColumns.OrderBy(c => c)).ToArray()));
-
-        // Write data rows
-        foreach (var item in uniqueReportItems)
+        foreach (var item in reportItems)
         {
-            var fullName = item.FullName ?? string.Empty;
-            var row = new List<string> {
-                fullName,
-                GetPropertyOrDefault(item, "IsStatic", false).ToString(),
-                GetPropertyOrDefault(item, "IsExtension", false).ToString()
-            };
+            WritePreparedOverrideRow(writer, PrepareOverrideRow(item, allColumns), headers);
 
-            foreach (var column in allColumns.OrderBy(c => c))
+            // Update _overrides dictionary
+            var fullName = item.FullName ?? string.Empty;
+            if (!_overrides.ContainsKey(fullName))
             {
-                if (_overrides.TryGetValue(fullName, out var methodOverrides) && methodOverrides.TryGetValue(column, out var overrideValue))
+                _overrides[fullName] = new Dictionary<string, string>();
+            }
+            foreach (var param in item.Parameters)
+            {
+                if (item.AttributeParameters.Contains(param.Key))
                 {
-                    row.Add(overrideValue);
-                }
-                else if (item.Parameters.TryGetValue(column, out var value) && item.AttributeParameters.Contains(column))
-                {
-                    row.Add(value);
-                }
-                else
-                {
-                    row.Add(string.Empty);
+                    _overrides[fullName][param.Key] = param.Value;
                 }
             }
-
-            writer.WriteLine(ToCsvLine(row.ToArray()));
         }
 
-        // Preserve any existing rows that weren't in the reportItems
-        foreach (var fullName in _overrides.Keys.Except(uniqueReportItems.Select(i => i.FullName)))
+        foreach (var fullName in _overrides.Keys.Except(reportItems.Select(i => i.FullName)).Where(fn => fn is not null))
         {
-            var row = new List<string> { fullName ?? string.Empty, "False", "False" };
-
-            foreach (var column in allColumns.OrderBy(c => c))
-            {
-                row.Add(_overrides[fullName ?? string.Empty].TryGetValue(column, out var value) ? value : string.Empty);
-            }
-
-            writer.WriteLine(ToCsvLine(row.ToArray()));
+            WritePreparedOverrideRow(writer, PrepareExistingOverrideRow(fullName!, allColumns), headers);
         }
     }
 
-    private string[] ParseCsvLine(string line)
+    private void WritePreparedOverrideRow(TextWriter writer, Dictionary<string, string> row, string[] headers)
     {
-        var result = new List<string>();
-        var currentValue = new StringBuilder();
-        bool inQuotes = false;
+        CsvUtils.WriteCsvLine(writer, headers.Select(h => row.TryGetValue(h, out var value) ? value : string.Empty).ToArray());
+    }
 
-        for (int i = 0; i < line.Length; i++)
+    private Dictionary<string,string> PrepareOverrideRow(ReportItem item, IEnumerable<string> allColumns)
+    {
+        var fullName = item.FullName ?? string.Empty;
+        var row = new Dictionary<string, string>
         {
-            if (line[i] == '"')
+            ["FullName"] = fullName,
+            ["IsStatic"] = GetPropertyOrDefault(item, "IsStatic", false).ToString(),
+            ["IsExtension"] = GetPropertyOrDefault(item, "IsExtension", false).ToString()
+        };
+
+        foreach (var column in allColumns)
+        {
+            if (_overrides.TryGetValue(fullName, out var methodOverrides) && methodOverrides.TryGetValue(column, out var overrideValue))
             {
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
-                {
-                    // Escaped quote
-                    currentValue.Append('"');
-                    i++;
-                }
-                else
-                {
-                    // Toggle quote mode
-                    inQuotes = !inQuotes;
-                }
+                row[column] = overrideValue;
             }
-            else if (line[i] == ',' && !inQuotes)
+            else if (item.Parameters.TryGetValue(column, out var value) && item.AttributeParameters.Contains(column))
             {
-                // End of field
-                result.Add(currentValue.ToString());
-                currentValue.Clear();
+                row[column] = value;
             }
             else
             {
-                currentValue.Append(line[i]);
+                row[column] = string.Empty;
             }
         }
 
-        // Add the last field
-        result.Add(currentValue.ToString());
-
-        return result.ToArray();
+        return row;
     }
 
-    private string ToCsvLine(string[] values)
-    {
-        return string.Join(",", values.Select(EscapeCsvValue));
-    }
-
-    private string EscapeCsvValue(string value)
-    {
-        if (value.Contains(",") || value.Contains("\"") || value.Contains("\n"))
+    private Dictionary<string,string> PrepareExistingOverrideRow(string fullName, IEnumerable<string> allColumns)
+    { 
+        var row = new Dictionary<string, string>
         {
-            return $"\"{value.Replace("\"", "\"\"")}\"";
+            ["FullName"] = fullName,
+            ["IsStatic"] = "False",
+            ["IsExtension"] = "False"
+        };
+
+        foreach (var column in allColumns)
+        {
+            row[column] = _overrides[fullName].TryGetValue(column, out var value) ? value : string.Empty;
         }
-        return value;
+
+        return row;
     }
 
     public Dictionary<string, string> GetOverridesForMethod(string fullName)
@@ -188,48 +156,6 @@ public class MethodOverrideManager
     public IEnumerable<string> GetCustomColumns()
     {
         return _customColumns;
-    }
-
-    public void AddCustomColumn(string columnName)
-    {
-        _customColumns.Add(columnName);
-    }
-
-    public void AddOverride(string fullName, string key, string value)
-    {
-        if (!_overrides.TryGetValue(fullName, out var methodOverrides))
-        {
-            methodOverrides = new Dictionary<string, string>();
-            _overrides[fullName] = methodOverrides;
-        }
-        methodOverrides[key] = value;
-    }
-
-    public void RemoveOverride(string fullName, string key)
-    {
-        if (_overrides.TryGetValue(fullName, out var methodOverrides))
-        {
-            methodOverrides.Remove(key);
-            if (methodOverrides.Count == 0)
-            {
-                _overrides.Remove(fullName);
-            }
-        }
-    }
-
-    public bool HasOverrides(string fullName)
-    {
-        return _overrides.ContainsKey(fullName);
-    }
-
-    public IEnumerable<string> GetMethodsWithOverrides()
-    {
-        return _overrides.Keys;
-    }
-
-    public void ClearAllOverrides()
-    {
-        _overrides.Clear();
     }
 
     private static T GetPropertyOrDefault<T>(ReportItem item, string propertyName, T defaultValue)

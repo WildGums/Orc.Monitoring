@@ -4,121 +4,102 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 
 public class CsvReportWriter
 {
-    private readonly string _filePath;
+    private readonly TextWriter _writer;
     private readonly IEnumerable<ReportItem> _reportItems;
     private readonly MethodOverrideManager _overrideManager;
     private readonly HashSet<string> _customColumns;
 
-    public CsvReportWriter(string filePath, IEnumerable<ReportItem> reportItems, MethodOverrideManager? overrideManager)
+    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager)
     {
-        ArgumentNullException.ThrowIfNull(overrideManager);
-
-        _filePath = filePath;
+        _writer = writer;
         _reportItems = reportItems;
         _overrideManager = overrideManager;
-        _customColumns = new HashSet<string>(_overrideManager.GetCustomColumns());
+        _customColumns = new HashSet<string>(overrideManager.GetCustomColumns());
     }
 
     public void WriteReportItemsCsv()
     {
-        using var writer = new StreamWriter(File.Create(_filePath));
-        WriteReportItemsHeader(writer);
-        WriteReportItemsData(writer);
-    }
+        var headers = GetReportItemHeaders();
+        CsvUtils.WriteCsvLine(_writer, headers);
 
-    public void WriteRelationshipsCsv(string filePath)
-    {
-        using var writer = new StreamWriter(File.Create(filePath));
-        WriteRelationshipsHeader(writer);
-        WriteRelationshipsData(writer);
-    }
-
-    private void WriteReportItemsHeader(StreamWriter writer)
-    {
-        var headerLine = new StringBuilder("Id,ParentId,StartTime,EndTime,Report,ClassName,MethodName,FullName,Duration,ThreadId,ParentThreadId,NestingLevel,IsStatic,IsGeneric,IsExtension");
-
-        foreach (var column in _customColumns)
+        foreach (var item in PrepareReportItems())
         {
-            headerLine.Append($",{column}");
+            var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : string.Empty).ToArray();
+            CsvUtils.WriteCsvLine(_writer, values);
         }
-
-        var parameterNames = _reportItems.SelectMany(r => r.Parameters.Keys)
-            .Distinct()
-            .Where(k => !_customColumns.Contains(k));
-        foreach (var parameterName in parameterNames)
-        {
-            headerLine.Append($",{parameterName}");
-        }
-
-        writer.WriteLine(headerLine);
     }
 
-    private void WriteReportItemsData(StreamWriter writer)
+    private IEnumerable<Dictionary<string, string>> PrepareReportItems()
     {
-        var sortedReportItems = _reportItems
-            .Where(item => item.StartTime is not null)
-            .OrderBy(item => DateTime.ParseExact(item.StartTime!, "yyyy-MM-dd HH:mm:ss.fff", null))
+        return _reportItems
+            .Where(item => !string.IsNullOrEmpty(item.StartTime))
+            .OrderBy(item => DateTime.Parse(item.StartTime ?? string.Empty))
             .ThenBy(item => item.ThreadId)
-            .ThenBy(item => item.Level);
-
-        foreach (var reportItem in sortedReportItems)
-        {
-            WriteReportItem(writer, reportItem);
-        }
+            .ThenBy(item => item.Level)
+            .Select(PrepareReportItem);
     }
 
-    private void WriteReportItem(StreamWriter writer, ReportItem reportItem)
+    private Dictionary<string, string> PrepareReportItem(ReportItem item)
     {
-        var parentId = reportItem.Parent ?? "ROOT";
-        var fullName = reportItem.FullName ?? string.Empty;
+        var result = new Dictionary<string, string>
+        {
+            ["Id"] = item.Id ?? string.Empty,
+            ["ParentId"] = item.Parent ?? "ROOT",
+            ["StartTime"] = item.StartTime ?? string.Empty,
+            ["EndTime"] = item.EndTime ?? string.Empty,
+            ["Report"] = item.Report ?? string.Empty,
+            ["ClassName"] = item.ClassName ?? string.Empty,
+            ["MethodName"] = item.MethodName ?? string.Empty,
+            ["FullName"] = item.FullName ?? string.Empty,
+            ["Duration"] = item.Duration ?? string.Empty,
+            ["ThreadId"] = item.ThreadId ?? string.Empty,
+            ["ParentThreadId"] = item.ParentThreadId ?? string.Empty,
+            ["NestingLevel"] = item.Level ?? string.Empty,
+            ["IsStatic"] = GetPropertyOrDefault(item, "IsStatic", false).ToString(),
+            ["IsGeneric"] = GetPropertyOrDefault(item, "IsGeneric", false).ToString(),
+            ["IsExtension"] = GetPropertyOrDefault(item, "IsExtension", false).ToString()
+        };
+
+        var fullName = item.FullName ?? string.Empty;
         var overrides = _overrideManager.GetOverridesForMethod(fullName);
-        var parameters = new Dictionary<string, string>(reportItem.Parameters);
+        var parameters = new Dictionary<string, string>(item.Parameters);
 
         foreach (var kvp in overrides)
         {
             parameters[kvp.Key] = kvp.Value;
         }
 
-        reportItem.Parameters = parameters;
-
-        var line = new StringBuilder();
-        line.Append($"{reportItem.Id},{parentId},{reportItem.StartTime},{reportItem.EndTime},{reportItem.Report},")
-            .Append($"{reportItem.ClassName},{reportItem.MethodName},\"{fullName}\",\"{reportItem.Duration}\",")
-            .Append($"{reportItem.ThreadId},{reportItem.ParentThreadId},{reportItem.Level},")
-            .Append($"{GetPropertyOrDefault(reportItem, "IsStatic", false)},")
-            .Append($"{GetPropertyOrDefault(reportItem, "IsGeneric", false)},")
-            .Append($"{GetPropertyOrDefault(reportItem, "IsExtension", false)}");
-
-        foreach (var column in _customColumns)
+        foreach (var param in parameters)
         {
-            var value = parameters.GetValueOrDefault(column, "Blank");
-            line.Append($",{ReplaceCommas(value)}");
+            result[param.Key] = param.Value;
         }
 
-        foreach (var parameter in parameters.Where(p => !_customColumns.Contains(p.Key)))
-        {
-            line.Append($",\"{ReplaceCommas(parameter.Value)}\"");
-        }
-
-        writer.WriteLine(line);
+        return result;
     }
 
-    private void WriteRelationshipsHeader(StreamWriter writer)
+    public void WriteRelationshipsCsv(string filePath)
     {
-        writer.WriteLine("From,To,RelationType");
+        var headers = new[] { "From", "To", "RelationType" };
+        var relationships = _reportItems
+            .Where(r => !string.IsNullOrEmpty(r.Parent))
+            .Select(item => new
+            {
+                From = item.Parent,
+                To = item.Id,
+                RelationType = DetermineRelationType(item)
+            });
+
+        CsvUtils.WriteCsv(filePath, relationships, headers);
     }
 
-    private void WriteRelationshipsData(StreamWriter writer)
+    private string[] GetReportItemHeaders()
     {
-        foreach (var item in _reportItems.Where(r => !string.IsNullOrEmpty(r.Parent)))
-        {
-            var relationType = DetermineRelationType(item);
-            writer.WriteLine($"{item.Parent},{item.Id},{relationType}");
-        }
+        var baseHeaders = new[] { "Id", "ParentId", "StartTime", "EndTime", "Report", "ClassName", "MethodName", "FullName", "Duration", "ThreadId", "ParentThreadId", "NestingLevel", "IsStatic", "IsGeneric", "IsExtension" };
+        var parameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys).Distinct().Where(k => !_customColumns.Contains(k));
+        return baseHeaders.Concat(_customColumns).Concat(parameterHeaders).ToArray();
     }
 
     private string DetermineRelationType(ReportItem item)
@@ -132,8 +113,6 @@ public class CsvReportWriter
         return "Regular";
     }
 
-    private static string ReplaceCommas(string value) => value.Replace(",", ";");
-
     private static T GetPropertyOrDefault<T>(ReportItem item, string propertyName, T defaultValue)
     {
         if (item.Parameters.TryGetValue(propertyName, out var value))
@@ -142,8 +121,12 @@ public class CsvReportWriter
             {
                 return (T)(object)boolValue;
             }
-            // Add more type checks if needed for other property types
         }
         return defaultValue;
+    }
+
+    private string SanitizeHeaderName(string headerName)
+    {
+        return headerName.Replace(",", "_").Replace("\"", "_").Replace("\n", "_").Replace("\r", "_");
     }
 }
