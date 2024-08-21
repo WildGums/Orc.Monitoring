@@ -15,6 +15,7 @@ using System.Runtime;
 
 public class CallStack : IObservable<ICallStackItem>
 {
+    private const int MaxCallStackDepth = 1000; // Adjust this value as needed
     private readonly ILogger<CallStack> _logger = MonitoringController.CreateLogger<CallStack>();
     private readonly MethodCallInfoPool _methodCallInfoPool = new();
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
@@ -27,6 +28,7 @@ public class CallStack : IObservable<ICallStackItem>
 
     private MethodCallInfo? _rootParent;
     private int _idCounter;
+    private int _currentDepth = 0;
 
     public CallStack(MonitoringConfiguration monitoringConfig)
     {
@@ -69,6 +71,15 @@ public class CallStack : IObservable<ICallStackItem>
 
     public void Push(MethodCallInfo methodCallInfo)
     {
+        ArgumentNullException.ThrowIfNull(methodCallInfo);
+
+        if (_currentDepth >= MaxCallStackDepth)
+        {
+            throw new StackOverflowException("Maximum call stack depth exceeded");
+        }
+
+        _currentDepth++;
+
         var threadId = methodCallInfo.ThreadId;
         var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
 
@@ -120,15 +131,11 @@ public class CallStack : IObservable<ICallStackItem>
 
     public void Pop(MethodCallInfo methodCallInfo)
     {
-        _logger.LogDebug($"CallStack.Pop called for {methodCallInfo}");
+        ArgumentNullException.ThrowIfNull(methodCallInfo);
 
-        if (methodCallInfo.IsNull)
-        {
-            return;
-        }
+        _currentDepth--;
 
         var threadId = methodCallInfo.ThreadId;
-
         lock (_globalLock)
         {
             if (_threadCallStacks.TryGetValue(threadId, out var threadStack))
@@ -144,6 +151,7 @@ public class CallStack : IObservable<ICallStackItem>
 
                     if (threadStack.Count == 0)
                     {
+                        _threadCallStacks.TryRemove(threadId, out _);
                         _threadRootMethods.TryRemove(threadId, out _);
                     }
                 }
