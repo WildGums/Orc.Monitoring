@@ -1,4 +1,5 @@
-﻿namespace Orc.Monitoring.Tests;
+﻿#pragma warning disable CL0002
+namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Orc.Monitoring.Reporters.ReportOutputs;
@@ -7,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 [TestFixture]
 public class CsvReportWriterTests
@@ -30,10 +32,10 @@ public class CsvReportWriterTests
     }
 
     [Test]
-    public void WriteReportItemsCsv_WritesCorrectHeaders()
+    public async Task WriteReportItemsCsvAsync_WritesCorrectHeaders()
     {
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         var content = _stringWriter.ToString();
         var headers = content.Split(Environment.NewLine)[0].Split(',');
@@ -47,7 +49,7 @@ public class CsvReportWriterTests
     }
 
     [Test]
-    public void WriteReportItemsCsv_WritesReportItemsCorrectly()
+    public async Task WriteReportItemsCsvAsync_WritesReportItemsCorrectly()
     {
         _reportItems.Add(new ReportItem
         {
@@ -60,7 +62,7 @@ public class CsvReportWriterTests
         });
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         var content = _stringWriter.ToString();
         var lines = content.Split(Environment.NewLine);
@@ -74,7 +76,7 @@ public class CsvReportWriterTests
     }
 
     [Test]
-    public void WriteReportItemsCsv_HandlesCustomColumns()
+    public async Task WriteReportItemsCsvAsync_HandlesCustomColumns()
     {
         var customColumnName = "CustomColumn";
         var customValue = "CustomValue";
@@ -83,7 +85,7 @@ public class CsvReportWriterTests
             Id = "1",
             MethodName = "TestMethod",
             FullName = "TestMethod",
-            StartTime = "2023-01-01 00:00:00.000", // Add this line
+            StartTime = "2023-01-01 00:00:00.000",
             Parameters = new Dictionary<string, string> { { customColumnName, customValue } },
             AttributeParameters = new HashSet<string> { customColumnName }
         });
@@ -92,7 +94,7 @@ public class CsvReportWriterTests
         _overrideManager.SaveOverrides(_reportItems);
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         var content = _stringWriter.ToString();
         Console.WriteLine($"CSV Content:\n{content}");
@@ -100,10 +102,7 @@ public class CsvReportWriterTests
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         Console.WriteLine($"Number of lines: {lines.Length}");
 
-        if (lines.Length < 2)
-        {
-            Assert.Fail("CSV content does not contain data line");
-        }
+        Assert.That(lines.Length, Is.GreaterThanOrEqualTo(2), "CSV content should contain at least header and data line");
 
         var headers = lines[0].Split(',');
         var dataLine = lines[1].Split(',');
@@ -118,55 +117,49 @@ public class CsvReportWriterTests
         Assert.That(headers, Does.Contain(customColumnName), "Headers should contain the custom column");
 
         var customColumnIndex = Array.IndexOf(headers, customColumnName);
-        if (customColumnIndex != -1)
-        {
-            Assert.That(dataLine[customColumnIndex], Is.EqualTo(customValue), "Custom column value should be in the data line");
-        }
-        else
-        {
-            Assert.Fail($"Custom column {customColumnName} not found in headers");
-        }
+        Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), $"Custom column {customColumnName} not found in headers");
+        Assert.That(dataLine[customColumnIndex], Is.EqualTo(customValue), "Custom column value should be in the data line");
     }
 
     [Test]
-    public void WriteReportItemsCsv_HandlesMultipleItems()
+    public async Task WriteReportItemsCsvAsync_HandlesMultipleItems()
     {
         _reportItems.AddRange(new[]
         {
-        new ReportItem
-        {
-            Id = "1",
-            StartTime = "2023-01-01 00:00:02.000",
-            EndTime = "2023-01-01 00:00:03.000",
-            MethodName = "Method1",
-            ThreadId = "1",
-            Level = "1",
-            Parameters = new Dictionary<string, string> { { "Param1", "Value1" } }
-        },
-        new ReportItem
-        {
-            Id = "2",
-            StartTime = "2023-01-01 00:00:01.000",
-            EndTime = "2023-01-01 00:00:04.000",
-            MethodName = "Method2",
-            ThreadId = "2",
-            Level = "1",
-            Parameters = new Dictionary<string, string> { { "Param2", "Value2" } }
-        },
-        new ReportItem
-        {
-            Id = "3",
-            StartTime = "2023-01-01 00:00:01.500",
-            EndTime = "2023-01-01 00:00:02.500",
-            MethodName = "Method3",
-            ThreadId = "1",
-            Level = "2",
-            Parameters = new Dictionary<string, string> { { "Param3", "Value3" } }
-        }
-    });
+            new ReportItem
+            {
+                Id = "1",
+                StartTime = "2023-01-01 00:00:02.000",
+                EndTime = "2023-01-01 00:00:03.000",
+                MethodName = "Method1",
+                ThreadId = "1",
+                Level = "1",
+                Parameters = new Dictionary<string, string> { { "Param1", "Value1" } }
+            },
+            new ReportItem
+            {
+                Id = "2",
+                StartTime = "2023-01-01 00:00:01.000",
+                EndTime = "2023-01-01 00:00:04.000",
+                MethodName = "Method2",
+                ThreadId = "2",
+                Level = "1",
+                Parameters = new Dictionary<string, string> { { "Param2", "Value2" } }
+            },
+            new ReportItem
+            {
+                Id = "3",
+                StartTime = "2023-01-01 00:00:01.500",
+                EndTime = "2023-01-01 00:00:02.500",
+                MethodName = "Method3",
+                ThreadId = "1",
+                Level = "2",
+                Parameters = new Dictionary<string, string> { { "Param3", "Value3" } }
+            }
+        });
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         var content = _stringWriter.ToString();
         Console.WriteLine($"CSV Content:\n{content}");
@@ -185,32 +178,21 @@ public class CsvReportWriterTests
     }
 
     [Test]
-    public void WriteRelationshipsCsv_WritesCorrectRelationships()
+    public async Task WriteRelationshipsCsvAsync_WritesCorrectRelationships()
     {
         _reportItems.Add(new ReportItem { Id = "1", Parent = "0", MethodName = "ParentMethod" });
         _reportItems.Add(new ReportItem { Id = "2", Parent = "1", MethodName = "ChildMethod" });
 
-        var tempFilePath = Path.GetTempFileName();
-        try
-        {
-            var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
-            writer.WriteRelationshipsCsv(tempFilePath);
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        await writer.WriteRelationshipsCsvAsync();
 
-            var content = File.ReadAllText(tempFilePath);
-            var lines = content.Split(Environment.NewLine);
+        var content = _stringWriter.ToString();
+        var lines = content.Split(Environment.NewLine);
 
-            Assert.That(lines.Length, Is.GreaterThan(2));
-            Assert.That(lines[0], Is.EqualTo("From,To,RelationType"));
-            Assert.That(lines[1], Does.StartWith("0,1,"));
-            Assert.That(lines[2], Does.StartWith("1,2,"));
-        }
-        finally
-        {
-            if (File.Exists(tempFilePath))
-            {
-                File.Delete(tempFilePath);
-            }
-        }
+        Assert.That(lines.Length, Is.GreaterThan(2));
+        Assert.That(lines[0], Is.EqualTo("From,To,RelationType"));
+        Assert.That(lines[1], Does.StartWith("0,1,"));
+        Assert.That(lines[2], Does.StartWith("1,2,"));
     }
 
     [Test]
@@ -242,9 +224,45 @@ public class CsvReportWriterTests
 
         Assert.That(customColumns, Does.Contain(customColumnName), "Custom column should be in the list of custom columns");
         Assert.That(overrides, Does.ContainKey(customColumnName), "Overrides should contain the custom column");
-        if (overrides.ContainsKey(customColumnName))
+        Assert.That(overrides[customColumnName], Is.EqualTo(customValue), "Custom column value should match");
+    }
+
+    [Test]
+    public async Task WriteReportItemsCsvAsync_HandlesNullValues()
+    {
+        _reportItems.Add(new ReportItem
         {
-            Assert.That(overrides[customColumnName], Is.EqualTo(customValue), "Custom column value should match");
-        }
+            Id = null,
+            MethodName = null,
+            FullName = null,
+            StartTime = "2023-01-01 00:00:00.000",
+            Parameters = new Dictionary<string, string>
+            {
+                {"NullValueParam", null}
+            }
+        });
+
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        await writer.WriteReportItemsCsvAsync();
+
+        var content = _stringWriter.ToString();
+        Console.WriteLine($"CSV Content:\n{content}");
+        var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
+        Assert.That(lines[1], Does.Contain(",,"), "Should contain empty values for null fields");
+        Assert.That(lines[1], Does.Contain("2023-01-01 00:00:00.000"), "Should contain the StartTime");
+    }
+
+    [Test]
+    public async Task WriteReportItemsCsvAsync_HandlesEmptyReportItems()
+    {
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        await writer.WriteReportItemsCsvAsync();
+
+        var content = _stringWriter.ToString();
+        var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines.Length, Is.EqualTo(1), "Should only have header line");
     }
 }

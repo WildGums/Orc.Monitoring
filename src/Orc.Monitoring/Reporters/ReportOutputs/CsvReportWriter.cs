@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 public class CsvReportWriter
 {
@@ -23,12 +24,64 @@ public class CsvReportWriter
     public void WriteReportItemsCsv()
     {
         var headers = GetReportItemHeaders();
-        CsvUtils.WriteCsvLine(_writer, headers);
+        CsvUtils.WriteCsvLine(_writer, headers.Cast<string?>().ToArray());
 
         foreach (var item in PrepareReportItems())
         {
-            var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : string.Empty).ToArray();
+            var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
             CsvUtils.WriteCsvLine(_writer, values);
+        }
+    }
+
+    public async Task WriteReportItemsCsvAsync()
+    {
+        var headers = GetReportItemHeaders();
+        await CsvUtils.WriteCsvLineAsync(_writer, headers.Cast<string?>().ToArray());
+
+        foreach (var item in PrepareReportItems())
+        {
+            var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
+            await CsvUtils.WriteCsvLineAsync(_writer, values);
+        }
+    }
+
+    public void WriteRelationshipsCsv()
+    {
+        var headers = new string?[] { "From", "To", "RelationType" };
+        CsvUtils.WriteCsvLine(_writer, headers);
+
+        var relationships = _reportItems
+            .Where(r => !string.IsNullOrEmpty(r.Parent))
+            .Select(item => new
+            {
+                From = item.Parent,
+                To = item.Id,
+                RelationType = DetermineRelationType(item)
+            });
+
+        foreach (var relationship in relationships)
+        {
+            CsvUtils.WriteCsvLine(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
+        }
+    }
+
+    public async Task WriteRelationshipsCsvAsync()
+    {
+        var headers = new string?[] { "From", "To", "RelationType" };
+        await CsvUtils.WriteCsvLineAsync(_writer, headers);
+
+        var relationships = _reportItems
+            .Where(r => !string.IsNullOrEmpty(r.Parent))
+            .Select(item => new
+            {
+                From = item.Parent,
+                To = item.Id,
+                RelationType = DetermineRelationType(item)
+            });
+
+        foreach (var relationship in relationships)
+        {
+            await CsvUtils.WriteCsvLineAsync(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
         }
     }
 
@@ -80,21 +133,6 @@ public class CsvReportWriter
         return result;
     }
 
-    public void WriteRelationshipsCsv(string filePath)
-    {
-        var headers = new[] { "From", "To", "RelationType" };
-        var relationships = _reportItems
-            .Where(r => !string.IsNullOrEmpty(r.Parent))
-            .Select(item => new
-            {
-                From = item.Parent,
-                To = item.Id,
-                RelationType = DetermineRelationType(item)
-            });
-
-        CsvUtils.WriteCsv(filePath, relationships, headers);
-    }
-
     private string[] GetReportItemHeaders()
     {
         var baseHeaders = new[] { "Id", "ParentId", "StartTime", "EndTime", "Report", "ClassName", "MethodName", "FullName", "Duration", "ThreadId", "ParentThreadId", "NestingLevel", "IsStatic", "IsGeneric", "IsExtension" };
@@ -123,10 +161,5 @@ public class CsvReportWriter
             }
         }
         return defaultValue;
-    }
-
-    private string SanitizeHeaderName(string headerName)
-    {
-        return headerName.Replace(",", "_").Replace("\"", "_").Replace("\n", "_").Replace("\r", "_");
     }
 }

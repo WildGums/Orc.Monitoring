@@ -1,10 +1,12 @@
-﻿namespace Orc.Monitoring.Tests;
+﻿#pragma warning disable CL0002
+namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System;
+using System.Threading.Tasks;
 
 [TestFixture]
 public class CsvReportWriterAdditionalTests
@@ -28,7 +30,7 @@ public class CsvReportWriterAdditionalTests
     }
 
     [Test]
-    public void WriteReportItemsCsv_HandlesCustomColumns()
+    public async Task WriteReportItemsCsvAsync_HandlesCustomColumns()
     {
         // Arrange
         _reportItems.Add(new ReportItem
@@ -36,12 +38,12 @@ public class CsvReportWriterAdditionalTests
             Id = "1",
             MethodName = "TestMethod1",
             FullName = "TestClass.TestMethod1",
-            StartTime = "2023-01-01 00:00:00.000", // Add this line
+            StartTime = "2023-01-01 00:00:00.000",
             Parameters = new Dictionary<string, string>
-        {
-            {"CustomColumn1", "Value1"},
-            {"CustomColumn2", "Value2"}
-        },
+            {
+                {"CustomColumn1", "Value1"},
+                {"CustomColumn2", "Value2"}
+            },
             AttributeParameters = new HashSet<string> { "CustomColumn1", "CustomColumn2" }
         });
         _reportItems.Add(new ReportItem
@@ -49,12 +51,12 @@ public class CsvReportWriterAdditionalTests
             Id = "2",
             MethodName = "TestMethod2",
             FullName = "TestClass.TestMethod2",
-            StartTime = "2023-01-01 00:00:01.000", // Add this line
+            StartTime = "2023-01-01 00:00:01.000",
             Parameters = new Dictionary<string, string>
-        {
-            {"CustomColumn1", "Value3"},
-            {"CustomColumn3", "Value4"}
-        },
+            {
+                {"CustomColumn1", "Value3"},
+                {"CustomColumn3", "Value4"}
+            },
             AttributeParameters = new HashSet<string> { "CustomColumn1", "CustomColumn3" }
         });
 
@@ -62,7 +64,7 @@ public class CsvReportWriterAdditionalTests
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
 
         // Act
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         // Assert
         var content = _stringWriter.ToString();
@@ -96,7 +98,7 @@ public class CsvReportWriterAdditionalTests
     }
 
     [Test]
-    public void WriteRelationshipsCsv_HandlesVariousRelationshipTypes()
+    public async Task WriteRelationshipsCsvAsync_HandlesVariousRelationshipTypes()
     {
         // Arrange
         _reportItems.Add(new ReportItem { Id = "1", Parent = "0", MethodName = "ParentMethod", Parameters = new Dictionary<string, string> { { "IsStatic", "True" } } });
@@ -106,28 +108,25 @@ public class CsvReportWriterAdditionalTests
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
 
         // Act
-        var tempFilePath = Path.GetTempFileName();
-        writer.WriteRelationshipsCsv(tempFilePath);
+        await writer.WriteRelationshipsCsvAsync();
 
         // Assert
-        var content = File.ReadAllText(tempFilePath);
+        var content = _stringWriter.ToString();
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines[1], Does.Contain("Static"));
         Assert.That(lines[2], Does.Contain("Extension"));
         Assert.That(lines[3], Does.Contain("Generic"));
-
-        File.Delete(tempFilePath);
     }
 
     [Test]
-    public void WriteReportItemsCsv_HandlesEmptyReportItems()
+    public async Task WriteReportItemsCsvAsync_HandlesEmptyReportItems()
     {
         // Arrange
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
 
         // Act
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         // Assert
         var content = _stringWriter.ToString();
@@ -137,7 +136,7 @@ public class CsvReportWriterAdditionalTests
     }
 
     [Test]
-    public void WriteReportItemsCsv_HandlesNullValues()
+    public async Task WriteReportItemsCsvAsync_HandlesNullValues()
     {
         // Arrange
         _reportItems.Add(new ReportItem
@@ -155,7 +154,7 @@ public class CsvReportWriterAdditionalTests
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
 
         // Act
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         // Assert
         var content = _stringWriter.ToString();

@@ -4,9 +4,9 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using MethodLifeCycleItems;
-using Reporters;
-
+using System.Threading.Tasks;
+using Orc.Monitoring.MethodLifeCycleItems;
+using Orc.Monitoring.Reporters;
 
 public class RanttOutput : IReportOutput
 {
@@ -39,10 +39,8 @@ public class RanttOutput : IReportOutput
 </Project>";
 
     private readonly ReportOutputHelper _helper = new();
-
     private string? _folderPath;
     private string? _outputDirectory;
-
     private MethodOverrideManager? _overrideManager;
 
     public static RanttReportParameters CreateParameters(string folderPath) => new()
@@ -77,13 +75,11 @@ public class RanttOutput : IReportOutput
             _overrideManager = new MethodOverrideManager(_outputDirectory);
             _overrideManager.LoadOverrides();
 
-            ExportToCsv();
-            ExportRelationshipsToCsv();
-            ExportToRantt();
+            await ExportDataAsync();
 
             _overrideManager.SaveOverrides(_helper.ReportItems.Values);
 
-            ReportArchiver.CreateTimestampedFolderCopy(_outputDirectory);
+            await CreateTimestampedFolderCopyAsync(_outputDirectory);
         });
     }
 
@@ -95,7 +91,7 @@ public class RanttOutput : IReportOutput
         }
 
         var parameters = (RanttReportParameters)parameter;
-        _folderPath = parameters?.FolderPath;
+        _folderPath = parameters.FolderPath;
     }
 
     public void WriteSummary(string message)
@@ -113,103 +109,139 @@ public class RanttOutput : IReportOutput
         // Ignored in Rantt output
     }
 
-    private void ExportToCsv()
+    private async Task ExportDataAsync()
     {
         if (_outputDirectory is null)
         {
             throw new InvalidOperationException("Output directory is not set");
         }
 
-        if (!Directory.Exists(_outputDirectory))
-        {
-            Directory.CreateDirectory(_outputDirectory);
-        }
-
-        if(_overrideManager is null)
-        {
-            throw new InvalidOperationException("Method override manager is not set");
-        }
-
-        var reporterName = _helper.Reporter?.FullName;
-        if (reporterName is null)
+        if (_helper.Reporter?.FullName is null)
         {
             throw new InvalidOperationException("Reporter name is not set");
         }
 
-        var fileName = reporterName;
-        var fullPath = Path.Combine(_outputDirectory, $"{fileName}.csv");
+        var reporterName = _helper.Reporter.FullName;
+        var fileName = $"{reporterName}.csv";
+        var relationshipsFileName = $"{reporterName}_Relationships.csv";
 
+        await ExportToCsvAsync(fileName);
+        await ExportRelationshipsToCsvAsync(relationshipsFileName);
+        ExportToRantt(reporterName, fileName, relationshipsFileName);
+    }
+
+    private async Task ExportToCsvAsync(string fileName)
+    {
+        if (_outputDirectory is null || _overrideManager is null)
+        {
+            throw new InvalidOperationException("Output directory or method override manager is not set");
+        }
+
+        var fullPath = Path.Combine(_outputDirectory, fileName);
         var reportItems = _helper.ReportItems.Values.Concat(_helper.Gaps);
+
         using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
         var csvReportWriter = new CsvReportWriter(writer, reportItems, _overrideManager);
-        csvReportWriter.WriteReportItemsCsv();
+        await csvReportWriter.WriteReportItemsCsvAsync();
     }
 
-    private void ExportRelationshipsToCsv()
+    private async Task ExportRelationshipsToCsvAsync(string fileName)
     {
-        if (_outputDirectory is null)
+        if (_outputDirectory is null || _overrideManager is null)
         {
-            throw new InvalidOperationException("Output directory is not set");
+            throw new InvalidOperationException("Output directory or method override manager is not set");
         }
 
-        if (!Directory.Exists(_outputDirectory)) 
-        {
-            Directory.CreateDirectory(_outputDirectory);
-        }
-
-        if(_overrideManager is null)
-        {
-            throw new InvalidOperationException("Method override manager is not set");
-        }
-
-        var reporterName = _helper.Reporter?.FullName;
-        if (reporterName is null)
-        {
-            throw new InvalidOperationException("Reporter name is not set");
-        }
-
-        var fileName = $"{reporterName}_Relationships";
-        var fullPath = Path.Combine(_outputDirectory, $"{fileName}.csv");
-
+        var fullPath = Path.Combine(_outputDirectory, fileName);
         var reportItems = _helper.ReportItems.Values;
+
         using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
         var csvReportWriter = new CsvReportWriter(writer, reportItems, _overrideManager);
-        csvReportWriter.WriteRelationshipsCsv(fullPath);
+        await csvReportWriter.WriteRelationshipsCsvAsync();
     }
 
-    private void ExportToRantt()
+    private void ExportToRantt(string reporterName, string dataFileName, string relationshipsFileName)
     {
         if (_outputDirectory is null)
         {
             throw new InvalidOperationException("Output directory is not set");
         }
 
-        if (!Directory.Exists(_outputDirectory)) 
-        {
-            Directory.CreateDirectory(_outputDirectory);
-        }
-
-        if (_overrideManager is null)
-        {
-            throw new InvalidOperationException("Method override manager is not set");
-        }
-
-        var reporterName = _helper.Reporter?.FullName;
-        if (reporterName is null)
-        {
-            throw new InvalidOperationException("Reporter name is not set");
-        }
-
-        var reportName = $"{reporterName}";
-        var fileName = reportName;
-
-        var ranttProjectFileName = $"{fileName}.rprjx";
+        var ranttProjectFileName = $"{reporterName}.rprjx";
         var ranttProjectContents = RanttProjectContents
-            .Replace("%SourceFileName%", fileName + ".csv")
-            .Replace("%RelationshipsFileName%", fileName + "_Relationships.csv")
-            .Replace("%reportName%", reportName);
+            .Replace("%SourceFileName%", dataFileName)
+            .Replace("%RelationshipsFileName%", relationshipsFileName)
+            .Replace("%reportName%", reporterName);
         var ranttProjectPath = Path.Combine(_outputDirectory, ranttProjectFileName);
 
         File.WriteAllText(ranttProjectPath, ranttProjectContents);
+    }
+
+    private async Task CreateTimestampedFolderCopyAsync(string folderPath)
+    {
+        if (!Directory.Exists(folderPath))
+        {
+            return;
+        }
+
+        var directory = Path.GetDirectoryName(folderPath);
+        if (directory is null)
+        {
+            return;
+        }
+
+        var archiveDirectory = GetArchiveDirectory(directory);
+
+        var folderName = Path.GetFileName(folderPath);
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var archivedFolderName = $"{folderName}_{timestamp}";
+        var archivedFolderPath = Path.Combine(archiveDirectory, archivedFolderName);
+
+        await CopyFolderAsync(folderPath, archivedFolderPath);
+    }
+
+    private static string GetArchiveDirectory(string directory)
+    {
+        var archiveDirectory = Path.Combine(directory, "Archived");
+        if (!Directory.Exists(archiveDirectory))
+        {
+            Directory.CreateDirectory(archiveDirectory);
+        }
+
+        return archiveDirectory;
+    }
+
+    private static async Task CopyFolderAsync(string sourcePath, string destinationPath)
+    {
+        if (!Directory.Exists(sourcePath))
+        {
+            return;
+        }
+
+        if (!Directory.Exists(destinationPath))
+        {
+            Directory.CreateDirectory(destinationPath);
+        }
+
+        foreach (var file in Directory.GetFiles(sourcePath))
+        {
+            var fileName = Path.GetFileName(file);
+            var destinationFilePath = Path.Combine(destinationPath, fileName);
+            await CopyFileAsync(file, destinationFilePath);
+        }
+
+        foreach (var subFolder in Directory.GetDirectories(sourcePath))
+        {
+            var folderName = Path.GetFileName(subFolder);
+            var destinationSubFolderPath = Path.Combine(destinationPath, folderName);
+            await CopyFolderAsync(subFolder, destinationSubFolderPath);
+        }
+    }
+
+    private static async Task CopyFileAsync(string sourcePath, string destinationPath)
+    {
+        using var sourceStream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var destinationStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await sourceStream.CopyToAsync(destinationStream);
     }
 }
