@@ -8,18 +8,41 @@ using Reporters;
 
 public class WorkflowItemLevelFilter : IMethodFilter
 {
-    private readonly HashSet<string> _levels;
+    private readonly int _level;
 
-    public WorkflowItemLevelFilter(params string[] levels)
+    private readonly List<string> _sortedLevers = new List<string>()
     {
-        _levels = levels.ToHashSet();
+        MethodCallParameter.Levels.Low,
+        MethodCallParameter.Levels.Medium,
+        MethodCallParameter.Levels.High,
+    };
+
+    public WorkflowItemLevelFilter(string level)
+    {
+        _level = _sortedLevers.IndexOf(level);
     }
 
     public bool ShouldInclude(MethodInfo methodInfo)
     {
         return methodInfo.GetCustomAttributes<MethodCallParameterAttribute>()
-            .Any(x => string.Equals(x.Name, MethodCallParameter.WorkflowItemLevel, StringComparison.Ordinal) && _levels.Contains(x.Value));
+            .Any(x => string.Equals(x.Name, MethodCallParameter.WorkflowItemLevel, StringComparison.Ordinal) && ShouldIncludeInternal(x.Value));
     }
 
-    public bool ShouldInclude(MethodCallInfo methodCallInfo) => methodCallInfo.Parameters?.TryGetValue(MethodCallParameter.WorkflowItemLevel, out var level) == true && _levels.Contains(level);
+    public bool ShouldInclude(MethodCallInfo methodCallInfo)
+    {
+        var level = methodCallInfo.Parameters?.GetValueOrDefault(MethodCallParameter.WorkflowItemLevel);
+        return ShouldIncludeInternal(level);
+    }
+
+    private bool ShouldIncludeInternal(string? level)
+    {
+        if(level is null)
+        {
+            return true;
+        }
+
+        var methodLevel = _sortedLevers.IndexOf(level);
+
+        return methodLevel >= _level;
+    }
 }
