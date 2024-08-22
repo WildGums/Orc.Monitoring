@@ -22,12 +22,6 @@ public class WorkflowItemLevelFilter : IMethodFilter
         _level = _sortedLevers.IndexOf(level);
     }
 
-    public bool ShouldInclude(MethodInfo methodInfo)
-    {
-        return methodInfo.GetCustomAttributes<MethodCallParameterAttribute>()
-            .Any(x => string.Equals(x.Name, MethodCallParameter.WorkflowItemLevel, StringComparison.Ordinal) && ShouldIncludeInternal(x.Value));
-    }
-
     public bool ShouldInclude(MethodCallInfo methodCallInfo)
     {
         var level = methodCallInfo.Parameters?.GetValueOrDefault(MethodCallParameter.WorkflowItemLevel);

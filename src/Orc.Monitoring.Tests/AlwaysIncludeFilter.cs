@@ -8,12 +8,6 @@ public class AlwaysIncludeFilter : IMethodFilter
 {
     private readonly ILogger<AlwaysIncludeFilter> _logger = MonitoringController.CreateLogger<AlwaysIncludeFilter>();
 
-    public bool ShouldInclude(MethodInfo methodInfo)
-    {
-        _logger.LogDebug($"AlwaysIncludeFilter.ShouldInclude(MethodInfo) called for {methodInfo.Name}");
-        return true;
-    }
-
     public bool ShouldInclude(MethodCallInfo methodCallInfo)
     {
         _logger.LogDebug($"AlwaysIncludeFilter.ShouldInclude(MethodCallInfo) called for {methodCallInfo.MethodName}");
