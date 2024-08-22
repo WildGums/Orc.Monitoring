@@ -344,14 +344,14 @@ public static class MonitoringController
     public static bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, IEnumerable<string>? reporterIds = null)
     {
         var shouldTrack = IsEnabled && version == GetCurrentVersion();
-        Console.WriteLine($"ShouldTrack called. IsEnabled: {IsEnabled}, VersionMatch: {version == GetCurrentVersion()}, Result: {shouldTrack}");
+        _logger.LogDebug($"ShouldTrack called. IsEnabled: {IsEnabled}, VersionMatch: {version == GetCurrentVersion()}, Result: {shouldTrack}");
 
         if (!shouldTrack) return false;
 
         if (reporterType is not null)
         {
             shouldTrack = IsReporterEnabled(reporterType);
-            Console.WriteLine($"Reporter check. Type: {reporterType.Name}, Enabled: {shouldTrack}");
+            _logger.LogDebug($"Reporter check. Type: {reporterType.Name}, Enabled: {shouldTrack}");
         }
 
         if (shouldTrack && filterType is not null)
@@ -359,17 +359,17 @@ public static class MonitoringController
             if (reporterIds is not null)
             {
                 shouldTrack = reporterIds.Any(id => IsFilterEnabledForReporter(id, filterType));
-                Console.WriteLine($"Filter check for reporters. FilterType: {filterType.Name}, Result: {shouldTrack}");
+                _logger.LogDebug($"Filter check for reporters. FilterType: {filterType.Name}, Result: {shouldTrack}");
             }
             else if (reporterType is not null)
             {
                 shouldTrack = IsFilterEnabledForReporterType(reporterType, filterType);
-                Console.WriteLine($"Filter check for reporter type. ReporterType: {reporterType.Name}, FilterType: {filterType.Name}, Result: {shouldTrack}");
+                _logger.LogDebug($"Filter check for reporter type. ReporterType: {reporterType.Name}, FilterType: {filterType.Name}, Result: {shouldTrack}");
             }
             else
             {
                 shouldTrack = IsFilterEnabled(filterType);
-                Console.WriteLine($"General filter check. FilterType: {filterType.Name}, Result: {shouldTrack}");
+                _logger.LogDebug($"General filter check. FilterType: {filterType.Name}, Result: {shouldTrack}");
             }
         }
 

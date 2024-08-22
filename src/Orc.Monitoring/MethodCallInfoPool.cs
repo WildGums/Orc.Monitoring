@@ -4,9 +4,11 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 
 public class MethodCallInfoPool
 {
+    private readonly ILogger<MethodCallInfoPool> _logger = MonitoringController.CreateLogger<MethodCallInfoPool>();
     private readonly ConcurrentBag<MethodCallInfo> _pool = [];
 
     public MethodCallInfo Rent(IClassMonitor? classMonitor, Type callerType, MethodInfo methodInfo,
@@ -14,7 +16,7 @@ public class MethodCallInfoPool
     {
         if (!MonitoringController.IsEnabled)
         {
-            Console.WriteLine($"Monitoring is disabled. Returning Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}");
+            _logger.LogDebug($"Monitoring is disabled. Returning Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}");
             return MethodCallInfo.CreateNull();
         }
 

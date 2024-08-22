@@ -75,6 +75,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_rootMethodCallInfo is null)
         {
+            _logger.LogError("Root method call info is not set");
             throw new InvalidOperationException("Root method call info is not set");
         }
 
@@ -94,10 +95,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
         get => _id ?? string.Empty;
         set
         {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                throw new ArgumentException("Id cannot be null or whitespace.", nameof(value));
-            }
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
             _id = value;
         }
     }
@@ -147,12 +145,13 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_outputs.Count == 0)
         {
-            Console.WriteLine("No outputs have been added to the reporter");
+            _logger.LogError("No outputs have been added to the reporter");
             throw new InvalidOperationException("No outputs have been added to the reporter");
         }
 
         if (_disposables is null)
         {
+            _logger.LogError("Reporter has not been initialized");
             throw new InvalidOperationException("Reporter has not been initialized");
         }
 
@@ -170,7 +169,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
         var output = new TOutput();
         output.SetParameters(parameter);
         _outputs.Add(output);
-        Console.WriteLine($"Added output of type {typeof(TOutput).Name}");
+        _logger.LogInformation($"Added output of type {typeof(TOutput).Name}");
         return this;
     }
 
@@ -178,6 +177,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_monitoringConfiguration is null)
         {
+            _logger.LogError("Monitoring configuration is not set");
             throw new InvalidOperationException("Monitoring configuration is not set");
         }
 
@@ -275,6 +275,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
@@ -349,6 +350,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
@@ -384,6 +386,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
@@ -462,6 +465,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 

@@ -8,17 +8,17 @@ using Reporters;
 
 public class MethodConfigurationBuilder
 {
-    private readonly ILogger<MethodConfigurationBuilder> _logger;
+    private readonly ILogger<MethodConfigurationBuilder> _logger = MonitoringController.CreateLogger<MethodConfigurationBuilder>();
     private readonly MethodConfiguration _config = new();
 
     public MethodConfigurationBuilder()
     {
-        _logger = MonitoringController.CreateLogger<MethodConfigurationBuilder>();
+        
     }
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
     {
-        Console.WriteLine($"Adding reporter: {reporter.GetType().Name}");
+        _logger.LogDebug($"Adding reporter: {reporter.GetType().Name}");
         _config.Reporters.Add(reporter);
         return this;
     }

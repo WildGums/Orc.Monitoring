@@ -5,10 +5,13 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using MethodLifeCycleItems;
+using Microsoft.Extensions.Logging;
 using Reporters;
 
 public class ReportOutputHelper
 {
+    private readonly ILogger<ReportOutputHelper> _logger = MonitoringController.CreateLogger<ReportOutputHelper>();
+
     public IMethodCallReporter? Reporter { get; private set; }
     public ConcurrentDictionary<string, ReportItem> ReportItems { get; } = new();
     public List<ReportItem> Gaps { get; } = [];
@@ -85,7 +88,7 @@ public class ReportOutputHelper
     {
         if (Reporter is null)
         {
-            Console.WriteLine("Warning: Reporter is null when processing end event.");
+            _logger.LogWarning("Reporter is null when processing end event.");
             return;
         }
 
@@ -95,7 +98,7 @@ public class ReportOutputHelper
 
         if (!ReportItems.TryGetValue(key, out var reportItem))
         {
-            Console.WriteLine($"Warning: No report item found for method call ID {key}");
+            _logger.LogWarning($"No report item found for method call ID {key}");
             return;
         }
 
@@ -110,21 +113,21 @@ public class ReportOutputHelper
 
         if (!MethodStack.TryGetValue(threadId, out var stack))
         {
-            Console.WriteLine($"Warning: No stack found for thread {threadId} when processing end event.");
+            _logger.LogWarning($"No stack found for thread {threadId} when processing end event.");
             return;
         }
 
         if (stack.Count == 0)
         {
-            Console.WriteLine($"Warning: Attempted to process end event for thread {threadId} with an empty stack.");
+            _logger.LogWarning($"Attempted to process end event for thread {threadId} with an empty stack.");
             return;
         }
 
         var poppedId = stack.Pop();
         if (poppedId != key)
         {
-            Console.WriteLine($"Warning: Mismatch in method call IDs. Expected {key}, but popped {poppedId}.");
-            // Optionally, you might want to handle this mismatch, perhaps by searching for the correct ID in the stack
+            _logger.LogWarning($"Mismatch in method call IDs. Expected {key}, but popped {poppedId}.");
+            // Optionally, we might want to handle this mismatch, perhaps by searching for the correct ID in the stack
         }
 
         // If this was the last item on the stack for this thread, remove the stack
@@ -135,7 +138,7 @@ public class ReportOutputHelper
 
         // Log the current state after processing
         var remainingStacksInfo = string.Join(", ", MethodStack.Select(kvp => $"Thread {kvp.Key}: {kvp.Value.Count} items"));
-        Console.WriteLine($"Processed end event. Remaining stacks: {remainingStacksInfo}");
+        _logger.LogInformation($"Processed end event. Remaining stacks: {remainingStacksInfo}");
     }
 
     private void ProcessGap(CallGap gap)
