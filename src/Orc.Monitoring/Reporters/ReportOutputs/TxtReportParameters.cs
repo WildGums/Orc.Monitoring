@@ -4,15 +4,14 @@ using System;
 
 public class TxtReportParameters
 {
-    public TxtReportParameters(string folderPath, string displayNameParameter)
-    {
-        ArgumentNullException.ThrowIfNull(folderPath);
-        ArgumentNullException.ThrowIfNull(displayNameParameter);
-
-        FolderPath = folderPath;
-        DisplayNameParameter = displayNameParameter;
-    }
-
     public string FolderPath { get; }
     public string DisplayNameParameter { get; }
+    public OutputLimitOptions LimitOptions { get; set; }
+
+    public TxtReportParameters(string folderPath, string displayNameParameter, OutputLimitOptions? limitOptions = null)
+    {
+        FolderPath = folderPath;
+        DisplayNameParameter = displayNameParameter;
+        LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited;
+    }
 }

@@ -12,7 +12,6 @@ using NUnit.Framework;
 using NUnit.Framework.Internal;
 using Reporters.ReportOutputs;
 
-
 [TestFixture]
 public class PerformanceMonitorIntegrationTests
 {

@@ -5,21 +5,27 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using MethodLifeCycleItems;
-using Monitoring;
-using Reporters;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring.MethodLifeCycleItems;
+using Orc.Monitoring.Reporters;
 
-public sealed class TxtReportOutput : IReportOutput
+public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
 {
+    private readonly ILogger<TxtReportOutput> _logger = MonitoringController.CreateLogger<TxtReportOutput>();
     private readonly ReportOutputHelper _helper = new();
-    private readonly StringBuilder _buffer = new();
+    private readonly Queue<LogEntry> _logEntries = new();
     private readonly List<int> _nestingLevels = [];
 
     private string? _fileName;
     private string? _folderPath;
     private string? _displayNameParameter;
+    private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
-    public static TxtReportParameters CreateParameters(string folderPath, string displayNameParameter) => new(folderPath, displayNameParameter);
+    public static TxtReportParameters CreateParameters(string folderPath, string displayNameParameter, OutputLimitOptions? limitOptions = null)
+    {
+        return new TxtReportParameters(folderPath, displayNameParameter, limitOptions);
+    }
 
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
@@ -42,10 +48,10 @@ public sealed class TxtReportOutput : IReportOutput
 
             _fileName = Path.Combine(_folderPath, $"{reporter.Name}_{rootDisplayName}.txt");
 
-            await File.WriteAllTextAsync(_fileName, _buffer.ToString());
+            await WriteLogEntriesToFileAsync();
 
             ReportArchiver.CreateTimestampedFileCopy(_fileName);
-            _buffer.Clear();
+            _logEntries.Clear();
         });
     }
 
@@ -59,11 +65,12 @@ public sealed class TxtReportOutput : IReportOutput
         var txtParameters = (TxtReportParameters)parameters;
         _folderPath = txtParameters.FolderPath;
         _displayNameParameter = txtParameters.DisplayNameParameter;
+        SetLimitOptions(txtParameters.LimitOptions);
     }
 
     public void WriteSummary(string message)
     {
-        _buffer.AppendLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+        AddLogEntry(new LogEntry(DateTime.Now, "Summary", message));
     }
 
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
@@ -81,7 +88,7 @@ public sealed class TxtReportOutput : IReportOutput
                 break;
 
             default:
-                _buffer.AppendLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message ?? callStackItem.ToString()}");
+                AddLogEntry(new LogEntry(DateTime.Now, callStackItem.GetType().Name, message ?? callStackItem.ToString() ?? string.Empty));
                 break;
         }
     }
@@ -89,15 +96,14 @@ public sealed class TxtReportOutput : IReportOutput
     private void ProcessGap(CallGap gap)
     {
         var endTimestamp = gap.TimeStamp + gap.Elapsed;
-        _buffer.AppendLine($"{gap.TimeStamp:yyyy-MM-dd HH:mm:ss.fff} - {endTimestamp:yyyy-MM-dd HH:mm:ss.fff} Gap: {gap.Elapsed.TotalMilliseconds:F2} ms");
+        AddLogEntry(new LogEntry(gap.TimeStamp, "Gap", $"Duration: {gap.Elapsed.TotalMilliseconds:F2} ms"));
 
         // Add gap parameters
         if (gap.Parameters.Count > 0)
         {
-            _buffer.AppendLine("  Gap Parameters:");
             foreach (var parameter in gap.Parameters)
             {
-                _buffer.AppendLine($"    {parameter.Key}: {parameter.Value}");
+                AddLogEntry(new LogEntry(gap.TimeStamp, "GapParameter", $"{parameter.Key}: {parameter.Value}"));
             }
         }
     }
@@ -119,7 +125,7 @@ public sealed class TxtReportOutput : IReportOutput
         }
 
         var indentation = string.Join(string.Empty, Enumerable.Repeat("  ", nestingIndex));
-        _buffer.AppendLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff} {indentation}{message ?? callStackItem.ToString()}");
+        AddLogEntry(new LogEntry(timestamp, callStackItem.GetType().Name, $"{indentation}{message ?? callStackItem.ToString()}"));
 
         if (methodLifeCycleItem is MethodCallEnd endItem)
         {
@@ -133,22 +139,21 @@ public sealed class TxtReportOutput : IReportOutput
         var parameters = endItem.MethodCallInfo.Parameters ?? [];
         if (parameters.Count > 0)
         {
-            _buffer.AppendLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff} {indentation}  Parameters:");
             foreach (var parameter in parameters)
             {
-                _buffer.AppendLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff} {indentation}    {parameter.Key}: {parameter.Value}");
+                AddLogEntry(new LogEntry(timestamp, "Parameter", $"{indentation}  {parameter.Key}: {parameter.Value}"));
             }
         }
 
         // Add method duration for MethodCallEnd
-        _buffer.AppendLine($"{timestamp} {indentation}  Duration: {endItem.MethodCallInfo.Elapsed.TotalMilliseconds:F2} ms");
+        AddLogEntry(new LogEntry(timestamp, "Duration", $"{indentation}  Duration: {endItem.MethodCallInfo.Elapsed.TotalMilliseconds:F2} ms"));
     }
 
     public void WriteError(Exception exception)
     {
         var timestamp = DateTime.Now;
-        _buffer.AppendLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff} Error: {exception.Message}");
-        _buffer.AppendLine($"{timestamp:yyyy-MM-dd HH:mm:ss.fff} Stack Trace: {exception.StackTrace}");
+        AddLogEntry(new LogEntry(timestamp, "Error", $"Message: {exception.Message}"));
+        AddLogEntry(new LogEntry(timestamp, "StackTrace", $"Stack Trace: {exception.StackTrace}"));
     }
 
     private string GetRootDisplayName()
@@ -163,5 +168,87 @@ public sealed class TxtReportOutput : IReportOutput
             .OfType<MethodCallParameterAttribute>()
             .FirstOrDefault(x => string.Equals(x.Name, _displayNameParameter, StringComparison.Ordinal))
             ?.Value ?? string.Empty;
+    }
+
+    private void AddLogEntry(LogEntry entry)
+    {
+        _logEntries.Enqueue(entry);
+        ApplyLimits();
+    }
+
+    private async Task WriteLogEntriesToFileAsync()
+    {
+        if (_fileName is null)
+        {
+            throw new InvalidOperationException("File name is not set");
+        }
+
+        try
+        {
+            using var writer = new StreamWriter(_fileName, false, Encoding.UTF8);
+            foreach (var entry in _logEntries)
+            {
+                await writer.WriteLineAsync($"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Category}] {entry.Message}");
+            }
+
+            _logger.LogInformation($"TXT report written to {_fileName} with {_logEntries.Count} entries");
+            if (_limitOptions.MaxItems.HasValue)
+            {
+                _logger.LogInformation($"Output limited to {_limitOptions.MaxItems.Value} items");
+            }
+            if (_limitOptions.MaxAge.HasValue)
+            {
+                _logger.LogInformation($"Output limited to entries newer than {_limitOptions.MaxAge.Value}");
+            }
+        }
+        catch (IOException ex)
+        {
+            _logger.LogError(ex, $"Error writing to TXT file: {ex.Message}");
+        }
+    }
+
+    public void SetLimitOptions(OutputLimitOptions options)
+    {
+        _limitOptions = options;
+        ApplyLimits();
+    }
+
+    public OutputLimitOptions GetLimitOptions()
+    {
+        return _limitOptions;
+    }
+
+    private void ApplyLimits()
+    {
+        if (_limitOptions.MaxItems.HasValue)
+        {
+            while (_logEntries.Count > _limitOptions.MaxItems.Value)
+            {
+                _logEntries.Dequeue();
+            }
+        }
+
+        if (_limitOptions.MaxAge.HasValue)
+        {
+            var cutoffTime = DateTime.Now - _limitOptions.MaxAge.Value;
+            while (_logEntries.TryPeek(out var oldestEntry) && oldestEntry.Timestamp < cutoffTime)
+            {
+                _logEntries.Dequeue();
+            }
+        }
+    }
+
+    private class LogEntry
+    {
+        public DateTime Timestamp { get; }
+        public string Category { get; }
+        public string Message { get; }
+
+        public LogEntry(DateTime timestamp, string category, string message)
+        {
+            Timestamp = timestamp;
+            Category = category;
+            Message = message;
+        }
     }
 }

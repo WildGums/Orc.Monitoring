@@ -2,13 +2,13 @@
 
 using System;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 
-public class RanttOutput : IReportOutput
+public class RanttOutput : IReportOutput, ILimitedOutput
 {
     private const string RanttProjectContents = @"<?xml version=""1.0"" encoding=""utf-8""?>
 <Project RanttVersion=""3.5.0.0"" MinimumRanttVersion=""2.0"">
@@ -38,14 +38,17 @@ public class RanttOutput : IReportOutput
   </DataSets>
 </Project>";
 
+    private readonly ILogger<RanttOutput> _logger = MonitoringController.CreateLogger<RanttOutput>();
     private readonly ReportOutputHelper _helper = new();
+
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
 
-    public static RanttReportParameters CreateParameters(string folderPath) => new()
+    public static RanttReportParameters CreateParameters(string folderPath, OutputLimitOptions? limitOptions = null) => new()
     {
-        FolderPath = folderPath
+        FolderPath = folderPath,
+        LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
     };
 
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
@@ -77,7 +80,7 @@ public class RanttOutput : IReportOutput
 
             await ExportDataAsync();
 
-            _overrideManager.SaveOverrides(_helper.ReportItems.Values);
+            _overrideManager.SaveOverrides(_helper.ReportItems);
 
             await CreateTimestampedFolderCopyAsync(_outputDirectory);
         });
@@ -92,6 +95,7 @@ public class RanttOutput : IReportOutput
 
         var parameters = (RanttReportParameters)parameter;
         _folderPath = parameters.FolderPath;
+        SetLimitOptions(parameters.LimitOptions);
     }
 
     public void WriteSummary(string message)
@@ -128,6 +132,17 @@ public class RanttOutput : IReportOutput
         await ExportToCsvAsync(fileName);
         await ExportRelationshipsToCsvAsync(relationshipsFileName);
         ExportToRantt(reporterName, fileName, relationshipsFileName);
+
+        _logger.LogInformation($"Rantt data exported with {_helper.ReportItems.Count} items");
+        var limitOptions = GetLimitOptions();
+        if (limitOptions.MaxItems.HasValue)
+        {
+            _logger.LogInformation($"Output limited to {limitOptions.MaxItems.Value} items");
+        }
+        if (limitOptions.MaxAge.HasValue)
+        {
+            _logger.LogInformation($"Output limited to items newer than {limitOptions.MaxAge.Value}");
+        }
     }
 
     private async Task ExportToCsvAsync(string fileName)
@@ -138,11 +153,19 @@ public class RanttOutput : IReportOutput
         }
 
         var fullPath = Path.Combine(_outputDirectory, fileName);
-        var reportItems = _helper.ReportItems.Values.Concat(_helper.Gaps);
 
-        using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
-        var csvReportWriter = new CsvReportWriter(writer, reportItems, _overrideManager);
-        await csvReportWriter.WriteReportItemsCsvAsync();
+        try
+        {
+            using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
+            var csvReportWriter = new CsvReportWriter(writer, _helper.ReportItems, _overrideManager);
+            await csvReportWriter.WriteReportItemsCsvAsync();
+
+            _logger.LogInformation($"CSV report written to {fullPath} with {_helper.ReportItems.Count} items");
+        }
+        catch (IOException ex)
+        {
+            _logger.LogError(ex, $"Error writing to CSV file: {ex.Message}");
+        }
     }
 
     private async Task ExportRelationshipsToCsvAsync(string fileName)
@@ -153,11 +176,17 @@ public class RanttOutput : IReportOutput
         }
 
         var fullPath = Path.Combine(_outputDirectory, fileName);
-        var reportItems = _helper.ReportItems.Values;
 
-        using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
-        var csvReportWriter = new CsvReportWriter(writer, reportItems, _overrideManager);
-        await csvReportWriter.WriteRelationshipsCsvAsync();
+        try
+        {
+            using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
+            var csvReportWriter = new CsvReportWriter(writer, _helper.ReportItems, _overrideManager);
+            await csvReportWriter.WriteRelationshipsCsvAsync();
+        }
+        catch (IOException ex)
+        {
+            _logger.LogError(ex, $"Error writing to relationships CSV file: {ex.Message}");
+        }
     }
 
     private void ExportToRantt(string reporterName, string dataFileName, string relationshipsFileName)
@@ -243,5 +272,15 @@ public class RanttOutput : IReportOutput
         using var sourceStream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var destinationStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
         await sourceStream.CopyToAsync(destinationStream);
+    }
+
+    public void SetLimitOptions(OutputLimitOptions options)
+    {
+        _helper.SetLimitOptions(options);
+    }
+
+    public OutputLimitOptions GetLimitOptions()
+    {
+        return _helper.GetLimitOptions();
     }
 }
