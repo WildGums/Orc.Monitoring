@@ -44,9 +44,9 @@ public class CallStackParentChildTests
         var childInfo = CreateMethodCallInfo("ChildMethod");
         _callStack?.Push(childInfo);
 
-        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
-        Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId));
-        Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1));
+        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child's parent should be the parent method");
+        Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "Child's parent thread ID should match the parent's thread ID");
+        Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), "Child's level should be one more than the parent's level");
     }
 
     [Test]
@@ -64,13 +64,13 @@ public class CallStackParentChildTests
         Console.WriteLine($"Level2: {level2}");
         Console.WriteLine($"Level3: {level3}");
 
-        Assert.That(level3.Parent, Is.EqualTo(level2));
-        Assert.That(level2.Parent, Is.EqualTo(level1));
-        Assert.That(level1.Parent, Is.EqualTo(MethodCallInfo.Null));
+        Assert.That(level3.Parent, Is.EqualTo(level2), "Level3's parent should be Level2");
+        Assert.That(level2.Parent, Is.EqualTo(level1), "Level2's parent should be Level1");
+        Assert.That(level1.Parent, Is.EqualTo(MethodCallInfo.Null), "Level1's parent should be null");
 
-        Assert.That(level3.Level, Is.EqualTo(3));
-        Assert.That(level2.Level, Is.EqualTo(2));
-        Assert.That(level1.Level, Is.EqualTo(1));
+        Assert.That(level3.Level, Is.EqualTo(3), "Level3 should be at level 3");
+        Assert.That(level2.Level, Is.EqualTo(2), "Level2 should be at level 2");
+        Assert.That(level1.Level, Is.EqualTo(1), "Level1 should be at level 1");
     }
 
     [Test]
@@ -87,9 +87,9 @@ public class CallStackParentChildTests
 
         var childInfo = await childInfoTask;
 
-        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
-        Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId));
-        Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1));
+        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child's parent should be the parent method");
+        Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "Child's parent thread ID should match the parent's thread ID");
+        Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), "Child's level should be one more than the parent's level");
     }
 
     [Test]
@@ -120,15 +120,15 @@ public class CallStackParentChildTests
             if (childInfo.ThreadId == parentInfo.ThreadId)
             {
                 // Calls on the same thread as parent should be nested
-                Assert.That(childInfo.Parent?.ThreadId, Is.EqualTo(parentInfo.ThreadId));
+                Assert.That(childInfo.Parent?.ThreadId, Is.EqualTo(parentInfo.ThreadId), "Same-thread child should have the parent as its parent");
             }
             else
             {
                 // Calls on different threads should have the root parent
-                Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
+                Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Cross-thread child should have the parent as its parent");
             }
-            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId));
-            Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent?.Level + 1));
+            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "ParentThreadId should match the parent's thread ID");
+            Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent?.Level + 1), "Child's level should be one more than the parent's level");
         }
     }
 
@@ -139,9 +139,9 @@ public class CallStackParentChildTests
         var rootInfo = CreateMethodCallInfo("RootMethod");
         _callStack?.Push(rootInfo);
 
-        Assert.That(rootInfo.Parent, Is.EqualTo(MethodCallInfo.Null));
-        Assert.That(rootInfo.ParentThreadId, Is.EqualTo(-1));
-        Assert.That(rootInfo.Level, Is.EqualTo(1));
+        Assert.That(rootInfo.Parent, Is.EqualTo(MethodCallInfo.Null), "Root method should have no parent");
+        Assert.That(rootInfo.ParentThreadId, Is.EqualTo(-1), "Root method should have no parent thread ID");
+        Assert.That(rootInfo.Level, Is.EqualTo(1), "Root method should be at level 1");
     }
 
     [Test]
@@ -155,13 +155,13 @@ public class CallStackParentChildTests
 
         _callStack?.Pop(childInfo);
 
-        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo));
+        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child should maintain parent relationship after being popped");
 
         var newChildInfo = CreateMethodCallInfo("NewChildMethod");
         _callStack?.Push(newChildInfo);
 
-        Assert.That(newChildInfo.Parent, Is.EqualTo(parentInfo));
-        Assert.That(newChildInfo.Level, Is.EqualTo(parentInfo.Level + 1));
+        Assert.That(newChildInfo.Parent, Is.EqualTo(parentInfo), "New child should have the parent as its parent");
+        Assert.That(newChildInfo.Level, Is.EqualTo(parentInfo.Level + 1), "New child should be at level 2");
     }
 
     [Test]

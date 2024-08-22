@@ -97,12 +97,12 @@ public class CsvReportOutputTests
     [Test]
     public void WriteSummary_DoesNotThrowException()
     {
-        Assert.DoesNotThrow(() => _csvReportOutput.WriteSummary("Test summary"));
+        Assert.DoesNotThrow(() => _csvReportOutput.WriteSummary("Test summary"), "WriteSummary should not throw an exception");
     }
 
     [Test]
     public void WriteError_DoesNotThrowException()
     {
-        Assert.DoesNotThrow(() => _csvReportOutput.WriteError(new Exception("Test exception")));
+        Assert.DoesNotThrow(() => _csvReportOutput.WriteError(new Exception("Test exception")), "WriteError should not throw an exception");
     }
 }
