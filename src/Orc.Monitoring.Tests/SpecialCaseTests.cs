@@ -19,6 +19,7 @@ public class SpecialCaseTests
     private Mock<IMethodFilter> _mockFilter;
     private MonitoringConfiguration _config;
     private CallStack _callStack;
+    private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
     public void Setup()
@@ -28,6 +29,7 @@ public class SpecialCaseTests
         _mockFilter = new Mock<IMethodFilter>();
         _config = new MonitoringConfiguration();
         _callStack = new CallStack(_config);
+        _methodCallInfoPool = new MethodCallInfoPool();
 
         _config.AddReporter(_mockReporter.GetType());
         _config.AddFilter(_mockFilter.Object);
@@ -45,6 +47,7 @@ public class SpecialCaseTests
     public void StaticMethod_IsCorrectlyMonitored()
     {
         var staticMethod = typeof(TestClass).GetMethod(nameof(TestClass.StaticMethod));
+        var methodCallInfo = CreateMethodCallInfo(staticMethod);
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config);
@@ -52,9 +55,9 @@ public class SpecialCaseTests
         Console.WriteLine($"Before static method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context = monitor.StartMethod(new MethodConfiguration
-               {
-                   Reporters = new List<IMethodCallReporter> { _mockReporter }
-               }, nameof(TestClass.StaticMethod)))
+        {
+            Reporters = new List<IMethodCallReporter> { _mockReporter }
+        }, nameof(TestClass.StaticMethod)))
         {
             TestClass.StaticMethod();
         }
@@ -67,7 +70,8 @@ public class SpecialCaseTests
     public void GenericMethod_IsCorrectlyMonitored()
     {
         var genericMethod = typeof(TestClass).GetMethod(nameof(TestClass.GenericMethod));
-        _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodInfo>())).Returns(true);
+        var methodCallInfo = CreateMethodCallInfo(genericMethod);
+        _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
         var tracker = new GenericMethodTracker();
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config);
@@ -75,24 +79,25 @@ public class SpecialCaseTests
         Console.WriteLine($"Before generic method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context = monitor.StartMethod(new MethodConfiguration
-               {
-                   Reporters = new List<IMethodCallReporter> { _mockReporter },
-                   GenericArguments = new List<Type> { typeof(int) }
-               }, nameof(TestClass.GenericMethod)))
+        {
+            Reporters = new List<IMethodCallReporter> { _mockReporter },
+            GenericArguments = new List<Type> { typeof(int) }
+        }, nameof(TestClass.GenericMethod)))
         {
             TestClass.GenericMethod<int>(5);
-            tracker.TrackGenericMethodInstantiation(genericMethod, new[] { typeof(int) });
+            tracker.TrackGenericMethodInstantiation(methodCallInfo.MethodInfo, new[] { typeof(int) });
         }
 
         Console.WriteLine($"After generic method - StartReporting called: {_mockReporter.StartReportingCallCount}");
         Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for generic method");
-        Assert.That(tracker.GetInstantiations(genericMethod).Any(t => t[0] == typeof(int)), Is.True);
+        Assert.That(tracker.GetInstantiations(methodCallInfo.MethodInfo).Any(t => t[0] == typeof(int)), Is.True);
     }
 
     [Test]
     public async Task AsyncMethod_IsCorrectlyMonitoredAsync()
     {
         var asyncMethod = typeof(TestClass).GetMethod(nameof(TestClass.AsyncMethodAsync));
+        var methodCallInfo = CreateMethodCallInfo(asyncMethod);
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config);
@@ -103,10 +108,10 @@ public class SpecialCaseTests
         _mockReporter.OnStartReporting = _ => completionSource.SetResult(true);
 
         await using (var context = monitor.StartAsyncMethod(new MethodConfiguration
-                     {
-                         Reporters = new List<IMethodCallReporter> { _mockReporter },
-                         ParameterTypes = new List<Type>() // Empty list for no parameters
-                     }, nameof(TestClass.AsyncMethodAsync)))
+        {
+            Reporters = new List<IMethodCallReporter> { _mockReporter },
+            ParameterTypes = new List<Type>() // Empty list for no parameters
+        }, nameof(TestClass.AsyncMethodAsync)))
         {
             await TestClass.AsyncMethodAsync();
         }
@@ -121,7 +126,8 @@ public class SpecialCaseTests
     public void ExtensionMethod_IsCorrectlyMonitored()
     {
         var extensionMethod = typeof(TestExtensions).GetMethod(nameof(TestExtensions.ExtensionMethod));
-        _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodInfo>())).Returns(true);
+        var methodCallInfo = CreateMethodCallInfo(extensionMethod);
+        _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
         var handler = new ExtensionMethodHandler();
         var monitor = new ClassMonitor(typeof(TestExtensions), _callStack, _config);
@@ -131,14 +137,14 @@ public class SpecialCaseTests
         using (var context = monitor.StartMethod(new MethodConfiguration { Reporters = new List<IMethodCallReporter> { _mockReporter } }, nameof(TestExtensions.ExtensionMethod)))
         {
             "test".ExtensionMethod();
-            handler.RegisterExtensionMethod(extensionMethod);
-            handler.TrackInvocation(extensionMethod);
+            handler.RegisterExtensionMethod(methodCallInfo);
+            handler.TrackInvocation(methodCallInfo);
         }
 
         Console.WriteLine($"After extension method - StartReporting called: {_mockReporter.StartReportingCallCount}");
         Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for extension method");
-        Assert.That(handler.IsExtensionMethod(extensionMethod), Is.True);
-        Assert.That(handler.GetInvocationCount(extensionMethod), Is.EqualTo(1));
+        Assert.That(handler.IsExtensionMethod(methodCallInfo), Is.True);
+        Assert.That(handler.GetInvocationCount(methodCallInfo), Is.EqualTo(1));
     }
 
     [Test]
@@ -146,32 +152,39 @@ public class SpecialCaseTests
     {
         var method1 = typeof(TestClass).GetMethod(nameof(TestClass.OverloadedMethod), new[] { typeof(int) });
         var method2 = typeof(TestClass).GetMethod(nameof(TestClass.OverloadedMethod), new[] { typeof(string) });
-        _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodInfo>())).Returns(true);
+        var methodCallInfo1 = CreateMethodCallInfo(method1);
+        var methodCallInfo2 = CreateMethodCallInfo(method2);
+        _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
         var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config);
 
         Console.WriteLine($"Before overloaded methods - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context1 = monitor.StartMethod(new MethodConfiguration
-               {
-                   Reporters = new List<IMethodCallReporter> { _mockReporter },
-                   ParameterTypes = new List<Type> { typeof(int) }
-               }, nameof(TestClass.OverloadedMethod)))
+        {
+            Reporters = new List<IMethodCallReporter> { _mockReporter },
+            ParameterTypes = new List<Type> { typeof(int) }
+        }, nameof(TestClass.OverloadedMethod)))
         {
             TestClass.OverloadedMethod(5);
         }
 
         using (var context2 = monitor.StartMethod(new MethodConfiguration
-               {
-                   Reporters = new List<IMethodCallReporter> { _mockReporter },
-                   ParameterTypes = new List<Type> { typeof(string) }
-               }, nameof(TestClass.OverloadedMethod)))
+        {
+            Reporters = new List<IMethodCallReporter> { _mockReporter },
+            ParameterTypes = new List<Type> { typeof(string) }
+        }, nameof(TestClass.OverloadedMethod)))
         {
             TestClass.OverloadedMethod("test");
         }
 
         Console.WriteLine($"After overloaded methods - StartReporting called: {_mockReporter.StartReportingCallCount}");
         Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(2), "StartReporting should be called twice for two different overloaded methods");
+    }
+
+    private MethodCallInfo CreateMethodCallInfo(MethodInfo methodInfo)
+    {
+        return _methodCallInfoPool.Rent(null, methodInfo.DeclaringType, methodInfo, Array.Empty<Type>(), Guid.NewGuid().ToString(), new Dictionary<string, string>());
     }
 }
 
@@ -213,30 +226,42 @@ public class GenericMethodTracker
 
 public class ExtensionMethodHandler
 {
-    private readonly HashSet<MethodInfo> _extensionMethods = new HashSet<MethodInfo>();
-    private readonly Dictionary<MethodInfo, int> _invocationCounts = new Dictionary<MethodInfo, int>();
+    private readonly HashSet<string> _extensionMethods = new HashSet<string>();
+    private readonly Dictionary<string, int> _invocationCounts = new Dictionary<string, int>();
 
-    public void RegisterExtensionMethod(MethodInfo method)
+    public void RegisterExtensionMethod(MethodCallInfo methodCallInfo)
     {
-        _extensionMethods.Add(method);
-    }
-
-    public bool IsExtensionMethod(MethodInfo method)
-    {
-        return _extensionMethods.Contains(method);
-    }
-
-    public void TrackInvocation(MethodInfo method)
-    {
-        if (!_invocationCounts.ContainsKey(method))
+        if (methodCallInfo.IsExtensionMethod)
         {
-            _invocationCounts[method] = 0;
+            _extensionMethods.Add(GetMethodKey(methodCallInfo));
         }
-        _invocationCounts[method]++;
     }
 
-    public int GetInvocationCount(MethodInfo method)
+    public bool IsExtensionMethod(MethodCallInfo methodCallInfo)
     {
-        return _invocationCounts.TryGetValue(method, out var count) ? count : 0;
+        return _extensionMethods.Contains(GetMethodKey(methodCallInfo));
+    }
+
+    public void TrackInvocation(MethodCallInfo methodCallInfo)
+    {
+        var key = GetMethodKey(methodCallInfo);
+        if (!_invocationCounts.ContainsKey(key))
+        {
+            _invocationCounts[key] = 0;
+        }
+        _invocationCounts[key]++;
+    }
+
+    public int GetInvocationCount(MethodCallInfo methodCallInfo)
+    {
+        var key = GetMethodKey(methodCallInfo);
+        return _invocationCounts.TryGetValue(key, out var count) ? count : 0;
+    }
+
+    private string GetMethodKey(MethodCallInfo methodCallInfo)
+    {
+        // Create a unique key for the method based on its full name and parameter types
+        var parameterTypes = methodCallInfo.MethodInfo?.GetParameters().Select(p => p.ParameterType.FullName) ?? Enumerable.Empty<string>();
+        return $"{methodCallInfo.ClassType.Name}.{methodCallInfo.MethodName}({string.Join(",", parameterTypes)})";
     }
 }

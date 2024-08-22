@@ -9,7 +9,7 @@ using Moq;
 
 
 [TestFixture]
-public class CallStackSimulationTests
+public partial class CallStackSimulationTests
 {
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;

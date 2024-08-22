@@ -1,5 +1,4 @@
-﻿#pragma warning disable CTL0011
-namespace Orc.Monitoring.Reporters;
+﻿namespace Orc.Monitoring.Tests;
 
 using System;
 using System.Collections.Concurrent;
@@ -12,8 +11,9 @@ using System.Threading.Tasks;
 using MethodLifeCycleItems;
 using Monitoring;
 using Filters;
-using ReportOutputs;
 using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Reporters.ReportOutputs;
+using Orc.Monitoring.Reporters;
 
 public sealed class WorkflowReporter : IMethodCallReporter
 {
@@ -36,9 +36,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private string? _id;
 
     private bool _disposing;
-#pragma warning disable IDISP006
     private List<IAsyncDisposable>? _disposables;
-#pragma warning restore IDISP006
 
     public WorkflowReporter()
     {
@@ -58,15 +56,15 @@ public sealed class WorkflowReporter : IMethodCallReporter
         _monitoringConfiguration = monitoringConfiguration;
         RootMethod = rootMethod.MethodInfo;
         _rootMethodCallInfo = rootMethod;
+        _logger.LogInformation($"WorkflowReporter initialized with root method: {rootMethod.MethodName}");
     }
 
     public IOutputContainer AddFilter<T>() where T : IMethodFilter
     {
         _filterTypes.Add(typeof(T));
-
+        _logger.LogInformation($"Filter added: {typeof(T).Name}");
         return this;
     }
-
 
     public string Name { get; } = "Workflow";
     public string FullName => $"{Name} - {GetRootWorkflowItemName() ?? string.Empty}";
@@ -75,7 +73,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_rootMethodCallInfo is null)
         {
-            throw new InvalidOperationException("Root method call info is not set");
+            _logger.LogWarning("Root method call info is not set");
+            return null;
         }
 
         var parameters = _rootMethodCallInfo?.Parameters;
@@ -98,13 +97,17 @@ public sealed class WorkflowReporter : IMethodCallReporter
             {
                 throw new ArgumentException("Id cannot be null or whitespace.", nameof(value));
             }
+
             _id = value;
+            _logger.LogInformation($"WorkflowReporter Id set to: {_id}");
         }
     }
+
     public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
     {
         if (RootMethod is null)
         {
+            _logger.LogError("Unable to start reporting when root method is not set");
             throw new InvalidOperationException("Unable to start reporting when root method is not set");
         }
 
@@ -115,7 +118,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             disposable.DisposeAsync().AsTask().Wait(100);
         }
 
-        _disposables = new ();
+        _disposables = new();
 
         InitializeOutputs();
 
@@ -123,12 +126,13 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         _disposables.Add(new AsyncDisposable(async () =>
         {
-
+            _logger.LogInformation("Async disposable for WorkflowReporter created");
         }));
 
         return new AsyncDisposable(async () =>
         {
             _disposing = true;
+            _logger.LogInformation("WorkflowReporter disposing");
 
             ProcessBatch();
 
@@ -140,6 +144,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             }
 
             ProcessBatch();
+            _logger.LogInformation("WorkflowReporter disposed");
         });
     }
 
@@ -147,12 +152,13 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_outputs.Count == 0)
         {
-            Console.WriteLine("No outputs have been added to the reporter");
+            _logger.LogError("No outputs have been added to the reporter");
             throw new InvalidOperationException("No outputs have been added to the reporter");
         }
 
         if (_disposables is null)
         {
+            _logger.LogError("Reporter has not been initialized");
             throw new InvalidOperationException("Reporter has not been initialized");
         }
 
@@ -161,6 +167,11 @@ public sealed class WorkflowReporter : IMethodCallReporter
             if (MonitoringController.IsOutputTypeEnabled(reportOutput.GetType()))
             {
                 _disposables.Add(reportOutput.Initialize(this));
+                _logger.LogInformation($"Output initialized: {reportOutput.GetType().Name}");
+            }
+            else
+            {
+                _logger.LogWarning($"Output type not enabled: {reportOutput.GetType().Name}");
             }
         }
     }
@@ -170,7 +181,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
         var output = new TOutput();
         output.SetParameters(parameter);
         _outputs.Add(output);
-        Console.WriteLine($"Added output of type {typeof(TOutput).Name}");
+        _logger.LogInformation($"Output added: {typeof(TOutput).Name}");
         return this;
     }
 
@@ -178,6 +189,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_monitoringConfiguration is null)
         {
+            _logger.LogError("Monitoring configuration is not set");
             throw new InvalidOperationException("Monitoring configuration is not set");
         }
 
@@ -211,7 +223,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
         {
             ProcessBatch();
         }
-        else if (item is MethodCallEnd end && Equals(end.MethodCallInfo.MethodInfo, _rootMethod)) // Process the last batch
+        else if (item is MethodCallEnd end && Equals(end.MethodCallInfo.MethodInfo, _rootMethod))
         {
             ProcessBatch();
         }
@@ -267,14 +279,14 @@ public sealed class WorkflowReporter : IMethodCallReporter
             HandleNonRootMethodCallStart(start);
         }
 
-        var workflowItemName = methodCallInfo.Parameters?.GetValueOrDefault(MethodCallParameter.WorkflowItemName);
-        _logger.LogDebug($"Method start: {methodCallInfo.MethodName}, WorkflowItemName: {workflowItemName}");
+        _logger.LogDebug($"Method start: {methodCallInfo.MethodName}, WorkflowItemName: {methodCallInfo.Parameters?.GetValueOrDefault(MethodCallParameter.WorkflowItemName)}");
     }
 
     private void HandleNonRootMethodCallStart(MethodCallStart start)
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
@@ -314,8 +326,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             HandleNonRootMethodCallEnd(end);
         }
 
-        var workflowItemName = methodCallInfo.Parameters?.GetValueOrDefault(MethodCallParameter.WorkflowItemName);
-        _logger.LogDebug($"Method end: {methodCallInfo.MethodName}, WorkflowItemName: {workflowItemName}");
+        _logger.LogDebug($"Method end: {methodCallInfo.MethodName}, WorkflowItemName: {methodCallInfo.Parameters?.GetValueOrDefault(MethodCallParameter.WorkflowItemName)}");
     }
 
     private void IncrementActiveThreadCalls(int threadId)
@@ -349,6 +360,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
@@ -371,19 +383,13 @@ public sealed class WorkflowReporter : IMethodCallReporter
     }
 
     private static CallGap CreateCallGap(DateTime gapStart, DateTime gapEnd) =>
-        new(gapStart, gapEnd)
-        {
-            Parameters =
-            {
-                [MethodCallParameter.WorkflowItemName] = MethodCallParameter.Types.Gap,
-                [MethodCallParameter.WorkflowItemType] = MethodCallParameter.Types.Gap
-            }
-        };
+        new(gapStart, gapEnd) { Parameters = { [MethodCallParameter.WorkflowItemName] = MethodCallParameter.Types.Gap, [MethodCallParameter.WorkflowItemType] = MethodCallParameter.Types.Gap } };
 
     private void HandleNonRootMethodCallEnd(MethodCallEnd end)
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
@@ -425,7 +431,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private void PublishStartMethodCall(MethodCallStart methodCallStart)
     {
         var parameters = methodCallStart.MethodCallInfo.Parameters ?? [];
-        if(!parameters.TryGetValue(MethodCallParameter.WorkflowItemName, out var workflowItemName))
+        if (!parameters.TryGetValue(MethodCallParameter.WorkflowItemName, out var workflowItemName))
         {
             return;
         }
@@ -462,12 +468,14 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         if (_callProcessingContext is null)
         {
+            _logger.LogError("Call processing context is not initialized");
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
         var parameters = rootMethodCallInfo.Parameters ?? [];
         if (!parameters.TryGetValue(MethodCallParameter.WorkflowItemName, out var workflowItemName))
         {
+            _logger.LogWarning("WorkflowItemName not found in root method call parameters");
             return;
         }
 
@@ -531,6 +539,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
             .Append(_callProcessingContext.GapsCount);
         message = _messageBuilder.ToString();
         PublishSummary(message);
+
+        _logger.LogInformation($"Summary published for {workflowItemName}");
     }
 
     private void PublishSummary(string message)
