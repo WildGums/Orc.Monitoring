@@ -82,6 +82,11 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         var reportItem = _helper.ProcessCallStackItem(callStackItem);
         if (reportItem is not null)
         {
+            if (callStackItem is MethodCallStart methodCallStart)
+            {
+                reportItem.ItemName = methodCallStart.MethodCallInfo.MethodName;
+                reportItem.MethodName = methodCallStart.MethodCallInfo.MethodName;
+            }
             AddReportItem(reportItem);
         }
     }
@@ -94,8 +99,8 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
     private void AddReportItem(ReportItem item)
     {
         _reportItems.Add(item);
+        _logger.LogDebug($"Added report item: {item.ItemName ?? item.MethodName}, StartTime: {item.StartTime}. Current count: {_reportItems.Count}");
         ApplyLimits();
-        _logger.LogDebug($"Added report item. Current count: {_reportItems.Count}");
     }
 
     private void ApplyLimits()
@@ -103,15 +108,20 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         if (_limitOptions.MaxAge.HasValue)
         {
             var cutoffTime = DateTime.Now - _limitOptions.MaxAge.Value;
-            _reportItems.RemoveAll(i => !string.IsNullOrEmpty(i.StartTime) && DateTime.TryParse(i.StartTime, out var startTime) && startTime < cutoffTime);
+            var removedCount = _reportItems.RemoveAll(i => !string.IsNullOrEmpty(i.StartTime) && DateTime.TryParse(i.StartTime, out var startTime) && startTime < cutoffTime);
+            _logger.LogDebug($"Removed {removedCount} items due to age limit");
         }
 
         if (_limitOptions.MaxItems.HasValue)
         {
-            _reportItems = _reportItems.OrderByDescending(i => i.StartTime)
+            _reportItems = _reportItems
+                .OrderByDescending(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString()))
                 .Take(_limitOptions.MaxItems.Value)
                 .ToList();
+            _logger.LogDebug($"Applied item limit. Current count: {_reportItems.Count}");
         }
+
+        _logger.LogInformation($"After applying limits - Item count: {_reportItems.Count}");
     }
 
     private async Task ExportToCsvAsync()
@@ -130,9 +140,18 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
             _logger.LogInformation($"Starting CSV export to {fullPath}");
             _logger.LogInformation($"Number of report items: {_reportItems.Count}");
 
+            // Sort items by StartTime in descending order
+            var sortedItems = _reportItems.OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString())).ToList();
+
+            // Log details of items being exported
+            for (int i = 0; i < sortedItems.Count; i++)
+            {
+                var item = sortedItems[i];
+                _logger.LogDebug($"Exporting item {i}: {item.ItemName ?? item.MethodName}, MethodName: {item.MethodName}, StartTime: {item.StartTime}");
+            }
+
             await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
-                var sortedItems = _reportItems.OrderByDescending(item => item.StartTime);
                 var csvReportWriter = new CsvReportWriter(writer, sortedItems, _methodOverrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
             }

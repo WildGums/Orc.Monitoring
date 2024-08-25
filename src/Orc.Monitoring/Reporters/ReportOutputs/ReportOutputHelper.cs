@@ -101,7 +101,8 @@ public class ReportOutputHelper
             ThreadId = threadId.ToString(),
             Level = methodCallInfo.Level.ToString(),
             ClassName = classTypeName,
-            MethodName = methodCallInfo.MethodInfo?.Name ?? methodName,
+            MethodName = methodName,  
+            ItemName = methodName,   
             FullName = $"{classTypeName}.{methodName}",
         };
 
