@@ -1,15 +1,30 @@
 ﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
+using System;
+
 /// <summary>
 /// Represents options for limiting output in reporting.
 /// </summary>
 public class OutputLimitOptions
 {
+    private int? _maxItems;
+
     /// <summary>
     /// Gets or sets the maximum number of items to include in the output.
     /// If null, there is no limit on the number of items.
     /// </summary>
-    public int? MaxItems { get; set; }
+    public int? MaxItems
+    {
+        get => _maxItems;
+        set
+        {
+            if (value.HasValue && value.Value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "MaxItems cannot be negative.");
+            }
+            _maxItems = value;
+        }
+    }
 
     /// <summary>
     /// Gets a value indicating whether any limits are set.
@@ -29,5 +44,19 @@ public class OutputLimitOptions
     public static OutputLimitOptions LimitItems(int maxItems)
     {
         return new OutputLimitOptions { MaxItems = maxItems };
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is OutputLimitOptions other)
+        {
+            return MaxItems == other.MaxItems;
+        }
+        return false;
+    }
+
+    public override int GetHashCode()
+    {
+        return MaxItems.GetHashCode();
     }
 }
