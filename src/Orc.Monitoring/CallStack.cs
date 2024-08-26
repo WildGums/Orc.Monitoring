@@ -10,7 +10,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Filters;
 using System.Runtime;
 
 public class CallStack : IObservable<ICallStackItem>
@@ -97,12 +96,10 @@ public class CallStack : IObservable<ICallStackItem>
                 MethodCallInfo parent;
                 if (threadStack.Count == 0 || threadId != _rootParent.ThreadId)
                 {
-                    // First call on this thread or a different thread from root, parent is the root
                     parent = _rootParent;
                 }
                 else
                 {
-                    // Nested call on the same thread as root, parent is the top of the stack
                     parent = threadStack.Peek();
                 }
 
@@ -119,7 +116,7 @@ public class CallStack : IObservable<ICallStackItem>
                 _threadRootMethods[threadId] = methodCallInfo;
             }
 
-            _logger.LogDebug($"Pushed: {methodCallInfo}");
+            _logger.LogInformation($"Pushed: {methodCallInfo}");
 
             var currentVersion = MonitoringController.GetCurrentVersion();
             if (MonitoringController.ShouldTrack(currentVersion))
@@ -154,6 +151,14 @@ public class CallStack : IObservable<ICallStackItem>
                         _threadCallStacks.TryRemove(threadId, out _);
                         _threadRootMethods.TryRemove(threadId, out _);
                     }
+
+                    _logger.LogInformation($"Popped: {methodCallInfo}");
+
+                    var currentVersion = MonitoringController.GetCurrentVersion();
+                    if (MonitoringController.ShouldTrack(currentVersion))
+                    {
+                        NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
+                    }
                 }
                 else
                 {
@@ -180,12 +185,6 @@ public class CallStack : IObservable<ICallStackItem>
             if (methodCallInfo == _rootParent)
             {
                 _rootParent = null;
-            }
-
-            var currentVersion = MonitoringController.GetCurrentVersion();
-            if (MonitoringController.ShouldTrack(currentVersion))
-            {
-                NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
             }
         }
     }
