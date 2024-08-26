@@ -1,16 +1,17 @@
-﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
-
-using System;
+﻿using Orc.Monitoring.Reporters.ReportOutputs;
+using Orc.Monitoring;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System;
 
 public class MethodOverrideManager
 {
     private readonly string _overrideFilePath;
     private readonly Dictionary<string, Dictionary<string, string>> _overrides;
     private HashSet<string> _customColumns;
+    private readonly object _saveLock = new object();
 
     public MethodOverrideManager(string? outputDirectory)
     {
@@ -18,9 +19,8 @@ public class MethodOverrideManager
 
         _overrideFilePath = Path.Combine(outputDirectory, "method_overrides.csv");
         _overrides = new Dictionary<string, Dictionary<string, string>>();
-        _customColumns = new HashSet<string>();
+        _customColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
-
 
     public void LoadOverrides()
     {
@@ -40,12 +40,12 @@ public class MethodOverrideManager
 
         var headers = overrides.First().Keys.ToArray();
 
-        _customColumns = new HashSet<string>(headers.Where(h => h != "FullName"));
+        _customColumns = new HashSet<string>(headers.Where(h => h != "FullName" && h != "IsStatic" && h != "IsExtension"), StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in overrides)
         {
             var fullName = row["FullName"];
-            var methodOverrides = new Dictionary<string, string>();
+            var methodOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var header in headers.Where(h => h != "FullName"))
             {
@@ -64,63 +64,66 @@ public class MethodOverrideManager
 
     public void SaveOverrides(ICollection<ReportItem> reportItems)
     {
-        var allStaticParameters = new HashSet<string>(reportItems.SelectMany(item => item.AttributeParameters));
-        _customColumns = new HashSet<string>(_customColumns.Union(allStaticParameters));
-        var allColumns = new HashSet<string>(_customColumns);
-        var headers = new[] { "FullName", "IsStatic", "IsExtension" }.Concat(allColumns.OrderBy(c => c)).ToArray();
-
-        using var writer = new StreamWriter(_overrideFilePath, false, Encoding.UTF8);
-        CsvUtils.WriteCsvLine(writer, headers);
-
-        foreach (var item in reportItems)
+        lock (_saveLock)
         {
-            WritePreparedOverrideRow(writer, PrepareOverrideRow(item, allColumns), headers);
-
-            // Update _overrides dictionary
-            var fullName = item.FullName ?? string.Empty;
-            if (!_overrides.ContainsKey(fullName))
+            foreach (var item in reportItems)
             {
-                _overrides[fullName] = new Dictionary<string, string>();
+                _customColumns.UnionWith(item.AttributeParameters);
+                _customColumns.UnionWith(item.Parameters.Keys);
             }
-            foreach (var param in item.Parameters)
+
+            var headers = new[] { "FullName", "IsStatic", "IsExtension" }.Concat(_customColumns.OrderBy(c => c)).ToArray();
+
+            using var writer = new StreamWriter(_overrideFilePath, false, Encoding.UTF8);
+            CsvUtils.WriteCsvLine(writer, headers);
+
+            foreach (var item in reportItems)
             {
-                if (item.AttributeParameters.Contains(param.Key))
+                WritePreparedOverrideRow(writer, PrepareOverrideRow(item), headers);
+
+                // Update _overrides dictionary
+                var fullName = item.FullName ?? string.Empty;
+                if (!_overrides.TryGetValue(fullName, out var methodOverrides))
                 {
-                    _overrides[fullName][param.Key] = param.Value;
+                    methodOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    _overrides[fullName] = methodOverrides;
+                }
+
+                foreach (var param in item.Parameters)
+                {
+                    if (item.AttributeParameters.Contains(param.Key))
+                    {
+                        methodOverrides[param.Key] = param.Value;
+                    }
                 }
             }
-        }
 
-        foreach (var fullName in _overrides.Keys.Except(reportItems.Select(i => i.FullName)).Where(fn => fn is not null))
-        {
-            WritePreparedOverrideRow(writer, PrepareExistingOverrideRow(fullName!, allColumns), headers);
+            foreach (var fullName in _overrides.Keys.Except(reportItems.Select(i => i.FullName)).Where(fn => fn is not null))
+            {
+                WritePreparedOverrideRow(writer, PrepareExistingOverrideRow(fullName!), headers);
+            }
         }
     }
 
-    private void WritePreparedOverrideRow(TextWriter writer, Dictionary<string, string> row, string[] headers)
-    {
-        CsvUtils.WriteCsvLine(writer, headers.Select(h => row.TryGetValue(h, out var value) ? value : string.Empty).ToArray());
-    }
-
-    private Dictionary<string,string> PrepareOverrideRow(ReportItem item, IEnumerable<string> allColumns)
+    private Dictionary<string, string> PrepareOverrideRow(ReportItem item)
     {
         var fullName = item.FullName ?? string.Empty;
-        var row = new Dictionary<string, string>
+        var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["FullName"] = fullName,
             ["IsStatic"] = GetPropertyOrDefault(item, "IsStatic", false).ToString(),
             ["IsExtension"] = GetPropertyOrDefault(item, "IsExtension", false).ToString()
         };
 
-        foreach (var column in allColumns)
+        foreach (var column in _customColumns)
         {
-            if (_overrides.TryGetValue(fullName, out var methodOverrides) && methodOverrides.TryGetValue(column, out var overrideValue))
-            {
-                row[column] = overrideValue;
-            }
-            else if (item.Parameters.TryGetValue(column, out var value) && item.AttributeParameters.Contains(column))
+            if (item.Parameters.TryGetValue(column, out var value))
             {
                 row[column] = value;
+            }
+            else if (_overrides.TryGetValue(fullName, out var methodOverrides) && methodOverrides.TryGetValue(column, out var overrideValue))
+            {
+                row[column] = overrideValue;
             }
             else
             {
@@ -131,31 +134,36 @@ public class MethodOverrideManager
         return row;
     }
 
-    private Dictionary<string,string> PrepareExistingOverrideRow(string fullName, IEnumerable<string> allColumns)
-    { 
-        var row = new Dictionary<string, string>
+    private Dictionary<string, string> PrepareExistingOverrideRow(string fullName)
+    {
+        var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["FullName"] = fullName,
             ["IsStatic"] = "False",
             ["IsExtension"] = "False"
         };
 
-        foreach (var column in allColumns)
+        if (_overrides.TryGetValue(fullName, out var methodOverrides))
         {
-            row[column] = _overrides[fullName].TryGetValue(column, out var value) ? value : string.Empty;
+            foreach (var column in _customColumns)
+            {
+                if (methodOverrides.TryGetValue(column, out var value))
+                {
+                    row[column] = value;
+                }
+                else
+                {
+                    row[column] = string.Empty;
+                }
+            }
         }
 
         return row;
     }
 
-    public Dictionary<string, string> GetOverridesForMethod(string fullName)
+    private void WritePreparedOverrideRow(TextWriter writer, Dictionary<string, string> row, string[] headers)
     {
-        return _overrides.TryGetValue(fullName, out var methodOverrides) ? methodOverrides : new Dictionary<string, string>();
-    }
-
-    public IEnumerable<string> GetCustomColumns()
-    {
-        return _customColumns;
+        CsvUtils.WriteCsvLine(writer, headers.Select(h => row.TryGetValue(h, out var value) ? value : string.Empty).ToArray());
     }
 
     private static T GetPropertyOrDefault<T>(ReportItem item, string propertyName, T defaultValue)
@@ -166,8 +174,17 @@ public class MethodOverrideManager
             {
                 return (T)(object)boolValue;
             }
-            // Add more type checks if needed for other property types
         }
         return defaultValue;
+    }
+
+    public Dictionary<string, string> GetOverridesForMethod(string fullName)
+    {
+        return _overrides.TryGetValue(fullName, out var methodOverrides) ? methodOverrides : new Dictionary<string, string>();
+    }
+
+    public IEnumerable<string> GetCustomColumns()
+    {
+        return _customColumns;
     }
 }
