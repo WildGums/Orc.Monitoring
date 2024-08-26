@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
+namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
 using System.Collections.Generic;
@@ -174,7 +174,7 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
         if (rootMethod is null)
         {
             _logger.LogWarning("Root method is null when getting root display name");
-            return "DefaultDisplay";
+            return _displayNameParameter ?? "DefaultDisplay";
         }
 
         var attribute = rootMethod.GetCustomAttributes(typeof(MethodCallParameterAttribute), false)
@@ -184,14 +184,14 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
         if (attribute is null)
         {
             _logger.LogWarning($"No MethodCallParameterAttribute found with name '{_displayNameParameter}'");
-            return "DefaultDisplay";
+            return _displayNameParameter ?? "DefaultDisplay";
         }
 
         var value = attribute.Value;
         if (string.IsNullOrWhiteSpace(value))
         {
             _logger.LogWarning("Display name value is null or whitespace");
-            return "DefaultDisplay";
+            return _displayNameParameter ?? "DefaultDisplay";
         }
 
         _logger.LogDebug($"Root display name retrieved: {value}");
