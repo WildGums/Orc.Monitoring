@@ -3,7 +3,7 @@
 /// <summary>
 /// Defines methods for report outputs that support item limits.
 /// </summary>
-public interface ILimitedOutput
+public interface ILimitableOutput
 {
     /// <summary>
     /// Sets the limit options for the output.

@@ -4,13 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 
-public class RanttOutput : IReportOutput, ILimitedOutput
+/// <summary>
+/// Provides functionality to output report data in Rantt format.
+/// </summary>
+public class RanttOutput : IReportOutput, ILimitableOutput
 {
     private const string RanttProjectContents = @"<?xml version=""1.0"" encoding=""utf-8""?>
 <Project RanttVersion=""3.5.0.0"" MinimumRanttVersion=""2.0"">
@@ -42,19 +44,29 @@ public class RanttOutput : IReportOutput, ILimitedOutput
 
     private readonly ILogger<RanttOutput> _logger = MonitoringController.CreateLogger<RanttOutput>();
     private readonly ReportOutputHelper _helper = new();
-    private readonly List<ReportItem> _reportItems = new();
 
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
+    /// <summary>
+    /// Creates parameters for Rantt report output.
+    /// </summary>
+    /// <param name="folderPath">The folder path where the Rantt files will be saved.</param>
+    /// <param name="limitOptions">The output limit options for the Rantt report.</param>
+    /// <returns>A RanttReportParameters object.</returns>
     public static RanttReportParameters CreateParameters(string folderPath, OutputLimitOptions? limitOptions = null) => new()
     {
         FolderPath = folderPath,
         LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
     };
 
+    /// <summary>
+    /// Initializes the Rantt report output.
+    /// </summary>
+    /// <param name="reporter">The method call reporter to be used.</param>
+    /// <returns>An IAsyncDisposable that can be used to finalize the report.</returns>
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
         _logger.LogInformation($"Initializing {nameof(RanttOutput)}");
@@ -75,6 +87,10 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         });
     }
 
+    /// <summary>
+    /// Sets the parameters for the Rantt report output.
+    /// </summary>
+    /// <param name="parameter">The parameters to set.</param>
     public void SetParameters(object? parameter = null)
     {
         if (parameter is null)
@@ -89,47 +105,36 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
     }
 
+    /// <summary>
+    /// Writes a summary message to the report.
+    /// </summary>
+    /// <param name="message">The summary message to write.</param>
     public void WriteSummary(string message)
     {
         // Ignored in Rantt output
     }
 
+    /// <summary>
+    /// Writes a call stack item to the report.
+    /// </summary>
+    /// <param name="callStackItem">The call stack item to write.</param>
+    /// <param name="message">An optional message associated with the item.</param>
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
     {
         var reportItem = _helper.ProcessCallStackItem(callStackItem);
         if (reportItem is not null)
         {
-            AddReportItem(reportItem);
+            _logger.LogDebug($"Processed item: {reportItem.ItemName ?? reportItem.MethodName}");
         }
     }
 
+    /// <summary>
+    /// Writes an error to the report.
+    /// </summary>
+    /// <param name="exception">The exception to write.</param>
     public void WriteError(Exception exception)
     {
         _logger.LogError(exception, "Error occurred during Rantt report generation");
-    }
-
-    private void AddReportItem(ReportItem item)
-    {
-        _reportItems.Add(item);
-        ApplyLimits();
-        _logger.LogDebug($"Added report item. Current count: {_reportItems.Count}");
-    }
-
-    private void ApplyLimits()
-    {
-        if (_limitOptions.MaxAge.HasValue)
-        {
-            var cutoffTime = DateTime.Now - _limitOptions.MaxAge.Value;
-            _reportItems.RemoveAll(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString()) < cutoffTime);
-        }
-        if (_limitOptions.MaxItems.HasValue)
-        {
-            _reportItems.Sort((a, b) => string.Compare(b.StartTime, a.StartTime));
-            while (_reportItems.Count > _limitOptions.MaxItems.Value)
-            {
-                _reportItems.RemoveAt(_reportItems.Count - 1);
-            }
-        }
     }
 
     private async Task ExportDataAsync()
@@ -163,18 +168,14 @@ public class RanttOutput : IReportOutput, ILimitedOutput
             await ExportRelationshipsToCsvAsync(relationshipsFileName);
             ExportToRantt(reporter.FullName, fileName, relationshipsFileName);
 
-            _logger.LogInformation($"Rantt data exported with {_reportItems.Count} items");
+            _logger.LogInformation($"Rantt data exported with {_helper.ReportItems.Count} items");
 
             if (_limitOptions.MaxItems.HasValue)
             {
                 _logger.LogInformation($"Output limited to {_limitOptions.MaxItems.Value} items");
             }
-            if (_limitOptions.MaxAge.HasValue)
-            {
-                _logger.LogInformation($"Output limited to items newer than {_limitOptions.MaxAge.Value}");
-            }
 
-            _overrideManager.SaveOverrides(_reportItems);
+            _overrideManager.SaveOverrides(_helper.ReportItems.ToList());
 
             await CreateTimestampedFolderCopyAsync(_outputDirectory);
         }
@@ -197,16 +198,16 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         try
         {
             _logger.LogInformation($"Starting CSV export to {fullPath}");
-            _logger.LogInformation($"Number of report items: {_reportItems.Count}");
+            _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
 
-            await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
+            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
             {
-                var sortedItems = _reportItems.OrderByDescending(item => item.StartTime);
+                var sortedItems = _helper.ReportItems.OrderByDescending(item => item.StartTime);
                 var csvReportWriter = new CsvReportWriter(writer, sortedItems, _overrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
             }
 
-            _logger.LogInformation($"CSV report written to {fullPath} with {_reportItems.Count} items");
+            _logger.LogInformation($"CSV report written to {fullPath} with {_helper.ReportItems.Count} items");
 
             // Add a small delay to ensure the file is fully written and closed
             await Task.Delay(100);
@@ -235,10 +236,10 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         try
         {
             _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
-            await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
+            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
             {
                 await writer.WriteLineAsync("From,To,RelationType");
-                foreach (var item in _reportItems.Where(r => r.Parent is not null))
+                foreach (var item in _helper.ReportItems.Where(r => r.Parent is not null))
                 {
                     var relationType = DetermineRelationType(item);
                     await writer.WriteLineAsync($"{item.Parent},{item.Id},{relationType}");
@@ -368,17 +369,29 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         await sourceStream.CopyToAsync(destinationStream);
     }
 
+    /// <summary>
+    /// Sets the limit options for the Rantt report output.
+    /// </summary>
+    /// <param name="options">The output limit options to set.</param>
     public void SetLimitOptions(OutputLimitOptions options)
     {
         _limitOptions = options;
-        ApplyLimits();
         _helper.SetLimitOptions(options);
+        _logger.LogInformation($"Limit options set: MaxItems = {options.MaxItems}");
     }
 
+    /// <summary>
+    /// Gets the current limit options for the Rantt report output.
+    /// </summary>
+    /// <returns>The current output limit options.</returns>
     public OutputLimitOptions GetLimitOptions()
     {
-        return _helper.GetLimitOptions();
+        return _limitOptions;
     }
 
+    /// <summary>
+    /// Gets debug information about the current state of the Rantt report output.
+    /// </summary>
+    /// <returns>A string containing debug information.</returns>
     public string GetDebugInfo() => _helper.GetDebugInfo();
 }

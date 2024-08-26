@@ -4,23 +4,31 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 
-public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
+/// <summary>
+/// Provides functionality to output report data in CSV format.
+/// </summary>
+public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
 {
     private readonly ILogger<CsvReportOutput> _logger = MonitoringController.CreateLogger<CsvReportOutput>();
     private readonly ReportOutputHelper _helper = new();
-    private List<ReportItem> _reportItems = new();
 
     private string? _fileName;
     private string? _folderPath;
     private MethodOverrideManager? _methodOverrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
+    /// <summary>
+    /// Creates parameters for CSV report output.
+    /// </summary>
+    /// <param name="folderPath">The folder path where the CSV file will be saved.</param>
+    /// <param name="fileName">The file name for the CSV report (without extension).</param>
+    /// <param name="limitOptions">The output limit options for the CSV report.</param>
+    /// <returns>A CsvReportParameters object.</returns>
     public static CsvReportParameters CreateParameters(string folderPath, string fileName, OutputLimitOptions? limitOptions = null)
     {
         ArgumentNullException.ThrowIfNull(folderPath);
@@ -34,6 +42,11 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         };
     }
 
+    /// <summary>
+    /// Initializes the CSV report output.
+    /// </summary>
+    /// <param name="reporter">The method call reporter to be used.</param>
+    /// <returns>An IAsyncDisposable that can be used to finalize the report.</returns>
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
         _logger.LogInformation($"Initializing {nameof(CsvReportOutput)}");
@@ -54,6 +67,10 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         });
     }
 
+    /// <summary>
+    /// Sets the parameters for the CSV report output.
+    /// </summary>
+    /// <param name="parameter">The parameters to set.</param>
     public void SetParameters(object? parameter = null)
     {
         if (parameter is null)
@@ -64,7 +81,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         var parameters = (CsvReportParameters)parameter;
         _folderPath = parameters.FolderPath;
         _fileName = parameters.FileName;
-        _limitOptions = parameters.LimitOptions;
+        SetLimitOptions(parameters.LimitOptions);
 
         _methodOverrideManager = new MethodOverrideManager(_folderPath);
         _methodOverrideManager.LoadOverrides();
@@ -72,11 +89,20 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, FileName = {_fileName}");
     }
 
+    /// <summary>
+    /// Writes a summary message to the report.
+    /// </summary>
+    /// <param name="message">The summary message to write.</param>
     public void WriteSummary(string message)
     {
         // Ignored in CSV output
     }
 
+    /// <summary>
+    /// Writes a call stack item to the report.
+    /// </summary>
+    /// <param name="callStackItem">The call stack item to write.</param>
+    /// <param name="message">An optional message associated with the item.</param>
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
     {
         var reportItem = _helper.ProcessCallStackItem(callStackItem);
@@ -87,41 +113,16 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
                 reportItem.ItemName = methodCallStart.MethodCallInfo.MethodName;
                 reportItem.MethodName = methodCallStart.MethodCallInfo.MethodName;
             }
-            AddReportItem(reportItem);
         }
     }
 
+    /// <summary>
+    /// Writes an error to the report.
+    /// </summary>
+    /// <param name="exception">The exception to write.</param>
     public void WriteError(Exception exception)
     {
         _logger.LogError(exception, "Error occurred during CSV report generation");
-    }
-
-    private void AddReportItem(ReportItem item)
-    {
-        _reportItems.Add(item);
-        _logger.LogDebug($"Added report item: {item.ItemName ?? item.MethodName}, StartTime: {item.StartTime}. Current count: {_reportItems.Count}");
-        ApplyLimits();
-    }
-
-    private void ApplyLimits()
-    {
-        if (_limitOptions.MaxAge.HasValue)
-        {
-            var cutoffTime = DateTime.Now - _limitOptions.MaxAge.Value;
-            var removedCount = _reportItems.RemoveAll(i => !string.IsNullOrEmpty(i.StartTime) && DateTime.TryParse(i.StartTime, out var startTime) && startTime < cutoffTime);
-            _logger.LogDebug($"Removed {removedCount} items due to age limit");
-        }
-
-        if (_limitOptions.MaxItems.HasValue)
-        {
-            _reportItems = _reportItems
-                .OrderByDescending(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString()))
-                .Take(_limitOptions.MaxItems.Value)
-                .ToList();
-            _logger.LogDebug($"Applied item limit. Current count: {_reportItems.Count}");
-        }
-
-        _logger.LogInformation($"After applying limits - Item count: {_reportItems.Count}");
     }
 
     private async Task ExportToCsvAsync()
@@ -138,10 +139,10 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         try
         {
             _logger.LogInformation($"Starting CSV export to {fullPath}");
-            _logger.LogInformation($"Number of report items: {_reportItems.Count}");
+            _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
 
             // Sort items by StartTime in descending order
-            var sortedItems = _reportItems.OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString())).ToList();
+            var sortedItems = _helper.ReportItems.OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString())).ToList();
 
             // Log details of items being exported
             for (int i = 0; i < sortedItems.Count; i++)
@@ -150,13 +151,13 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
                 _logger.LogDebug($"Exporting item {i}: {item.ItemName ?? item.MethodName}, MethodName: {item.MethodName}, StartTime: {item.StartTime}");
             }
 
-            await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
+            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
             {
                 var csvReportWriter = new CsvReportWriter(writer, sortedItems, _methodOverrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
             }
 
-            _logger.LogInformation($"CSV report written to {fullPath} with {_reportItems.Count} items");
+            _logger.LogInformation($"CSV report written to {fullPath} with {sortedItems.Count} items");
 
             // Verify file content
             var fileContent = await File.ReadAllTextAsync(fullPath);
@@ -166,10 +167,6 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
             if (_limitOptions.MaxItems.HasValue)
             {
                 _logger.LogInformation($"Output limited to {_limitOptions.MaxItems.Value} items");
-            }
-            if (_limitOptions.MaxAge.HasValue)
-            {
-                _logger.LogInformation($"Output limited to items newer than {_limitOptions.MaxAge.Value}");
             }
         }
         catch (IOException ex)
@@ -189,21 +186,38 @@ public sealed class CsvReportOutput : IReportOutput, ILimitedOutput
         }
     }
 
+    /// <summary>
+    /// Sets the limit options for the CSV report output.
+    /// </summary>
+    /// <param name="options">The output limit options to set.</param>
     public void SetLimitOptions(OutputLimitOptions options)
     {
         _limitOptions = options;
-        ApplyLimits();
+        _helper.SetLimitOptions(options);
+        _logger.LogInformation($"Limit options set: MaxItems = {options.MaxItems}");
     }
 
+    /// <summary>
+    /// Gets the current limit options for the CSV report output.
+    /// </summary>
+    /// <returns>The current output limit options.</returns>
     public OutputLimitOptions GetLimitOptions()
     {
         return _limitOptions;
     }
 
+    /// <summary>
+    /// Gets debug information about the current state of the CSV report output.
+    /// </summary>
+    /// <returns>A string containing debug information.</returns>
     public string GetDebugInfo() => _helper.GetDebugInfo();
 
+    /// <summary>
+    /// Gets the current count of report items.
+    /// </summary>
+    /// <returns>The number of report items.</returns>
     public int GetReportItemsCount()
     {
-        return _reportItems.Count;
+        return _helper.ReportItems.Count;
     }
 }

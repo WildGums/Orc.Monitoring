@@ -7,11 +7,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 
-public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
+/// <summary>
+/// Provides functionality to output report data in TXT format.
+/// </summary>
+public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
 {
     private readonly ILogger<TxtReportOutput> _logger = MonitoringController.CreateLogger<TxtReportOutput>();
     private readonly ReportOutputHelper _helper = new();
@@ -28,6 +30,13 @@ public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
         _logger.LogDebug("Creating TxtReportOutput instance");
     }
 
+    /// <summary>
+    /// Creates parameters for TXT report output.
+    /// </summary>
+    /// <param name="folderPath">The folder path where the TXT file will be saved.</param>
+    /// <param name="displayNameParameter">The parameter used for display name.</param>
+    /// <param name="limitOptions">The output limit options for the TXT report.</param>
+    /// <returns>A TxtReportParameters object.</returns>
     public static TxtReportParameters CreateParameters(string folderPath, string displayNameParameter, OutputLimitOptions? limitOptions = null)
     {
         ArgumentNullException.ThrowIfNull(folderPath);
@@ -36,6 +45,11 @@ public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
         return new TxtReportParameters(folderPath, displayNameParameter, limitOptions);
     }
 
+    /// <summary>
+    /// Initializes the TXT report output.
+    /// </summary>
+    /// <param name="reporter">The method call reporter to be used.</param>
+    /// <returns>An IAsyncDisposable that can be used to finalize the report.</returns>
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
         _logger.LogInformation($"Initializing {nameof(TxtReportOutput)}");
@@ -88,6 +102,10 @@ public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
         });
     }
 
+    /// <summary>
+    /// Sets the parameters for the TXT report output.
+    /// </summary>
+    /// <param name="parameters">The parameters to set.</param>
     public void SetParameters(object? parameters)
     {
         if (parameters is null)
@@ -103,11 +121,20 @@ public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, DisplayNameParameter = {_displayNameParameter}");
     }
 
+    /// <summary>
+    /// Writes a summary message to the report.
+    /// </summary>
+    /// <param name="message">The summary message to write.</param>
     public void WriteSummary(string message)
     {
         AddLogEntry(new LogEntry(DateTime.Now, "Summary", message));
     }
 
+    /// <summary>
+    /// Writes a call stack item to the report.
+    /// </summary>
+    /// <param name="callStackItem">The call stack item to write.</param>
+    /// <param name="message">An optional message associated with the item.</param>
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
     {
         var reportItem = _helper.ProcessCallStackItem(callStackItem);
@@ -130,6 +157,10 @@ public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
         }
     }
 
+    /// <summary>
+    /// Writes an error to the report.
+    /// </summary>
+    /// <param name="exception">The exception to write.</param>
     public void WriteError(Exception exception)
     {
         var timestamp = DateTime.Now;
@@ -183,8 +214,8 @@ public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
         try
         {
             _logger.LogInformation($"Starting to write log entries to file: {_fileName}");
-            _logger.LogInformation($"Number of log entries before applying limits: {_logEntries.Count}");
-            _logger.LogInformation($"Current limit options: MaxItems = {_limitOptions.MaxItems}, MaxAge = {_limitOptions.MaxAge}");
+            _logger.LogInformation($"Number of log entries: {_logEntries.Count}");
+            _logger.LogInformation($"Current limit options: MaxItems = {_limitOptions.MaxItems}");
 
             var limitedEntries = ApplyLimits(_logEntries.ToList());
 
@@ -220,58 +251,39 @@ public sealed class TxtReportOutput : IReportOutput, ILimitedOutput
         }
     }
 
+    /// <summary>
+    /// Sets the limit options for the TXT report output.
+    /// </summary>
+    /// <param name="options">The output limit options to set.</param>
     public void SetLimitOptions(OutputLimitOptions options)
     {
         _limitOptions = options;
-        _logger.LogInformation($"Set limit options: MaxItems = {options.MaxItems}, MaxAge = {options.MaxAge}");
-        // We're not applying limits here anymore, just logging the new options
+        _helper.SetLimitOptions(options);
+        _logger.LogInformation($"Limit options set: MaxItems = {options.MaxItems}");
     }
 
+    /// <summary>
+    /// Gets the current limit options for the TXT report output.
+    /// </summary>
+    /// <returns>The current output limit options.</returns>
     public OutputLimitOptions GetLimitOptions()
     {
-        _logger.LogDebug($"Getting limit options: MaxItems = {_limitOptions.MaxItems}, MaxAge = {_limitOptions.MaxAge}");
         return _limitOptions;
     }
 
     private List<LogEntry> ApplyLimits(List<LogEntry> entries)
     {
-        var now = DateTime.Now;
-        _logger.LogInformation($"Applying limits. Current time: {now:yyyy-MM-dd HH:mm:ss.fff}");
-
-        var limitedEntries = entries.OrderBy(e => e.Timestamp).ToList();
-
-        _logger.LogInformation($"Original entries:");
-        foreach (var entry in limitedEntries)
-        {
-            _logger.LogInformation($"  {entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} - {entry.Category} - {entry.Message}");
-        }
-
-        if (_limitOptions.MaxAge.HasValue)
-        {
-            var cutoffTime = now - _limitOptions.MaxAge.Value;
-            _logger.LogInformation($"Applying MaxAge limit. Cutoff time: {cutoffTime:yyyy-MM-dd HH:mm:ss.fff}");
-            limitedEntries = limitedEntries.Where(e => e.Timestamp >= cutoffTime).ToList();
-        }
-
         if (_limitOptions.MaxItems.HasValue)
         {
-            _logger.LogInformation($"Applying MaxItems limit: {_limitOptions.MaxItems.Value}");
-            limitedEntries = limitedEntries.TakeLast(_limitOptions.MaxItems.Value).ToList();
+            return entries.TakeLast(_limitOptions.MaxItems.Value).ToList();
         }
-
-        _logger.LogInformation($"Limited entries:");
-        foreach (var entry in limitedEntries)
-        {
-            _logger.LogInformation($"  {entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} - {entry.Category} - {entry.Message}");
-        }
-
-        _logger.LogInformation($"Applied limits. Original count: {entries.Count}, Limited count: {limitedEntries.Count}");
-        _logger.LogInformation($"Oldest entry timestamp: {limitedEntries.FirstOrDefault()?.Timestamp:yyyy-MM-dd HH:mm:ss.fff}");
-        _logger.LogInformation($"Newest entry timestamp: {limitedEntries.LastOrDefault()?.Timestamp:yyyy-MM-dd HH:mm:ss.fff}");
-
-        return limitedEntries;
+        return entries;
     }
 
+    /// <summary>
+    /// Gets debug information about the current state of the TXT report output.
+    /// </summary>
+    /// <returns>A string containing debug information.</returns>
     public string GetDebugInfo() => _helper.GetDebugInfo();
 
     private void ProcessMethodLifeCycleItem(ICallStackItem callStackItem, string? message,
