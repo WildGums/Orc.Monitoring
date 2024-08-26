@@ -7,9 +7,12 @@ using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using Orc.Monitoring.Filters;
+using Microsoft.Extensions.Logging;
 
 public class MockReporter : IMethodCallReporter
 {
+    private readonly ILogger<MockReporter> _logger = MonitoringController.CreateLogger<MockReporter>();
+
     private int _callCount;
     private string _id;
     private MonitoringConfiguration _monitoringConfiguration;
@@ -43,7 +46,7 @@ public class MockReporter : IMethodCallReporter
         private set
         {
             _callCount = value;
-            Console.WriteLine($"CallCount updated to: {_callCount} at {DateTime.Now:HH:mm:ss.fff}");
+            _logger.LogInformation($"CallCount updated to: {_callCount} at {DateTime.Now:HH:mm:ss.fff}");
         }
     }
     public Action<IObservable<ICallStackItem>>? OnStartReporting { get; set; }
@@ -59,7 +62,7 @@ public class MockReporter : IMethodCallReporter
             _rootMethod = value;
             if (value is not null)
             {
-                Console.WriteLine($"SetRootMethod called for {value.Name}");
+                _logger.LogInformation($"SetRootMethod called for {value.Name}");
                 OperationSequence.Add("SetRootMethod");
                 RootMethodName = value.Name;
             }
@@ -68,15 +71,15 @@ public class MockReporter : IMethodCallReporter
 
     public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
     {
-        Console.WriteLine($"StartReporting called for MockReporter (Id: {Id}) at {DateTime.Now:HH:mm:ss.fff}");
+        _logger.LogInformation($"StartReporting called for MockReporter (Id: {Id}) at {DateTime.Now:HH:mm:ss.fff}");
         CallCount++;
         StartReportingCallCount++;
         OperationSequence.Add("StartReporting");
         OnStartReporting?.Invoke(callStack);
         return new AsyncDisposable(async () =>
         {
-            Console.WriteLine($"StartReporting disposing for MockReporter (Id: {Id}) at {DateTime.Now:HH:mm:ss.fff}");
-            Console.WriteLine($"CallCount before dispose: {CallCount}");
+            _logger.LogInformation($"StartReporting disposing for MockReporter (Id: {Id}) at {DateTime.Now:HH:mm:ss.fff}");
+            _logger.LogInformation($"CallCount before dispose: {CallCount}");
         });
     }
 
@@ -107,7 +110,7 @@ public class MockReporter : IMethodCallReporter
 
     public void Reset()
     {
-        Console.WriteLine($"MockReporter Reset called at {DateTime.Now:HH:mm:ss.fff}");
+        _logger.LogInformation($"MockReporter Reset called at {DateTime.Now:HH:mm:ss.fff}");
         CallCount = 0;
         StartReportingCallCount = 0;
         OperationSequence.Clear();

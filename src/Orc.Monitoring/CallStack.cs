@@ -15,7 +15,7 @@ using System.Runtime;
 
 public class CallStack : IObservable<ICallStackItem>
 {
-    private const int MaxCallStackDepth = 1000; // Adjust this value as needed
+    private const int MaxCallStackDepth = 1000;
     private readonly ILogger<CallStack> _logger = MonitoringController.CreateLogger<CallStack>();
     private readonly MethodCallInfoPool _methodCallInfoPool = new();
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
@@ -45,7 +45,8 @@ public class CallStack : IObservable<ICallStackItem>
             throw new InvalidOperationException($"Method {config.CallerMethodName} not found in {classTypeName} with the specified parameter types");
         }
 
-        var attributeParameters = methodInfo.GetCustomAttributes<MethodCallParameterAttribute>()
+        var attributeParameters = methodInfo.GetCustomAttributes(typeof(MethodCallParameterAttribute), false)
+            .OfType<MethodCallParameterAttribute>()
             .ToDictionary(attr => attr.Name, attr => attr.Value);
 
         var threadId = Environment.CurrentManagedThreadId;
@@ -58,7 +59,6 @@ public class CallStack : IObservable<ICallStackItem>
             _logger.LogWarning($"Created Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}. Monitoring enabled: {MonitoringController.IsEnabled}");
         }
 
-        // Set properties for static and extension methods
         result.IsStatic = methodInfo.IsStatic;
         result.IsExtensionMethod = methodInfo.IsDefined(typeof(ExtensionAttribute), false);
         if (result.IsExtensionMethod)

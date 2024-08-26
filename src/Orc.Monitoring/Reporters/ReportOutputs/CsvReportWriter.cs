@@ -107,6 +107,7 @@ public class CsvReportWriter
             ["ClassName"] = item.ClassName ?? string.Empty,
             ["MethodName"] = item.MethodName ?? string.Empty,
             ["FullName"] = item.FullName ?? string.Empty,
+            ["ItemName"] = item.ItemName ?? string.Empty,
             ["Duration"] = item.Duration ?? string.Empty,
             ["ThreadId"] = item.ThreadId ?? string.Empty,
             ["ParentThreadId"] = item.ParentThreadId ?? string.Empty,

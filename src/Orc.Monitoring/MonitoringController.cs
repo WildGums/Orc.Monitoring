@@ -83,7 +83,7 @@ public static class MonitoringController
     private static readonly ConcurrentDictionary<(Type ReporterType, Type FilterType), bool> _reporterSpecificFilterStates = new();
     private static readonly ConcurrentDictionary<(string ReporterId, Type FilterType), bool> _reporterInstanceFilterStates = new();
     
-    private static readonly ILoggerFactory _loggerFactory = new LoggerFactory();
+    private static readonly ILoggerFactory _loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
 
     private static long _cacheVersion = 0;

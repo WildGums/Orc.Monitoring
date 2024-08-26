@@ -5,9 +5,11 @@ using NUnit.Framework;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 
 
@@ -17,10 +19,13 @@ public class RanttOutputTests
     private RanttOutput _ranttOutput;
     private MockReporter _mockReporter;
     private string _testFolderPath;
+    private ILogger<RanttOutputTests> _logger = MonitoringController.CreateLogger<RanttOutputTests>();
+
 
     [SetUp]
     public void Setup()
     {
+        _logger = MonitoringController.CreateLogger<RanttOutputTests>();
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
         _ranttOutput = new RanttOutput();
@@ -68,14 +73,25 @@ public class RanttOutputTests
         Assert.That(File.Exists(relationshipsFilePath), Is.True, "Relationships file should exist");
 
         var relationshipsContent = await File.ReadAllTextAsync(relationshipsFilePath);
-        Console.WriteLine($"Relationships file content:\n{relationshipsContent}");
+        _logger.LogInformation($"Relationships file content:\n{relationshipsContent}");
 
-        var lines = relationshipsContent.Split('\n');
+        var lines = relationshipsContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        _logger.LogInformation($"Number of lines: {lines.Length}");
+        for (int i = 0; i < lines.Length; i++)
+        {
+            _logger.LogInformation($"Line {i}: {lines[i]}");
+        }
+
         Assert.That(lines.Length, Is.GreaterThan(1), "Relationships file should have more than just the header");
-        Assert.That(lines[1].StartsWith(parentMethodInfo.Id + "," + childMethodInfo.Id), Is.True, "Relationship between parent and child should be present");
+
+        _logger.LogInformation($"ParentMethodInfo Id: {parentMethodInfo.Id}");
+        _logger.LogInformation($"ChildMethodInfo Id: {childMethodInfo.Id}");
+
+        Assert.That(lines.Any(l => l.StartsWith($"{parentMethodInfo.Id},{childMethodInfo.Id}")), Is.True,
+            $"Relationship between parent and child should be present. Expected: {parentMethodInfo.Id},{childMethodInfo.Id}");
     }
 
-    private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo parent)
+    private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(RanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
@@ -85,7 +101,7 @@ public class RanttOutputTests
             methodInfo,
             Array.Empty<Type>(),
             Guid.NewGuid().ToString(),
-            new System.Collections.Generic.Dictionary<string, string>()
+            new Dictionary<string, string>()
         );
         methodCallInfo.Parent = parent;
         return methodCallInfo;

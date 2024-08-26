@@ -1,5 +1,6 @@
 ﻿namespace Orc.Monitoring.Tests;
 
+using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using System;
 using System.Collections.Concurrent;
@@ -12,11 +13,13 @@ using System.Threading.Tasks;
 public class VersionManagerTests
 {
     private VersionManager _versionManager;
+    private ILogger<VersionManagerTests> _logger;
 
     [SetUp]
     public void Setup()
     {
         _versionManager = new VersionManager();
+        _logger = MonitoringController.CreateLogger<VersionManagerTests>();
     }
 
     [Test]
@@ -46,7 +49,7 @@ public class VersionManagerTests
             version2 = _versionManager.GetNextVersion();
             timeDifference = (int)Math.Abs(version2.Value.Timestamp - version1.Value.Timestamp);
 
-            Console.WriteLine($"Attempt {attempt + 1}: Time difference = {timeDifference} ms");
+            _logger.LogDebug($"Attempt {attempt + 1}: Time difference = {timeDifference} ms");
 
             if (timeDifference <= maxAllowedTimeDifference)
             {
@@ -59,9 +62,9 @@ public class VersionManagerTests
         Assert.That(version1.HasValue, Is.True, "First version should have a value");
         Assert.That(version2.HasValue, Is.True, "Second version should have a value");
 
-        Console.WriteLine($"Final time difference: {timeDifference} ms");
-        Console.WriteLine($"Version1: Timestamp = {version1?.Timestamp}, Counter = {version1?.Counter}");
-        Console.WriteLine($"Version2: Timestamp = {version2?.Timestamp}, Counter = {version2?.Counter}");
+        _logger.LogInformation($"Final time difference: {timeDifference} ms");
+        _logger.LogInformation($"Version1: Timestamp = {version1?.Timestamp}, Counter = {version1?.Counter}");
+        _logger.LogInformation($"Version2: Timestamp = {version2?.Timestamp}, Counter = {version2?.Counter}");
 
         Assert.That(timeDifference, Is.LessThanOrEqualTo(maxAllowedTimeDifference),
             $"Timestamps should be within {maxAllowedTimeDifference} milliseconds of each other");

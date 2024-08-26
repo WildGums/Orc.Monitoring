@@ -1,14 +1,18 @@
 ﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 
-public class RanttOutput : IReportOutput, ILimitedOutput
+/// <summary>
+/// Provides functionality to output report data in Rantt format.
+/// </summary>
+public class RanttOutput : IReportOutput, ILimitableOutput
 {
     private const string RanttProjectContents = @"<?xml version=""1.0"" encoding=""utf-8""?>
 <Project RanttVersion=""3.5.0.0"" MinimumRanttVersion=""2.0"">
@@ -44,48 +48,49 @@ public class RanttOutput : IReportOutput, ILimitedOutput
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
+    private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
+    /// <summary>
+    /// Creates parameters for Rantt report output.
+    /// </summary>
+    /// <param name="folderPath">The folder path where the Rantt files will be saved.</param>
+    /// <param name="limitOptions">The output limit options for the Rantt report.</param>
+    /// <returns>A RanttReportParameters object.</returns>
     public static RanttReportParameters CreateParameters(string folderPath, OutputLimitOptions? limitOptions = null) => new()
     {
         FolderPath = folderPath,
         LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
     };
 
+    /// <summary>
+    /// Initializes the Rantt report output.
+    /// </summary>
+    /// <param name="reporter">The method call reporter to be used.</param>
+    /// <returns>An IAsyncDisposable that can be used to finalize the report.</returns>
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
+        _logger.LogInformation($"Initializing {nameof(RanttOutput)}");
         _helper.Initialize(reporter);
 
         return new AsyncDisposable(async () =>
         {
-            var reporterName = _helper.Reporter?.FullName;
-            if (reporterName is null)
+            _logger.LogInformation($"Disposing {nameof(RanttOutput)}");
+            try
             {
-                throw new InvalidOperationException("Reporter name is not set");
+                await ExportDataAsync();
             }
-
-            if (_folderPath is null)
+            catch (Exception ex)
             {
-                throw new InvalidOperationException("Folder path is not set");
+                _logger.LogError(ex, $"Error during {nameof(RanttOutput)} export");
+                throw;
             }
-
-            _outputDirectory = Path.Combine(_folderPath, reporterName);
-
-            if (!Directory.Exists(_outputDirectory))
-            {
-                Directory.CreateDirectory(_outputDirectory);
-            }
-
-            _overrideManager = new MethodOverrideManager(_outputDirectory);
-            _overrideManager.LoadOverrides();
-
-            await ExportDataAsync();
-
-            _overrideManager.SaveOverrides(_helper.ReportItems);
-
-            await CreateTimestampedFolderCopyAsync(_outputDirectory);
         });
     }
 
+    /// <summary>
+    /// Sets the parameters for the Rantt report output.
+    /// </summary>
+    /// <param name="parameter">The parameters to set.</param>
     public void SetParameters(object? parameter = null)
     {
         if (parameter is null)
@@ -96,52 +101,88 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         var parameters = (RanttReportParameters)parameter;
         _folderPath = parameters.FolderPath;
         SetLimitOptions(parameters.LimitOptions);
+
+        _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
     }
 
+    /// <summary>
+    /// Writes a summary message to the report.
+    /// </summary>
+    /// <param name="message">The summary message to write.</param>
     public void WriteSummary(string message)
     {
         // Ignored in Rantt output
     }
 
+    /// <summary>
+    /// Writes a call stack item to the report.
+    /// </summary>
+    /// <param name="callStackItem">The call stack item to write.</param>
+    /// <param name="message">An optional message associated with the item.</param>
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
     {
-        _helper.ProcessCallStackItem(callStackItem);
+        var reportItem = _helper.ProcessCallStackItem(callStackItem);
+        if (reportItem is not null)
+        {
+            _logger.LogDebug($"Processed item: {reportItem.ItemName ?? reportItem.MethodName}");
+        }
     }
 
+    /// <summary>
+    /// Writes an error to the report.
+    /// </summary>
+    /// <param name="exception">The exception to write.</param>
     public void WriteError(Exception exception)
     {
-        // Ignored in Rantt output
+        _logger.LogError(exception, "Error occurred during Rantt report generation");
     }
 
     private async Task ExportDataAsync()
     {
-        if (_outputDirectory is null)
+        if (_folderPath is null)
         {
-            throw new InvalidOperationException("Output directory is not set");
+            throw new InvalidOperationException("Folder path is not set");
         }
 
-        if (_helper.Reporter?.FullName is null)
+        var reporter = _helper.Reporter;
+        if (reporter is null)
         {
-            throw new InvalidOperationException("Reporter name is not set");
+            throw new InvalidOperationException("Reporter is not set");
         }
 
-        var reporterName = _helper.Reporter.FullName;
-        var fileName = $"{reporterName}.csv";
-        var relationshipsFileName = $"{reporterName}_Relationships.csv";
+        _outputDirectory = Path.Combine(_folderPath, reporter.FullName);
 
-        await ExportToCsvAsync(fileName);
-        await ExportRelationshipsToCsvAsync(relationshipsFileName);
-        ExportToRantt(reporterName, fileName, relationshipsFileName);
+        Directory.CreateDirectory(_outputDirectory);
+        _logger.LogInformation($"Created output directory: {_outputDirectory}");
 
-        _logger.LogInformation($"Rantt data exported with {_helper.ReportItems.Count} items");
-        var limitOptions = GetLimitOptions();
-        if (limitOptions.MaxItems.HasValue)
+        _overrideManager = new MethodOverrideManager(_outputDirectory);
+        _overrideManager.LoadOverrides();
+
+        var fileName = $"{reporter.FullName}.csv";
+        var relationshipsFileName = $"{reporter.FullName}_Relationships.csv";
+
+        try
         {
-            _logger.LogInformation($"Output limited to {limitOptions.MaxItems.Value} items");
+            _logger.LogInformation("Starting Rantt data export");
+            await ExportToCsvAsync(fileName);
+            await ExportRelationshipsToCsvAsync(relationshipsFileName);
+            ExportToRantt(reporter.FullName, fileName, relationshipsFileName);
+
+            _logger.LogInformation($"Rantt data exported with {_helper.ReportItems.Count} items");
+
+            if (_limitOptions.MaxItems.HasValue)
+            {
+                _logger.LogInformation($"Output limited to {_limitOptions.MaxItems.Value} items");
+            }
+
+            _overrideManager.SaveOverrides(_helper.ReportItems.ToList());
+
+            await CreateTimestampedFolderCopyAsync(_outputDirectory);
         }
-        if (limitOptions.MaxAge.HasValue)
+        catch (Exception ex)
         {
-            _logger.LogInformation($"Output limited to items newer than {limitOptions.MaxAge.Value}");
+            _logger.LogError(ex, "Error exporting Rantt data");
+            throw;
         }
     }
 
@@ -156,15 +197,30 @@ public class RanttOutput : IReportOutput, ILimitedOutput
 
         try
         {
-            using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
-            var csvReportWriter = new CsvReportWriter(writer, _helper.ReportItems, _overrideManager);
-            await csvReportWriter.WriteReportItemsCsvAsync();
+            _logger.LogInformation($"Starting CSV export to {fullPath}");
+            _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
+
+            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
+            {
+                var sortedItems = _helper.ReportItems.OrderByDescending(item => item.StartTime);
+                var csvReportWriter = new CsvReportWriter(writer, sortedItems, _overrideManager);
+                await csvReportWriter.WriteReportItemsCsvAsync();
+            }
 
             _logger.LogInformation($"CSV report written to {fullPath} with {_helper.ReportItems.Count} items");
+
+            // Add a small delay to ensure the file is fully written and closed
+            await Task.Delay(100);
+
+            // Verify file content
+            var fileContent = await File.ReadAllTextAsync(fullPath);
+            var lineCount = fileContent.Split('\n').Length;
+            _logger.LogInformation($"Actual line count in file: {lineCount}");
         }
         catch (IOException ex)
         {
             _logger.LogError(ex, $"Error writing to CSV file: {ex.Message}");
+            throw;
         }
     }
 
@@ -179,14 +235,35 @@ public class RanttOutput : IReportOutput, ILimitedOutput
 
         try
         {
-            using var writer = new StreamWriter(fullPath, false, Encoding.UTF8);
-            var csvReportWriter = new CsvReportWriter(writer, _helper.ReportItems, _overrideManager);
-            await csvReportWriter.WriteRelationshipsCsvAsync();
+            _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
+            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
+            {
+                await writer.WriteLineAsync("From,To,RelationType");
+                foreach (var item in _helper.ReportItems.Where(r => r.Parent is not null))
+                {
+                    var relationType = DetermineRelationType(item);
+                    await writer.WriteLineAsync($"{item.Parent},{item.Id},{relationType}");
+                    _logger.LogDebug($"Writing relationship: {item.Parent} -> {item.Id} ({relationType})");
+                }
+            }
+            _logger.LogInformation($"Relationships CSV written to {fullPath}");
         }
         catch (IOException ex)
         {
             _logger.LogError(ex, $"Error writing to relationships CSV file: {ex.Message}");
+            throw;
         }
+    }
+
+    private string DetermineRelationType(ReportItem item)
+    {
+        if (bool.TryParse(item.Parameters.GetValueOrDefault("IsStatic"), out bool isStatic) && isStatic)
+            return "Static";
+        if (bool.TryParse(item.Parameters.GetValueOrDefault("IsExtension"), out bool isExtension) && isExtension)
+            return "Extension";
+        if (bool.TryParse(item.Parameters.GetValueOrDefault("IsGeneric"), out bool isGeneric) && isGeneric)
+            return "Generic";
+        return "Regular";
     }
 
     private void ExportToRantt(string reporterName, string dataFileName, string relationshipsFileName)
@@ -203,19 +280,31 @@ public class RanttOutput : IReportOutput, ILimitedOutput
             .Replace("%reportName%", reporterName);
         var ranttProjectPath = Path.Combine(_outputDirectory, ranttProjectFileName);
 
-        File.WriteAllText(ranttProjectPath, ranttProjectContents);
+        try
+        {
+            _logger.LogInformation($"Writing Rantt project file to {ranttProjectPath}");
+            File.WriteAllText(ranttProjectPath, ranttProjectContents);
+            _logger.LogInformation("Rantt project file written successfully");
+        }
+        catch (IOException ex)
+        {
+            _logger.LogError(ex, $"Error writing Rantt project file: {ex.Message}");
+            throw;
+        }
     }
 
     private async Task CreateTimestampedFolderCopyAsync(string folderPath)
     {
         if (!Directory.Exists(folderPath))
         {
+            _logger.LogWarning($"Folder does not exist: {folderPath}");
             return;
         }
 
         var directory = Path.GetDirectoryName(folderPath);
         if (directory is null)
         {
+            _logger.LogWarning("Unable to get directory name");
             return;
         }
 
@@ -226,7 +315,16 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         var archivedFolderName = $"{folderName}_{timestamp}";
         var archivedFolderPath = Path.Combine(archiveDirectory, archivedFolderName);
 
-        await CopyFolderAsync(folderPath, archivedFolderPath);
+        try
+        {
+            _logger.LogInformation($"Creating timestamped folder copy: {archivedFolderPath}");
+            await CopyFolderAsync(folderPath, archivedFolderPath);
+            _logger.LogInformation("Timestamped folder copy created successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating timestamped folder copy");
+        }
     }
 
     private static string GetArchiveDirectory(string directory)
@@ -240,17 +338,14 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         return archiveDirectory;
     }
 
-    private static async Task CopyFolderAsync(string sourcePath, string destinationPath)
+    private async Task CopyFolderAsync(string sourcePath, string destinationPath)
     {
         if (!Directory.Exists(sourcePath))
         {
             return;
         }
 
-        if (!Directory.Exists(destinationPath))
-        {
-            Directory.CreateDirectory(destinationPath);
-        }
+        Directory.CreateDirectory(destinationPath);
 
         foreach (var file in Directory.GetFiles(sourcePath))
         {
@@ -267,20 +362,36 @@ public class RanttOutput : IReportOutput, ILimitedOutput
         }
     }
 
-    private static async Task CopyFileAsync(string sourcePath, string destinationPath)
+    private async Task CopyFileAsync(string sourcePath, string destinationPath)
     {
         using var sourceStream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var destinationStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
         await sourceStream.CopyToAsync(destinationStream);
     }
 
+    /// <summary>
+    /// Sets the limit options for the Rantt report output.
+    /// </summary>
+    /// <param name="options">The output limit options to set.</param>
     public void SetLimitOptions(OutputLimitOptions options)
     {
+        _limitOptions = options;
         _helper.SetLimitOptions(options);
+        _logger.LogInformation($"Limit options set: MaxItems = {options.MaxItems}");
     }
 
+    /// <summary>
+    /// Gets the current limit options for the Rantt report output.
+    /// </summary>
+    /// <returns>The current output limit options.</returns>
     public OutputLimitOptions GetLimitOptions()
     {
-        return _helper.GetLimitOptions();
+        return _limitOptions;
     }
+
+    /// <summary>
+    /// Gets debug information about the current state of the Rantt report output.
+    /// </summary>
+    /// <returns>A string containing debug information.</returns>
+    public string GetDebugInfo() => _helper.GetDebugInfo();
 }
