@@ -35,31 +35,53 @@ public class MethodOverrideManagerAndRanttOutputTests
         }
     }
 
+    public class DuplicateKeyDictionary<TKey, TValue> : Dictionary<TKey, TValue>
+    {
+        private readonly List<KeyValuePair<TKey, TValue>> _items = new List<KeyValuePair<TKey, TValue>>();
+
+        public new void Add(TKey key, TValue value)
+        {
+            _items.Add(new KeyValuePair<TKey, TValue>(key, value));
+            base[key] = value; // This will overwrite if the key already exists
+        }
+
+        public new IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
+        {
+            return _items.GetEnumerator();
+        }
+    }
+
     [Test]
     public void SaveOverrides_WithDuplicateCustomColumns_ShouldNotProduceDuplicateColumnsInCsv()
     {
         var manager = new MethodOverrideManager(_testOutputPath);
+        var parameters = new Dictionary<string, string>()
+        {
+            { "CustomColumn", "Value1" },
+            { "customcolumn", "Value2" } // This will overwrite the previous value due to case-insensitive dictionary
+        };
+
         var reportItems = new List<ReportItem>
         {
             new ReportItem
             {
                 FullName = "Test.Method",
-                Parameters = new Dictionary<string, string>
-                {
-                    { "CustomColumn", "Value1" },
-                    { "CustomColumn", "Value2" } // Deliberately add duplicate
-                },
-                AttributeParameters = new HashSet<string> { "CustomColumn" }
+                Parameters = parameters,
+                AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn" }
             }
         };
 
         manager.SaveOverrides(reportItems);
 
         var csvContent = File.ReadAllText(Path.Combine(_testOutputPath, "method_overrides.csv"));
-        var headers = csvContent.Split('\n')[0].Split(',');
-        var uniqueHeaders = new HashSet<string>(headers);
+        Console.WriteLine($"CSV Content:\n{csvContent}");
+        var headers = csvContent.Split('\n')[0].Split(',').Select(h => h.Trim()).ToArray();
+        Console.WriteLine($"Headers: {string.Join(", ", headers)}");
+        var uniqueHeaders = new HashSet<string>(headers, StringComparer.OrdinalIgnoreCase);
+        Console.WriteLine($"Unique Headers: {string.Join(", ", uniqueHeaders)}");
 
         Assert.That(headers.Length, Is.EqualTo(uniqueHeaders.Count), "CSV should not contain duplicate columns");
+        Assert.That(uniqueHeaders, Does.Contain("CustomColumn"), "CustomColumn should be present");
     }
 
     [Test]
@@ -72,7 +94,7 @@ public class MethodOverrideManagerAndRanttOutputTests
             {
                 FullName = "Test.Method1",
                 Parameters = new Dictionary<string, string> { { "CustomColumn1", "Value1" } },
-                AttributeParameters = new HashSet<string> { "CustomColumn1" }
+                AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn1" }
             }
         };
 
@@ -82,7 +104,7 @@ public class MethodOverrideManagerAndRanttOutputTests
             {
                 FullName = "Test.Method2",
                 Parameters = new Dictionary<string, string> { { "CustomColumn2", "Value2" } },
-                AttributeParameters = new HashSet<string> { "CustomColumn2" }
+                AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn2" }
             }
         };
 
@@ -90,12 +112,15 @@ public class MethodOverrideManagerAndRanttOutputTests
         manager.SaveOverrides(reportItems2);
 
         var csvContent = File.ReadAllText(Path.Combine(_testOutputPath, "method_overrides.csv"));
-        var headers = csvContent.Split('\n')[0].Split(',');
-        var uniqueHeaders = new HashSet<string>(headers);
+        Console.WriteLine($"CSV Content:\n{csvContent}");
+        var headers = csvContent.Split('\n')[0].Split(',').Select(h => h.Trim()).ToArray();
+        Console.WriteLine($"Headers: {string.Join(", ", headers)}");
+        var uniqueHeaders = new HashSet<string>(headers, StringComparer.OrdinalIgnoreCase);
+        Console.WriteLine($"Unique Headers: {string.Join(", ", uniqueHeaders)}");
 
         Assert.That(headers.Length, Is.EqualTo(uniqueHeaders.Count), "CSV should not contain duplicate columns after multiple saves");
-        Assert.That(uniqueHeaders, Does.Contain("CustomColumn1"));
-        Assert.That(uniqueHeaders, Does.Contain("CustomColumn2"));
+        Assert.That(uniqueHeaders, Does.Contain("CustomColumn1"), "CustomColumn1 should be present");
+        Assert.That(uniqueHeaders, Does.Contain("CustomColumn2"), "CustomColumn2 should be present");
     }
 
     [Test]
