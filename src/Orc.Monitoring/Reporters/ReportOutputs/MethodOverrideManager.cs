@@ -1,38 +1,45 @@
-﻿using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring;
+﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System;
+using Orc.Monitoring.Reporters.ReportOutputs;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring;
 
 public class MethodOverrideManager
 {
     private readonly string _overrideFilePath;
+    private readonly string _overrideTemplateFilePath;
     private readonly Dictionary<string, Dictionary<string, string>> _overrides;
     private HashSet<string> _customColumns;
     private readonly object _saveLock = new object();
+    private readonly ILogger<MethodOverrideManager> _logger;
 
     public MethodOverrideManager(string? outputDirectory)
     {
         ArgumentNullException.ThrowIfNull(outputDirectory);
 
         _overrideFilePath = Path.Combine(outputDirectory, "method_overrides.csv");
+        _overrideTemplateFilePath = Path.Combine(outputDirectory, "method_overrides.template");
         _overrides = new Dictionary<string, Dictionary<string, string>>();
         _customColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _logger = MonitoringController.CreateLogger<MethodOverrideManager>();
     }
 
     public void LoadOverrides()
     {
         if (!File.Exists(_overrideFilePath))
         {
+            _logger.LogInformation($"Override file not found: {_overrideFilePath}");
             return;
         }
 
         var overrides = CsvUtils.ReadCsv(_overrideFilePath);
         if (!overrides.Any())
         {
-            // If the file is empty, just clear any existing overrides and return
             _overrides.Clear();
             _customColumns.Clear();
             return;
@@ -60,6 +67,8 @@ public class MethodOverrideManager
                 _overrides[fullName] = methodOverrides;
             }
         }
+
+        _logger.LogInformation($"Loaded {_overrides.Count} method overrides from {_overrideFilePath}");
     }
 
     public void SaveOverrides(ICollection<ReportItem> reportItems)
@@ -74,7 +83,7 @@ public class MethodOverrideManager
 
             var headers = new[] { "FullName", "IsStatic", "IsExtension" }.Concat(_customColumns.OrderBy(c => c)).ToArray();
 
-            using var writer = new StreamWriter(_overrideFilePath, false, Encoding.UTF8);
+            using var writer = new StreamWriter(_overrideTemplateFilePath, false, Encoding.UTF8);
             CsvUtils.WriteCsvLine(writer, headers);
 
             foreach (var item in reportItems)
@@ -102,6 +111,8 @@ public class MethodOverrideManager
             {
                 WritePreparedOverrideRow(writer, PrepareExistingOverrideRow(fullName!), headers);
             }
+
+            _logger.LogInformation($"Saved method override template to {_overrideTemplateFilePath}");
         }
     }
 
