@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Orc.Monitoring.Filters;
 using Orc.Monitoring.Reporters;
+using Orc.Monitoring.Reporters.ReportOutputs;
 
 public class MonitoringConfiguration
 {
@@ -18,6 +19,7 @@ public class MonitoringConfiguration
     public List<Assembly> TrackedAssemblies { get; } = new List<Assembly>();
     public Dictionary<Type, bool> OutputTypeStates { get; } = new Dictionary<Type, bool>();
     public bool IsGloballyEnabled { get; set; } = true;
+    public EnhancedDataPostProcessor.OrphanedNodeStrategy OrphanedNodeStrategy { get; set; } = EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor;
 
     internal void AddFilter(IMethodFilter filter)
     {
@@ -54,5 +56,10 @@ public class MonitoringConfiguration
     internal void SetOutputTypeState(Type outputType, bool enabled)
     {
         OutputTypeStates[outputType] = enabled;
+    }
+
+    internal void SetOrphanedNodeStrategy(EnhancedDataPostProcessor.OrphanedNodeStrategy strategy)
+    {
+        OrphanedNodeStrategy = strategy;
     }
 }

@@ -43,23 +43,23 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
   </DataSets>
 </Project>";
 
-    private readonly ILogger<RanttOutput> _logger;
+    private readonly ILogger<RanttOutput> _logger = MonitoringController.CreateLogger<RanttOutput>();
     private readonly ReportOutputHelper _helper = new();
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
+    private EnhancedDataPostProcessor.OrphanedNodeStrategy _orphanedNodeStrategy;
 
-    public RanttOutput()
-    {
-        _logger = MonitoringController.CreateLogger<RanttOutput>();
-    }
-
-    public static RanttReportParameters CreateParameters(string folderPath, OutputLimitOptions? limitOptions = null) => new()
-    {
-        FolderPath = folderPath,
-        LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
-    };
+    public static RanttReportParameters CreateParameters(
+        string folderPath,
+        OutputLimitOptions? limitOptions = null,
+        EnhancedDataPostProcessor.OrphanedNodeStrategy orphanedNodeStrategy = EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor) => new()
+        {
+            FolderPath = folderPath,
+            LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited,
+            OrphanedNodeStrategy = orphanedNodeStrategy
+        };
 
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
@@ -84,17 +84,18 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     public void SetParameters(object? parameter = null)
     {
         ArgumentNullException.ThrowIfNull(parameter, "Parameters cannot be null");
-        
+
         var parameters = (RanttReportParameters)parameter;
 
         _folderPath = parameters.FolderPath;
         ArgumentNullException.ThrowIfNull(_folderPath, "FolderPath cannot be null");
 
         SetLimitOptions(parameters.LimitOptions);
+        _orphanedNodeStrategy = parameters.OrphanedNodeStrategy;
 
         _overrideManager = new MethodOverrideManager(_folderPath);
 
-        _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
+        _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, OrphanedNodeStrategy = {_orphanedNodeStrategy}");
     }
 
     public void WriteSummary(string message)
@@ -199,8 +200,12 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
                 .ToList();
 
+            // Apply post-processing
+            var processedItems = MonitoringController.GetEnhancedDataPostProcessor()
+                .PostProcessData(sortedItems, _orphanedNodeStrategy);
+
             // Create a new list with overrides applied
-            var itemsWithOverrides = sortedItems.Select(item =>
+            var itemsWithOverrides = processedItems.Select(item =>
             {
                 var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
                 var overrides = _overrideManager.GetOverridesForMethod(fullName);
@@ -261,10 +266,15 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         try
         {
             _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
+
+            // Apply post-processing to ensure consistent relationships
+            var processedItems = MonitoringController.GetEnhancedDataPostProcessor()
+                .PostProcessData(_helper.ReportItems.ToList(), _orphanedNodeStrategy);
+
             await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
                 await writer.WriteLineAsync("From,To,RelationType");
-                foreach (var item in _helper.ReportItems.Where(r => r.Parent is not null))
+                foreach (var item in processedItems.Where(r => r.Parent is not null))
                 {
                     var relationType = DetermineRelationType(item);
                     await writer.WriteLineAsync($"{item.Parent},{item.Id},{relationType}");
