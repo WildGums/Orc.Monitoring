@@ -73,14 +73,16 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     /// <param name="parameter">The parameters to set.</param>
     public void SetParameters(object? parameter = null)
     {
-        if (parameter is null)
-        {
-            return;
-        }
+        ArgumentNullException.ThrowIfNull(parameter, "Parameter cannot be null");
 
         var parameters = (CsvReportParameters)parameter;
+        
         _folderPath = parameters.FolderPath;
+        ArgumentNullException.ThrowIfNull(_folderPath, "FolderPath cannot be null");
+        
         _fileName = parameters.FileName;
+        ArgumentNullException.ThrowIfNull(_fileName, "FileName cannot be null");
+
         SetLimitOptions(parameters.LimitOptions);
 
         _methodOverrideManager = new MethodOverrideManager(_folderPath);

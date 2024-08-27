@@ -6,31 +6,34 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class MethodOverrideManagerTests
 {
-    private string _tempDirectory;
+    private string _testOutputPath;
     private string _overrideFilePath;
     private string _overrideTemplateFilePath;
     private MethodOverrideManager _overrideManager;
+    private ILogger<MethodOverrideManagerTests> _logger;
 
     [SetUp]
     public void Setup()
     {
-        _tempDirectory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_tempDirectory);
-        _overrideFilePath = Path.Combine(_tempDirectory, "method_overrides.csv");
-        _overrideTemplateFilePath = Path.Combine(_tempDirectory, "method_overrides.template");
-        _overrideManager = new MethodOverrideManager(_tempDirectory);
+        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(_testOutputPath);
+        _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
+        _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
+        _overrideManager = new MethodOverrideManager(_testOutputPath);
+        _logger = MonitoringController.CreateLogger<MethodOverrideManagerTests>();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_tempDirectory))
+        if (Directory.Exists(_testOutputPath))
         {
-            Directory.Delete(_tempDirectory, true);
+            Directory.Delete(_testOutputPath, true);
         }
     }
 
@@ -178,37 +181,86 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     }
 
     [Test]
+    public void SaveOverrides_MultipleSaves_ShouldNotDuplicateColumnsInTemplate()
+    {
+        var manager = new MethodOverrideManager(_testOutputPath);
+        var reportItems1 = new List<ReportItem>
+    {
+        new ReportItem
+        {
+            FullName = "Test.Method1",
+            Parameters = new Dictionary<string, string> { { "CustomColumn1", "Value1" } },
+            AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn1" }
+        }
+    };
+        var reportItems2 = new List<ReportItem>
+    {
+        new ReportItem
+        {
+            FullName = "Test.Method2",
+            Parameters = new Dictionary<string, string> { { "CustomColumn2", "Value2" } },
+            AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn2" }
+        }
+    };
+
+        manager.SaveOverrides(reportItems1);
+        var templateContent1 = File.ReadAllText(_overrideTemplateFilePath);
+        _logger.LogInformation($"Template content after first save: {templateContent1}");
+
+        manager.SaveOverrides(reportItems2);
+        var templateContent2 = File.ReadAllText(_overrideTemplateFilePath);
+        _logger.LogInformation($"Template content after second save: {templateContent2}");
+
+        var headers = templateContent2.Split('\n')[0].Split(',').Select(h => h.Trim()).ToArray();
+        var uniqueHeaders = new HashSet<string>(headers, StringComparer.OrdinalIgnoreCase);
+
+        Assert.That(headers.Length, Is.EqualTo(uniqueHeaders.Count), "Template should not contain duplicate columns after multiple saves");
+        Assert.That(uniqueHeaders, Does.Contain("CustomColumn1"), "CustomColumn1 should be present");
+        Assert.That(uniqueHeaders, Does.Contain("CustomColumn2"), "CustomColumn2 should be present");
+    }
+
+    [Test]
     public void SaveOverrides_UpdatesTemplateWithLatestData()
     {
-        // Arrange
         var initialReportItems = new List<ReportItem>
+    {
+        new ReportItem
         {
-            new ReportItem
-            {
-                FullName = "TestMethod",
-                Parameters = new Dictionary<string, string> { { "InitialColumn", "InitialValue" } },
-                AttributeParameters = new HashSet<string> { "InitialColumn" }
-            }
-        };
+            FullName = "TestMethod",
+            Parameters = new Dictionary<string, string> { { "InitialColumn", "InitialValue" } },
+            AttributeParameters = new HashSet<string> { "InitialColumn" }
+        }
+    };
 
         var updatedReportItems = new List<ReportItem>
+    {
+        new ReportItem
         {
-            new ReportItem
-            {
-                FullName = "TestMethod",
-                Parameters = new Dictionary<string, string> { { "UpdatedColumn", "UpdatedValue" } },
-                AttributeParameters = new HashSet<string> { "UpdatedColumn" }
-            }
-        };
+            FullName = "TestMethod",
+            Parameters = new Dictionary<string, string> { { "UpdatedColumn", "UpdatedValue" } },
+            AttributeParameters = new HashSet<string> { "UpdatedColumn" }
+        }
+    };
 
-        // Act
         _overrideManager.SaveOverrides(initialReportItems);
-        _overrideManager.SaveOverrides(updatedReportItems);
+        var initialTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
+        _logger.LogInformation($"Initial template content: {initialTemplateContent}");
 
-        // Assert
-        var templateContent = File.ReadAllText(_overrideTemplateFilePath);
-        Assert.That(templateContent, Does.Contain("UpdatedColumn"), "Template should contain the updated column");
-        Assert.That(templateContent, Does.Contain("UpdatedValue"), "Template should contain the updated value");
-        Assert.That(templateContent, Does.Not.Contain("InitialColumn"), "Template should not contain the initial column");
+        _overrideManager.SaveOverrides(updatedReportItems);
+        var updatedTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
+        _logger.LogInformation($"Updated template content: {updatedTemplateContent}");
+
+        Assert.That(updatedTemplateContent, Does.Contain("UpdatedColumn"), "Template should contain the updated column");
+        Assert.That(updatedTemplateContent, Does.Contain("UpdatedValue"), "Template should contain the updated value");
+
+        // The initial column is now marked as obsolete but still present
+        Assert.That(updatedTemplateContent, Does.Contain("InitialColumn"), "Template should still contain the initial column");
+
+        _overrideManager.CleanupObsoleteColumns();
+        var cleanedTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
+        _logger.LogInformation($"Cleaned template content: {cleanedTemplateContent}");
+
+        Assert.That(cleanedTemplateContent, Does.Not.Contain("InitialColumn"), "Template should not contain the initial column after cleanup");
+        Assert.That(cleanedTemplateContent, Does.Not.Contain("InitialValue"), "Template should not contain the initial value after cleanup");
     }
 }

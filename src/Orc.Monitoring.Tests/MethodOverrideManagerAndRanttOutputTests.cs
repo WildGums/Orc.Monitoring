@@ -11,6 +11,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
+
 #pragma warning disable CL0002
 
 
@@ -20,6 +22,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     private string _testOutputPath;
     private string _overrideFilePath;
     private string _overrideTemplateFilePath;
+    private ILogger<MethodOverrideManagerAndRanttOutputTests> _logger;
 
     [SetUp]
     public void Setup()
@@ -28,6 +31,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         Directory.CreateDirectory(_testOutputPath);
         _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
+        _logger = MonitoringController.CreateLogger<MethodOverrideManagerAndRanttOutputTests>();
     }
 
     [TearDown]
@@ -82,7 +86,6 @@ public class MethodOverrideManagerAndRanttOutputTests
                 AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn1" }
             }
         };
-
         var reportItems2 = new List<ReportItem>
         {
             new ReportItem
@@ -94,10 +97,14 @@ public class MethodOverrideManagerAndRanttOutputTests
         };
 
         manager.SaveOverrides(reportItems1);
-        manager.SaveOverrides(reportItems2);
+        var templateContent1 = File.ReadAllText(_overrideTemplateFilePath);
+        _logger.LogInformation($"Template content after first save: {templateContent1}");
 
-        var templateContent = File.ReadAllText(_overrideTemplateFilePath);
-        var headers = templateContent.Split('\n')[0].Split(',').Select(h => h.Trim()).ToArray();
+        manager.SaveOverrides(reportItems2);
+        var templateContent2 = File.ReadAllText(_overrideTemplateFilePath);
+        _logger.LogInformation($"Template content after second save: {templateContent2}");
+
+        var headers = templateContent2.Split('\n')[0].Split(',').Select(h => h.Trim()).ToArray();
         var uniqueHeaders = new HashSet<string>(headers, StringComparer.OrdinalIgnoreCase);
 
         Assert.That(headers.Length, Is.EqualTo(uniqueHeaders.Count), "Template should not contain duplicate columns after multiple saves");
@@ -136,8 +143,9 @@ public class MethodOverrideManagerAndRanttOutputTests
     public async Task RanttOutput_WithOverrides_ShouldUseOverridesFromCsvFile()
     {
         // Arrange
-        var csvContent = "FullName,CustomColumn\nTest.Method,OverrideValue";
+        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.Test.Method,OverrideValue";
         await File.WriteAllTextAsync(_overrideFilePath, csvContent);
+        _logger.LogInformation($"Override file content: {csvContent}");
 
         var ranttOutput = new RanttOutput();
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
@@ -158,8 +166,32 @@ public class MethodOverrideManagerAndRanttOutputTests
         Assert.That(File.Exists(csvOutputPath), Is.True, "CSV output file should be created");
 
         var csvOutputContent = await File.ReadAllTextAsync(csvOutputPath);
+        _logger.LogInformation($"CSV output content: {csvOutputContent}");
+
         Assert.That(csvOutputContent, Does.Contain("OverrideValue"), "CSV output should contain the override value");
     }
+
+    private ICallStackItem CreateTestMethodLifeCycleItem(string methodName, DateTime timestamp)
+    {
+        var methodInfo = new TestMethodInfo(methodName, typeof(MethodOverrideManagerAndRanttOutputTests));
+        var methodCallInfo = MethodCallInfo.Create(
+            new MethodCallInfoPool(),
+            null,
+            typeof(MethodOverrideManagerAndRanttOutputTests),
+            methodInfo,
+            Array.Empty<Type>(),
+            Guid.NewGuid().ToString(),
+            new Dictionary<string, string>
+            {
+                ["FullName"] = $"MethodOverrideManagerAndRanttOutputTests.{methodName}"
+            }
+        );
+        methodCallInfo.StartTime = timestamp;
+
+        var mockMethodLifeCycleItem = new Mock<MethodCallStart>(methodCallInfo);
+        return mockMethodLifeCycleItem.Object;
+    }
+
 
     [Test]
     public async Task RanttOutput_GenerateReport_ShouldUpdateTemplateFile()

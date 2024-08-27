@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Orc.Monitoring.Reporters.ReportOutputs;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring;
 
@@ -14,11 +13,12 @@ public class MethodOverrideManager
     private readonly string _overrideFilePath;
     private readonly string _overrideTemplateFilePath;
     private readonly Dictionary<string, Dictionary<string, string>> _overrides;
-    private HashSet<string> _customColumns;
+    private readonly HashSet<string> _customColumns;
+    private readonly HashSet<string> _obsoleteColumns;
     private readonly object _saveLock = new object();
     private readonly ILogger<MethodOverrideManager> _logger;
 
-    public MethodOverrideManager(string? outputDirectory)
+    public MethodOverrideManager(string outputDirectory)
     {
         ArgumentNullException.ThrowIfNull(outputDirectory);
 
@@ -27,6 +27,8 @@ public class MethodOverrideManager
         _overrides = new Dictionary<string, Dictionary<string, string>>();
         _customColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         _logger = MonitoringController.CreateLogger<MethodOverrideManager>();
+        _obsoleteColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
     }
 
     public void LoadOverrides()
@@ -42,18 +44,29 @@ public class MethodOverrideManager
         {
             _overrides.Clear();
             _customColumns.Clear();
+            _obsoleteColumns.Clear();
             return;
         }
 
         var headers = overrides.First().Keys.ToArray();
+        var newCustomColumns = new HashSet<string>(
+            headers.Where(h => h != "FullName" && h != "IsStatic" && h != "IsExtension"),
+            StringComparer.OrdinalIgnoreCase
+        );
 
-        _customColumns = new HashSet<string>(headers.Where(h => h != "FullName" && h != "IsStatic" && h != "IsExtension"), StringComparer.OrdinalIgnoreCase);
+        // Determine obsolete columns
+        _obsoleteColumns.Clear();
+        _obsoleteColumns.UnionWith(_customColumns.Except(newCustomColumns));
 
+        // Update custom columns
+        _customColumns.Clear();
+        _customColumns.UnionWith(newCustomColumns);
+
+        _overrides.Clear();
         foreach (var row in overrides)
         {
             var fullName = row["FullName"];
             var methodOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
             foreach (var header in headers.Where(h => h != "FullName"))
             {
                 if (!string.IsNullOrEmpty(row[header]))
@@ -61,7 +74,6 @@ public class MethodOverrideManager
                     methodOverrides[header] = row[header];
                 }
             }
-
             if (methodOverrides.Count > 0)
             {
                 _overrides[fullName] = methodOverrides;
@@ -75,11 +87,18 @@ public class MethodOverrideManager
     {
         lock (_saveLock)
         {
+            var currentCustomColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in reportItems)
             {
-                _customColumns.UnionWith(item.AttributeParameters);
-                _customColumns.UnionWith(item.Parameters.Keys);
+                currentCustomColumns.UnionWith(item.AttributeParameters);
+                currentCustomColumns.UnionWith(item.Parameters.Keys);
             }
+
+            // Add new columns to _customColumns
+            _customColumns.UnionWith(currentCustomColumns);
+
+            // Mark columns not in current items as obsolete
+            _obsoleteColumns.UnionWith(_customColumns.Except(currentCustomColumns));
 
             var headers = new[] { "FullName", "IsStatic", "IsExtension" }.Concat(_customColumns.OrderBy(c => c)).ToArray();
 
@@ -88,9 +107,6 @@ public class MethodOverrideManager
 
             foreach (var item in reportItems)
             {
-                WritePreparedOverrideRow(writer, PrepareOverrideRow(item), headers);
-
-                // Update _overrides dictionary
                 var fullName = item.FullName ?? string.Empty;
                 if (!_overrides.TryGetValue(fullName, out var methodOverrides))
                 {
@@ -105,15 +121,77 @@ public class MethodOverrideManager
                         methodOverrides[param.Key] = param.Value;
                     }
                 }
+
+                WritePreparedOverrideRow(writer, PrepareOverrideRow(fullName, methodOverrides), headers);
             }
 
-            foreach (var fullName in _overrides.Keys.Except(reportItems.Select(i => i.FullName)).Where(fn => fn is not null))
+            // Remove any methods that are no longer present in the report items
+            var reportItemFullNames = new HashSet<string>(reportItems.Select(i => i.FullName ?? string.Empty));
+            foreach (var fullName in _overrides.Keys.ToList())
             {
-                WritePreparedOverrideRow(writer, PrepareExistingOverrideRow(fullName!), headers);
+                if (!reportItemFullNames.Contains(fullName))
+                {
+                    _overrides.Remove(fullName);
+                }
             }
 
             _logger.LogInformation($"Saved method override template to {_overrideTemplateFilePath}");
         }
+    }
+
+    public void CleanupObsoleteColumns()
+    {
+        lock (_saveLock)
+        {
+            // Remove obsolete columns from _customColumns
+            _customColumns.ExceptWith(_obsoleteColumns);
+
+            // Remove obsolete columns from all method overrides
+            foreach (var methodOverrides in _overrides.Values)
+            {
+                foreach (var obsoleteColumn in _obsoleteColumns)
+                {
+                    methodOverrides.Remove(obsoleteColumn);
+                }
+            }
+
+            // Clear the obsolete columns set
+            _obsoleteColumns.Clear();
+
+            // Rewrite the template file with cleaned-up data
+            var cleanedReportItems = _overrides.Select(kvp => new ReportItem
+            {
+                FullName = kvp.Key,
+                Parameters = kvp.Value,
+                AttributeParameters = new HashSet<string>(kvp.Value.Keys)
+            }).ToList();
+
+            SaveOverrides(cleanedReportItems);
+        }
+    }
+
+    private Dictionary<string, string> PrepareOverrideRow(string fullName, Dictionary<string, string> overrides)
+    {
+        var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["FullName"] = fullName,
+            ["IsStatic"] = "False",
+            ["IsExtension"] = "False"
+        };
+
+        foreach (var column in _customColumns)
+        {
+            if (overrides.TryGetValue(column, out var value))
+            {
+                row[column] = value;
+            }
+            else
+            {
+                row[column] = string.Empty;
+            }
+        }
+
+        return row;
     }
 
     private Dictionary<string, string> PrepareOverrideRow(ReportItem item)
