@@ -4,15 +4,16 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reactive.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using MethodLifeCycleItems;
+using Monitoring;
+using Filters;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 
-/// <summary>
-/// Provides functionality to output report data in Rantt format.
-/// </summary>
-public class RanttOutput : IReportOutput, ILimitableOutput
+public sealed class RanttOutput : IReportOutput, ILimitableOutput
 {
     private const string RanttProjectContents = @"<?xml version=""1.0"" encoding=""utf-8""?>
 <Project RanttVersion=""3.5.0.0"" MinimumRanttVersion=""2.0"">
@@ -42,31 +43,24 @@ public class RanttOutput : IReportOutput, ILimitableOutput
   </DataSets>
 </Project>";
 
-    private readonly ILogger<RanttOutput> _logger = MonitoringController.CreateLogger<RanttOutput>();
+    private readonly ILogger<RanttOutput> _logger;
     private readonly ReportOutputHelper _helper = new();
-
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
-    /// <summary>
-    /// Creates parameters for Rantt report output.
-    /// </summary>
-    /// <param name="folderPath">The folder path where the Rantt files will be saved.</param>
-    /// <param name="limitOptions">The output limit options for the Rantt report.</param>
-    /// <returns>A RanttReportParameters object.</returns>
+    public RanttOutput()
+    {
+        _logger = MonitoringController.CreateLogger<RanttOutput>();
+    }
+
     public static RanttReportParameters CreateParameters(string folderPath, OutputLimitOptions? limitOptions = null) => new()
     {
         FolderPath = folderPath,
         LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
     };
 
-    /// <summary>
-    /// Initializes the Rantt report output.
-    /// </summary>
-    /// <param name="reporter">The method call reporter to be used.</param>
-    /// <returns>An IAsyncDisposable that can be used to finalize the report.</returns>
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
         _logger.LogInformation($"Initializing {nameof(RanttOutput)}");
@@ -87,51 +81,49 @@ public class RanttOutput : IReportOutput, ILimitableOutput
         });
     }
 
-    /// <summary>
-    /// Sets the parameters for the Rantt report output.
-    /// </summary>
-    /// <param name="parameter">The parameters to set.</param>
     public void SetParameters(object? parameter = null)
     {
-        if (parameter is null)
-        {
-            return;
-        }
-
+        ArgumentNullException.ThrowIfNull(parameter, "Parameters cannot be null");
+        
         var parameters = (RanttReportParameters)parameter;
+
         _folderPath = parameters.FolderPath;
+        ArgumentNullException.ThrowIfNull(_folderPath, "FolderPath cannot be null");
+
         SetLimitOptions(parameters.LimitOptions);
+
+        _overrideManager = new MethodOverrideManager(_folderPath);
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
     }
 
-    /// <summary>
-    /// Writes a summary message to the report.
-    /// </summary>
-    /// <param name="message">The summary message to write.</param>
     public void WriteSummary(string message)
     {
         // Ignored in Rantt output
     }
 
-    /// <summary>
-    /// Writes a call stack item to the report.
-    /// </summary>
-    /// <param name="callStackItem">The call stack item to write.</param>
-    /// <param name="message">An optional message associated with the item.</param>
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
     {
         var reportItem = _helper.ProcessCallStackItem(callStackItem);
         if (reportItem is not null)
         {
+            // Ensure custom columns are added to the report item
+            if (callStackItem is MethodCallStart methodCallStart)
+            {
+                var parameters = new Dictionary<string, string>(reportItem.Parameters);
+                foreach (var param in methodCallStart?.MethodCallInfo.Parameters ?? [])
+                {
+                    var paramKey = param.Key;
+                    parameters[paramKey] = param.Value;
+                    reportItem.AttributeParameters.Add(paramKey);
+                }
+
+                reportItem.Parameters = parameters;
+            }
             _logger.LogDebug($"Processed item: {reportItem.ItemName ?? reportItem.MethodName}");
         }
     }
 
-    /// <summary>
-    /// Writes an error to the report.
-    /// </summary>
-    /// <param name="exception">The exception to write.</param>
     public void WriteError(Exception exception)
     {
         _logger.LogError(exception, "Error occurred during Rantt report generation");
@@ -155,7 +147,10 @@ public class RanttOutput : IReportOutput, ILimitableOutput
         Directory.CreateDirectory(_outputDirectory);
         _logger.LogInformation($"Created output directory: {_outputDirectory}");
 
-        _overrideManager = new MethodOverrideManager(_outputDirectory);
+        if (_overrideManager is null)
+        {
+            _overrideManager = new MethodOverrideManager(_outputDirectory!);
+        }
         _overrideManager.LoadOverrides();
 
         var fileName = $"{reporter.FullName}.csv";
@@ -200,17 +195,47 @@ public class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Starting CSV export to {fullPath}");
             _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
 
-            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
+            var sortedItems = _helper.ReportItems
+                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .ToList();
+
+            // Create a new list with overrides applied
+            var itemsWithOverrides = sortedItems.Select(item =>
             {
-                var sortedItems = _helper.ReportItems.OrderByDescending(item => item.StartTime);
-                var csvReportWriter = new CsvReportWriter(writer, sortedItems, _overrideManager);
+                var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
+                var overrides = _overrideManager.GetOverridesForMethod(fullName);
+                var newParameters = new Dictionary<string, string>(item.Parameters, StringComparer.OrdinalIgnoreCase);
+                foreach (var kvp in overrides)
+                {
+                    newParameters[kvp.Key] = kvp.Value;
+                }
+                return new ReportItem
+                {
+                    Id = item.Id,
+                    StartTime = item.StartTime,
+                    ItemName = item.ItemName,
+                    EndTime = item.EndTime,
+                    Duration = item.Duration,
+                    Report = item.Report,
+                    ThreadId = item.ThreadId,
+                    Level = item.Level,
+                    ClassName = item.ClassName,
+                    MethodName = item.MethodName,
+                    FullName = fullName,
+                    Parent = item.Parent,
+                    ParentThreadId = item.ParentThreadId,
+                    Parameters = newParameters,
+                    AttributeParameters = new HashSet<string>(item.AttributeParameters)
+                };
+            }).ToList();
+
+            await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
+            {
+                var csvReportWriter = new CsvReportWriter(writer, itemsWithOverrides, _overrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
             }
 
-            _logger.LogInformation($"CSV report written to {fullPath} with {_helper.ReportItems.Count} items");
-
-            // Add a small delay to ensure the file is fully written and closed
-            await Task.Delay(100);
+            _logger.LogInformation($"CSV report written to {fullPath} with {itemsWithOverrides.Count} items");
 
             // Verify file content
             var fileContent = await File.ReadAllTextAsync(fullPath);
@@ -236,7 +261,7 @@ public class RanttOutput : IReportOutput, ILimitableOutput
         try
         {
             _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
-            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
+            await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
                 await writer.WriteLineAsync("From,To,RelationType");
                 foreach (var item in _helper.ReportItems.Where(r => r.Parent is not null))
@@ -369,10 +394,6 @@ public class RanttOutput : IReportOutput, ILimitableOutput
         await sourceStream.CopyToAsync(destinationStream);
     }
 
-    /// <summary>
-    /// Sets the limit options for the Rantt report output.
-    /// </summary>
-    /// <param name="options">The output limit options to set.</param>
     public void SetLimitOptions(OutputLimitOptions options)
     {
         _limitOptions = options;
@@ -380,18 +401,10 @@ public class RanttOutput : IReportOutput, ILimitableOutput
         _logger.LogInformation($"Limit options set: MaxItems = {options.MaxItems}");
     }
 
-    /// <summary>
-    /// Gets the current limit options for the Rantt report output.
-    /// </summary>
-    /// <returns>The current output limit options.</returns>
     public OutputLimitOptions GetLimitOptions()
     {
         return _limitOptions;
     }
 
-    /// <summary>
-    /// Gets debug information about the current state of the Rantt report output.
-    /// </summary>
-    /// <returns>A string containing debug information.</returns>
     public string GetDebugInfo() => _helper.GetDebugInfo();
 }

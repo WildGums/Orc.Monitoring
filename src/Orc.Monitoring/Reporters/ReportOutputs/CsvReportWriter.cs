@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+
 
 public class CsvReportWriter
 {
@@ -12,6 +14,7 @@ public class CsvReportWriter
     private readonly IEnumerable<ReportItem> _reportItems;
     private readonly MethodOverrideManager _overrideManager;
     private readonly HashSet<string> _customColumns;
+    private readonly ILogger<CsvReportWriter> _logger;
 
     public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager)
     {
@@ -19,6 +22,7 @@ public class CsvReportWriter
         _reportItems = reportItems;
         _overrideManager = overrideManager;
         _customColumns = new HashSet<string>(overrideManager.GetCustomColumns());
+        _logger = MonitoringController.CreateLogger<CsvReportWriter>();
     }
 
     public void WriteReportItemsCsv()
@@ -31,6 +35,8 @@ public class CsvReportWriter
             var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
             CsvUtils.WriteCsvLine(_writer, values);
         }
+
+        _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV");
     }
 
     public async Task WriteReportItemsCsvAsync()
@@ -43,6 +49,8 @@ public class CsvReportWriter
             var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
             await CsvUtils.WriteCsvLineAsync(_writer, values);
         }
+
+        _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV asynchronously");
     }
 
     public void WriteRelationshipsCsv()
@@ -63,6 +71,8 @@ public class CsvReportWriter
         {
             CsvUtils.WriteCsvLine(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
         }
+
+        _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV");
     }
 
     public async Task WriteRelationshipsCsvAsync()
@@ -83,6 +93,8 @@ public class CsvReportWriter
         {
             await CsvUtils.WriteCsvLineAsync(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
         }
+
+        _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV asynchronously");
     }
 
     private IEnumerable<Dictionary<string, string>> PrepareReportItems()
