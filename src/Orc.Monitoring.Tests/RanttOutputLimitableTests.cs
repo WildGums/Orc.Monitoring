@@ -75,7 +75,8 @@ public class RanttOutputLimitableTests
         Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
 
         Assert.That(lines.Length, Is.EqualTo(7), $"Expected 7 lines (header + ROOT + 5 items), but got {lines.Length}");
-        Assert.That(lines[1].Contains("ROOT"), "Second line should contain ROOT node");
+        Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
+        Assert.That(lines[1], Does.Contain("ROOT"), "Second line should contain ROOT node");
         Assert.That(lines.Skip(2).Count(), Is.EqualTo(5), "Should have 5 non-ROOT items");
     }
 

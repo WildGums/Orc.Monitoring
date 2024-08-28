@@ -121,20 +121,24 @@ public class RanttOutputPostProcessingTests
     public async Task ExportToCsv_WithDifferentOrphanedNodeStrategies_AppliesCorrectStrategy()
     {
         // Arrange
-        var reportItems = new List<ReportItem>
-        {
-            CreateReportItem("1", "ROOT", "Method1"),
-            CreateReportItem("2", "999", "OrphanedMethod")
-        };
+        var reportItems = new List<ReportItem> { CreateReportItem("1", "ROOT", "Method1"), CreateReportItem("2", "999", "OrphanedMethod") };
 
         _postProcessorMock.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<EnhancedDataPostProcessor.OrphanedNodeStrategy>()))
             .Returns((List<ReportItem> items, EnhancedDataPostProcessor.OrphanedNodeStrategy strategy) =>
             {
+                var processedItems = new List<ReportItem> { CreateReportItem("ROOT", null, "Root") };
                 if (strategy == EnhancedDataPostProcessor.OrphanedNodeStrategy.RemoveOrphans)
                 {
-                    return items.Where(i => i.Parent == "ROOT").ToList();
+                    processedItems.AddRange(items.Where(i => i.Parent == "ROOT"));
                 }
-                return items;
+                else
+                {
+                    processedItems.AddRange(items.Select(i => i.Parent == "999" ? CreateReportItem(i.Id, "ROOT", i.MethodName) : i));
+                }
+
+                Console.WriteLine($"PostProcessData called with strategy: {strategy}");
+                Console.WriteLine($"Processed items: {string.Join(", ", processedItems.Select(i => i.MethodName))}");
+                return processedItems;
             });
 
         // Act & Assert
@@ -146,6 +150,7 @@ public class RanttOutputPostProcessingTests
 
         var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         var csvContent = await File.ReadAllTextAsync(csvFilePath);
+        Console.WriteLine($"CSV content (RemoveOrphans):\n{csvContent}");
         Assert.That(csvContent, Does.Contain("Method1"));
         Assert.That(csvContent, Does.Not.Contain("OrphanedMethod"));
 
@@ -156,6 +161,7 @@ public class RanttOutputPostProcessingTests
         await InitializeAndExportData(reportItems);
 
         csvContent = await File.ReadAllTextAsync(csvFilePath);
+        Console.WriteLine($"CSV content (AttachToRoot):\n{csvContent}");
         Assert.That(csvContent, Does.Contain("Method1"));
         Assert.That(csvContent, Does.Contain("OrphanedMethod"));
 

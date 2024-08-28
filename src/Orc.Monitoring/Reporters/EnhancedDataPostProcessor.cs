@@ -22,7 +22,7 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
         _logger = logger;
     }
 
-    public List<ReportItem> PostProcessData(List<ReportItem> items, OrphanedNodeStrategy strategy)
+    public virtual List<ReportItem> PostProcessData(List<ReportItem> items, OrphanedNodeStrategy strategy)
     {
         _logger.LogInformation($"Starting post-processing of {items.Count} items with strategy: {strategy}");
 
@@ -122,18 +122,20 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
     private void EnsureRootNodeExists(List<ReportItem> items)
     {
-        if (!items.Any(i => i.Id == "ROOT"))
+        if (items.Any(i => i.Id == "ROOT"))
         {
-            var rootNode = new ReportItem
-            {
-                Id = "ROOT",
-                MethodName = "Root",
-                StartTime = items.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-                EndTime = items.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-                Parent = null
-            };
-            items.Insert(0, rootNode);
-            _logger.LogInformation("Added synthetic ROOT node");
+            return;
         }
+
+        var rootNode = new ReportItem
+        {
+            Id = "ROOT",
+            MethodName = "Root",
+            StartTime = items.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+            EndTime = items.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+            Parent = null
+        };
+        items.Insert(0, rootNode);
+        _logger.LogInformation("Added synthetic ROOT node");
     }
 }

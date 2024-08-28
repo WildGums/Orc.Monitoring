@@ -218,21 +218,22 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
             var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems, _orphanedNodeStrategy);
 
-            _logger.LogInformation($"Number of processed items: {processedItems.Count}");
+            // Ensure ROOT node is present
+            if (processedItems.All(item => item.Id != "ROOT"))
+            {
+                var rootItem = new ReportItem
+                {
+                    Id = "ROOT",
+                    MethodName = "Root",
+                    Parent = null,
+                    StartTime = processedItems.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+                    EndTime = processedItems.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff")
+                };
+                processedItems.Insert(0, rootItem);
+            }
 
-            // Apply limit after post-processing
-            if (_limitOptions.MaxItems.HasValue)
-            {
-                processedItems = processedItems
-                    .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
-                    .Take(_limitOptions.MaxItems.Value + 1)  // +1 to include ROOT
-                    .ToList();
-                _logger.LogInformation($"Number of items after applying limit: {processedItems.Count}");
-            }
-            else
-            {
-                _logger.LogInformation($"No limit applied. Keeping all {processedItems.Count} items.");
-            }
+            // Create a new list with overrides applied
+            _logger.LogInformation($"Number of items after applying limit: {processedItems.Count}");
 
             // Create a new list with overrides applied
             var itemsWithOverrides = processedItems.Select(item =>

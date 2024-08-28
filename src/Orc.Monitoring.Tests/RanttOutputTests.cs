@@ -20,7 +20,7 @@ public class RanttOutputTests
     private MockReporter _mockReporter;
     private string _testFolderPath;
     private ILogger<RanttOutputTests> _logger;
-    private Mock<EnhancedDataPostProcessor> _mockPostProcessor;
+    private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
 
     [SetUp]
     public void Setup()
@@ -29,11 +29,9 @@ public class RanttOutputTests
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
         _mockReporter = new MockReporter { Name = "TestReporter", FullName = "TestReporter" };
-        _mockPostProcessor = new Mock<EnhancedDataPostProcessor>(MockBehavior.Strict, new Mock<ILogger<EnhancedDataPostProcessor>>().Object);
-
+        _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
         var loggerMock = new Mock<ILogger<RanttOutput>>();
-        var postProcessorMock = new Mock<EnhancedDataPostProcessor>();
-        _ranttOutput = new RanttOutput(loggerMock.Object, () => postProcessorMock.Object);
+        _ranttOutput = new RanttOutput(loggerMock.Object, () => _mockPostProcessor.Object);
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }
@@ -112,11 +110,19 @@ public class RanttOutputTests
         _ranttOutput.WriteItem(new MethodCallEnd(methodInfo2));
         _ranttOutput.WriteItem(new MethodCallEnd(methodInfo1));
 
-        // Mock the post-processor to return modified items
+        // Mock the post-processor to return modified items, including the ROOT node
         _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<EnhancedDataPostProcessor.OrphanedNodeStrategy>()))
             .Returns((List<ReportItem> items, EnhancedDataPostProcessor.OrphanedNodeStrategy strategy) =>
             {
-                items.Add(new ReportItem { Id = "ROOT", MethodName = "Root", Parent = null });
+                var rootItem = new ReportItem
+                {
+                    Id = "ROOT",
+                    MethodName = "Root",
+                    Parent = null,
+                    StartTime = items.Min(r => r.StartTime),
+                    EndTime = items.Max(r => r.EndTime)
+                };
+                items.Insert(0, rootItem); // Add ROOT as the first item
                 items.First(i => i.Id == methodInfo1.Id).Parent = "ROOT";
                 return items;
             });
@@ -131,9 +137,11 @@ public class RanttOutputTests
         var csvContent = await File.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV file content:\n{csvContent}");
 
-        Assert.That(csvContent, Does.Contain("ROOT"), "ROOT node should be present in the CSV");
-        Assert.That(csvContent, Does.Contain($"ROOT,{methodInfo1.Id}"), "Method1 should be a child of ROOT");
-        Assert.That(csvContent, Does.Contain($"{methodInfo1.Id},{methodInfo2.Id}"), "Method2 should be a child of Method1");
+        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines[1], Does.StartWith("ROOT,"), "ROOT node should have an empty parent");
+        Assert.That(lines[2], Does.StartWith($"{methodInfo1.Id},ROOT"), "Method1 should be a child of ROOT");
+        Assert.That(lines[3], Does.StartWith($"{methodInfo2.Id},{methodInfo1.Id}"), "Method2 should be a child of Method1");
 
         _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<EnhancedDataPostProcessor.OrphanedNodeStrategy>()), Times.Exactly(2));
     }
