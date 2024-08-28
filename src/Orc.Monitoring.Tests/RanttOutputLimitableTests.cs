@@ -10,6 +10,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 [TestFixture]
 public class RanttOutputLimitableTests
@@ -70,7 +71,12 @@ public class RanttOutputLimitableTests
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         var lines = await File.ReadAllLinesAsync(filePath);
-        Assert.That(lines.Length, Is.EqualTo(6)); // Header + 5 items
+
+        Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
+
+        Assert.That(lines.Length, Is.EqualTo(7), $"Expected 7 lines (header + ROOT + 5 items), but got {lines.Length}");
+        Assert.That(lines[1].Contains("ROOT"), "Second line should contain ROOT node");
+        Assert.That(lines.Skip(2).Count(), Is.EqualTo(5), "Should have 5 non-ROOT items");
     }
 
     [Test]

@@ -43,13 +43,25 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
   </DataSets>
 </Project>";
 
-    private readonly ILogger<RanttOutput> _logger = MonitoringController.CreateLogger<RanttOutput>();
+    private readonly ILogger<RanttOutput> _logger;
     private readonly ReportOutputHelper _helper = new();
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
     private EnhancedDataPostProcessor.OrphanedNodeStrategy _orphanedNodeStrategy;
+    private readonly Func<EnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
+
+    public RanttOutput()
+    : this(MonitoringController.CreateLogger<RanttOutput>(), MonitoringController.GetEnhancedDataPostProcessor)
+    {
+    }
+
+    public RanttOutput(ILogger<RanttOutput> logger, Func<EnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
+    {
+        _logger = logger;
+        _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
+    }
 
     public static RanttReportParameters CreateParameters(
         string folderPath,
@@ -194,15 +206,29 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         try
         {
             _logger.LogInformation($"Starting CSV export to {fullPath}");
-            _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
+            _logger.LogInformation($"Number of report items before processing: {_helper.ReportItems.Count}");
 
             var sortedItems = _helper.ReportItems
                 .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
                 .ToList();
 
+            _logger.LogInformation($"Number of sorted items: {sortedItems.Count}");
+
             // Apply post-processing
-            var processedItems = MonitoringController.GetEnhancedDataPostProcessor()
-                .PostProcessData(sortedItems, _orphanedNodeStrategy);
+            var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
+            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems, _orphanedNodeStrategy);
+
+            _logger.LogInformation($"Number of processed items: {processedItems.Count}");
+
+            // Apply limit after post-processing
+            if (_limitOptions.MaxItems.HasValue)
+            {
+                processedItems = processedItems
+                    .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                    .Take(_limitOptions.MaxItems.Value + 1)  // +1 to include ROOT
+                    .ToList();
+                _logger.LogInformation($"Number of items after applying limit: {processedItems.Count}");
+            }
 
             // Create a new list with overrides applied
             var itemsWithOverrides = processedItems.Select(item =>
@@ -234,6 +260,8 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 };
             }).ToList();
 
+            _logger.LogInformation($"Number of items with overrides: {itemsWithOverrides.Count}");
+
             await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
                 var csvReportWriter = new CsvReportWriter(writer, itemsWithOverrides, _overrideManager);
@@ -246,6 +274,9 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             var fileContent = await File.ReadAllTextAsync(fullPath);
             var lineCount = fileContent.Split('\n').Length;
             _logger.LogInformation($"Actual line count in file: {lineCount}");
+
+            // Log the content of the file for debugging
+            _logger.LogDebug($"File content:\n{fileContent}");
         }
         catch (IOException ex)
         {
