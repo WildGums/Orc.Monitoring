@@ -19,7 +19,7 @@ public class RanttOutputPostProcessingTests
     private RanttOutput _ranttOutput;
     private Mock<ILogger<RanttOutput>> _loggerMock;
     private Mock<IMethodCallReporter> _reporterMock;
-    private Mock<EnhancedDataPostProcessor> _postProcessorMock;
+    private Mock<IEnhancedDataPostProcessor> _postProcessorMock;
     private string _testOutputPath;
 
     [SetUp]
@@ -30,7 +30,7 @@ public class RanttOutputPostProcessingTests
 
         _loggerMock = new Mock<ILogger<RanttOutput>>();
         _reporterMock = new Mock<IMethodCallReporter>();
-        _postProcessorMock = new Mock<EnhancedDataPostProcessor>(MockBehavior.Strict, new Mock<ILogger<EnhancedDataPostProcessor>>().Object);
+        _postProcessorMock = new Mock<IEnhancedDataPostProcessor>();
 
         _ranttOutput = new RanttOutput(_loggerMock.Object, () => _postProcessorMock.Object);
         var parameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor);
@@ -111,6 +111,8 @@ public class RanttOutputPostProcessingTests
         Assert.That(File.Exists(relationshipsFilePath), Is.True);
 
         var relationshipsContent = await File.ReadAllTextAsync(relationshipsFilePath);
+        Console.WriteLine($"Relationships content:\n{relationshipsContent}");
+
         Assert.That(relationshipsContent, Does.Contain("ROOT,1,"));
         Assert.That(relationshipsContent, Does.Contain("1,2,"));
     }
@@ -178,7 +180,7 @@ public class RanttOutputPostProcessingTests
         await disposable.DisposeAsync();
     }
 
-    private ReportItem CreateReportItem(string id, string parent, string methodName)
+    private ReportItem CreateReportItem(string id, string? parent, string methodName)
     {
         return new ReportItem
         {

@@ -6,7 +6,7 @@ using System.Linq;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters.ReportOutputs;
 
-public class EnhancedDataPostProcessor
+public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 {
     private readonly ILogger<EnhancedDataPostProcessor> _logger;
 

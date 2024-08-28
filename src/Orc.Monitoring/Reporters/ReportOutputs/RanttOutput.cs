@@ -50,14 +50,14 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
     private EnhancedDataPostProcessor.OrphanedNodeStrategy _orphanedNodeStrategy;
-    private readonly Func<EnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
+    private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
 
     public RanttOutput()
     : this(MonitoringController.CreateLogger<RanttOutput>(), MonitoringController.GetEnhancedDataPostProcessor)
     {
     }
 
-    public RanttOutput(ILogger<RanttOutput> logger, Func<EnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
+    public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
     {
         _logger = logger;
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
@@ -302,9 +302,13 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         {
             _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
 
-            // Apply post-processing to ensure consistent relationships
-            var processedItems = MonitoringController.GetEnhancedDataPostProcessor()
-                .PostProcessData(_helper.ReportItems.ToList(), _orphanedNodeStrategy);
+            // Use the same post-processing as in ExportToCsvAsync
+            var sortedItems = _helper.ReportItems
+                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .ToList();
+
+            var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
+            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems, _orphanedNodeStrategy);
 
             await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
