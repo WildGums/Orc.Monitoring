@@ -229,6 +229,10 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                     .ToList();
                 _logger.LogInformation($"Number of items after applying limit: {processedItems.Count}");
             }
+            else
+            {
+                _logger.LogInformation($"No limit applied. Keeping all {processedItems.Count} items.");
+            }
 
             // Create a new list with overrides applied
             var itemsWithOverrides = processedItems.Select(item =>
