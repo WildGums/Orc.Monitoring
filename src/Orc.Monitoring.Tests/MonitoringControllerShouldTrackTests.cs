@@ -10,13 +10,17 @@ using System.Threading.Tasks;
 public class MonitoringControllerShouldTrackTests
 {
     private MockReporter _mockReporter;
+    private TestLogger<MonitoringControllerShouldTrackTests> _logger;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MonitoringControllerShouldTrackTests>();
+
         MonitoringController.ResetForTesting();
         MonitoringController.Enable();
-        _mockReporter = new MockReporter();
+        
+        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
     }
 
     [Test]
@@ -57,8 +61,8 @@ public class MonitoringControllerShouldTrackTests
     public void ShouldTrack_WithReporterIds_ReturnsExpectedResult()
     {
         MonitoringController.Enable();
-        var reporter1 = new MockReporter { Id = "Reporter1" };
-        var reporter2 = new MockReporter { Id = "Reporter2" };
+        var reporter1 = new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = "Reporter1" };
+        var reporter2 = new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = "Reporter2" };
         MonitoringController.EnableReporter(typeof(MockReporter));
 
         var version = MonitoringController.GetCurrentVersion();

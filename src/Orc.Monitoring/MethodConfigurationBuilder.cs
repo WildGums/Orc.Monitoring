@@ -18,7 +18,7 @@ public class MethodConfigurationBuilder
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
     {
-        _logger.LogDebug($"Adding reporter: {reporter.GetType().Name}");
+        _logger.LogDebug($"Added reporter: {reporter.GetType().Name} with ID: {reporter.Id}");
         _config.Reporters.Add(reporter);
         return this;
     }
@@ -31,9 +31,8 @@ public class MethodConfigurationBuilder
             reporter.Id = Guid.NewGuid().ToString(); // Assign a unique Id only if one doesn't exist
         }
         configAction?.Invoke(reporter);
-        _config.Reporters.Add(reporter);
-        _logger.LogDebug($"Added reporter: {reporter.GetType().Name} with ID: {reporter.Id}");
-        return this;
+
+        return AddReporter(reporter);
     }
 
     public MethodConfigurationBuilder WithArguments(params object[] parameters)

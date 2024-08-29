@@ -12,14 +12,14 @@ using MethodLifeCycleItems;
 using Monitoring;
 using Filters;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Reporters;
+using Reporters.ReportOutputs;
+using Reporters;
 
 public sealed class WorkflowReporter : IMethodCallReporter
 {
     private const int BatchSize = 100;
 
-    private readonly ILogger<WorkflowReporter> _logger;
+    private readonly TestLogger<WorkflowReporter> _logger;
 
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
@@ -40,7 +40,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     public WorkflowReporter()
     {
-        _logger = MonitoringController.CreateLogger<WorkflowReporter>();
+        _logger = new TestLogger<WorkflowReporter>();
 
         Name = "Workflow";
 

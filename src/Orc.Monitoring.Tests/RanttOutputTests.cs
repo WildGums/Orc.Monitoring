@@ -28,7 +28,7 @@ public class RanttOutputTests
         _logger = new TestLogger<RanttOutputTests>();
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
-        _mockReporter = new MockReporter { Name = "TestReporter", FullName = "TestReporter" };
+        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>()) { Name = "TestReporter", FullName = "TestReporter" };
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
         _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
             () => _mockPostProcessor.Object,

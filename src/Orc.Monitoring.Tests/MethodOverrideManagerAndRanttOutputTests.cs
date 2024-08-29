@@ -22,7 +22,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     private string _testOutputPath;
     private string _overrideFilePath;
     private string _overrideTemplateFilePath;
-    private ILogger<MethodOverrideManagerAndRanttOutputTests> _logger;
+    private TestLogger<MethodOverrideManagerAndRanttOutputTests> _logger;
 
     [SetUp]
     public void Setup()
@@ -31,7 +31,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         Directory.CreateDirectory(_testOutputPath);
         _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
-        _logger = MonitoringController.CreateLogger<MethodOverrideManagerAndRanttOutputTests>();
+        _logger = new TestLogger<MethodOverrideManagerAndRanttOutputTests>();
     }
 
     [TearDown]

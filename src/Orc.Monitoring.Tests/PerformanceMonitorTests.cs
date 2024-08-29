@@ -15,15 +15,15 @@ using Microsoft.Extensions.Logging;
 public class PerformanceMonitorTests
 {
     private MockReporter _mockReporter;
-    private ILogger<PerformanceMonitorTests> _logger;
+    private TestLogger<PerformanceMonitorTests> _logger;
 
     [SetUp]
     public void Setup()
     {
-        _logger = MonitoringController.CreateLogger<PerformanceMonitorTests>();
+        _logger = new TestLogger<PerformanceMonitorTests>();
         PerformanceMonitor.Reset();
         MonitoringController.ResetForTesting();
-        _mockReporter = new MockReporter();
+        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
         _logger.LogInformation("Test setup complete");
     }
 
@@ -42,7 +42,7 @@ public class PerformanceMonitorTests
         PerformanceMonitor.Configure(config =>
         {
             _logger.LogDebug("Inside configuration action");
-            config.AddReporter(_mockReporter.GetType());
+            config.AddReporterType(_mockReporter.GetType());
         });
 
         // Step 3: Check post-configuration state
@@ -79,7 +79,7 @@ public class PerformanceMonitorTests
     [Test]
     public void ForClass_WhenConfigured_ShouldReturnClassMonitor()
     {
-        PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); });
+        PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         var monitor = PerformanceMonitor.ForClass<PerformanceMonitorTests>();
         Assert.That(monitor, Is.InstanceOf<ClassMonitor>());
     }
@@ -87,7 +87,7 @@ public class PerformanceMonitorTests
     [Test]
     public void Reset_ShouldClearConfigurationAndCallStack()
     {
-        PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); });
+        PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         Assert.That(PerformanceMonitor.IsConfigured, Is.True);
 
         PerformanceMonitor.Reset();
@@ -101,7 +101,7 @@ public class PerformanceMonitorTests
     public void Configure_ShouldEnableMonitoring()
     {
         MonitoringController.Disable();
-        PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); });
+        PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         Assert.That(MonitoringController.IsEnabled, Is.True);
     }
 
@@ -116,11 +116,11 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_WithCustomConfiguration_ShouldApplyConfiguration()
     {
-        var mockFilter = new AlwaysIncludeFilter();
+        var mockFilter = new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>());
 
         PerformanceMonitor.Configure(config =>
         {
-            config.AddReporter(_mockReporter.GetType());
+            config.AddReporterType(_mockReporter.GetType());
             config.AddFilter(mockFilter);
         });
 
@@ -133,7 +133,7 @@ public class PerformanceMonitorTests
     [Test]
     public void ForCurrentClass_ShouldReturnClassMonitorForCallingType()
     {
-        PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); });
+        PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         var monitor = PerformanceMonitor.ForCurrentClass();
         Assert.That(monitor, Is.InstanceOf<ClassMonitor>());
     }
@@ -141,12 +141,12 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_WithMultipleReporters_ShouldEnableAllReporters()
     {
-        var secondMockReporter = new MockReporter();
+        var secondMockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
 
         PerformanceMonitor.Configure(config =>
         {
-            config.AddReporter(_mockReporter.GetType());
-            config.AddReporter(secondMockReporter.GetType());
+            config.AddReporterType(_mockReporter.GetType());
+            config.AddReporterType(secondMockReporter.GetType());
         });
 
         Assert.That(MonitoringController.IsReporterEnabled(_mockReporter.GetType()), Is.True);
@@ -169,8 +169,8 @@ public class PerformanceMonitorTests
     [Test]
     public async Task Configure_ShouldHandleConcurrentAccessAsync()
     {
-        var configTask1 = Task.Run(() => PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); }));
-        var configTask2 = Task.Run(() => PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); }));
+        var configTask1 = Task.Run(() => PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); }));
+        var configTask2 = Task.Run(() => PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); }));
 
         await Task.WhenAll(configTask1, configTask2);
 
@@ -181,7 +181,7 @@ public class PerformanceMonitorTests
     [Test]
     public void GetCurrentConfiguration_AfterConfigure_ShouldReturnNonNullConfiguration()
     {
-        PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); });
+        PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         var configuration = PerformanceMonitor.GetCurrentConfiguration();
         Assert.That(configuration, Is.Not.Null);
     }
@@ -191,7 +191,7 @@ public class PerformanceMonitorTests
     {
         Assert.That(PerformanceMonitor.IsConfigured, Is.False, "Should not be configured initially");
 
-        PerformanceMonitor.Configure(config => { config.AddReporter(_mockReporter.GetType()); });
+        PerformanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
 
         Assert.That(PerformanceMonitor.IsConfigured, Is.True, "Should be configured after Configure is called");
     }
@@ -214,7 +214,7 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_WithMultipleFilters_ShouldAddAllFilters()
     {
-        var filter1 = new AlwaysIncludeFilter();
+        var filter1 = new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>());
         var filter2 = new WorkflowItemFilter();
 
         PerformanceMonitor.Configure(config =>

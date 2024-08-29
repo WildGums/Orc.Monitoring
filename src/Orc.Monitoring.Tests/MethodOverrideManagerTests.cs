@@ -15,7 +15,7 @@ public class MethodOverrideManagerTests
     private string _overrideFilePath;
     private string _overrideTemplateFilePath;
     private MethodOverrideManager _overrideManager;
-    private ILogger<MethodOverrideManagerTests> _logger;
+    private TestLogger<MethodOverrideManagerTests> _logger;
 
     [SetUp]
     public void Setup()
@@ -25,7 +25,7 @@ public class MethodOverrideManagerTests
         _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
         _overrideManager = new MethodOverrideManager(_testOutputPath);
-        _logger = MonitoringController.CreateLogger<MethodOverrideManagerTests>();
+        _logger = new TestLogger<MethodOverrideManagerTests>();
     }
 
     [TearDown]

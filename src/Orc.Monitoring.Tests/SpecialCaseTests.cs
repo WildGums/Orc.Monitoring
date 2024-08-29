@@ -20,16 +20,16 @@ public class SpecialCaseTests
     private MonitoringConfiguration _config;
     private CallStack _callStack;
     private MethodCallInfoPool _methodCallInfoPool;
-    private ILogger<SpecialCaseTests> _logger;
+    private TestLogger<SpecialCaseTests> _logger;
 
     [SetUp]
     public void Setup()
     {
-        _logger = MonitoringController.CreateLogger<SpecialCaseTests>();
+        _logger = new TestLogger<SpecialCaseTests>();
         _logger.LogInformation("Setup started");
 
         MonitoringController.ResetForTesting();
-        _mockReporter = new MockReporter();
+        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
         _mockFilter = new Mock<IMethodFilter>();
         _config = new MonitoringConfiguration();
         _callStack = new CallStack(_config);

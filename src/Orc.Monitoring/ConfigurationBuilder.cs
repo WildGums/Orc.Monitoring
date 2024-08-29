@@ -57,7 +57,7 @@ public class ConfigurationBuilder
         return AddFilter(methodFilter, initialState);
     }
 
-    public ConfigurationBuilder AddReporter<T>(bool initialState = true) where T : IMethodCallReporter, new()
+    public ConfigurationBuilder AddReporterType<T>(bool initialState = true) where T : IMethodCallReporter
     {
         _config.AddReporter<T>();
         if (initialState)
@@ -67,7 +67,7 @@ public class ConfigurationBuilder
         return this;
     }
 
-    public ConfigurationBuilder AddReporter(Type reporterType, bool initialState = true)
+    public ConfigurationBuilder AddReporterType(Type reporterType, bool initialState = true)
     {
         if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
         {
