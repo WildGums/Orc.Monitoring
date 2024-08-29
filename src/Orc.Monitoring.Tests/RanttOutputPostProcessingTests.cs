@@ -18,34 +18,34 @@ public class RanttOutputPostProcessingTests
     private RanttOutput _ranttOutput;
     private Mock<IMethodCallReporter> _reporterMock;
     private string _testOutputPath;
-    private ILogger<RanttOutputPostProcessingTests> _logger;
+    private TestLogger<RanttOutputPostProcessingTests> _logger;
+    private ReportOutputHelper _reportOutputHelper;
+
+    private const string RelationshipsFileName = "TestReporter_Relationships.csv";
+    private const string CsvFileName = "TestReporter.csv";
 
     [SetUp]
     public void Setup()
     {
-        _logger = MonitoringController.CreateLogger<RanttOutputPostProcessingTests>();
-        _logger.LogInformation("Setting up test");
+        _logger = new TestLogger<RanttOutputPostProcessingTests>();
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();
         _ranttOutput = InitializeRanttOutput(OrphanedNodeStrategy.AttachToNearestAncestor);
         _reporterMock.Setup(r => r.FullName).Returns("TestReporter");
-        _logger.LogInformation($"Test output path: {_testOutputPath}");
     }
 
     [TearDown]
     public void TearDown()
     {
-        _logger.LogInformation("Tearing down test");
         if (Directory.Exists(_testOutputPath))
         {
             try
             {
                 Directory.Delete(_testOutputPath, true);
-                _logger.LogInformation($"Deleted test output directory: {_testOutputPath}");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Failed to delete test output directory: {_testOutputPath}");
+                _logger.Log(LogLevel.Error, new EventId(), ex.Message, ex, (s, e) => s);
             }
         }
     }
@@ -54,8 +54,6 @@ public class RanttOutputPostProcessingTests
     public async Task ExportRelationships_EnsuresRootNodeExists()
     {
         _logger.LogInformation("Starting ExportRelationships_EnsuresRootNodeExists test");
-        _ranttOutput = InitializeRanttOutput(OrphanedNodeStrategy.AttachToNearestAncestor);
-
         var reportItems = new List<ReportItem>
         {
             CreateReportItem("1", "ROOT", "Method1"),
@@ -64,14 +62,15 @@ public class RanttOutputPostProcessingTests
 
         await InitializeAndExportData(reportItems);
 
-        var relationshipsFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter_Relationships.csv");
+        var relationshipsFilePath = Path.Combine(_testOutputPath, "TestReporter", RelationshipsFileName);
         Assert.That(File.Exists(relationshipsFilePath), Is.True, $"Relationships file does not exist: {relationshipsFilePath}");
 
         var relationshipsContent = await File.ReadAllTextAsync(relationshipsFilePath);
-        _logger.LogInformation($"Relationships content:\n{relationshipsContent}");
-
         Assert.That(relationshipsContent, Does.Contain("ROOT,1,"), "ROOT to Method1 relationship not found");
         Assert.That(relationshipsContent, Does.Contain("1,2,"), "Method1 to Method2 relationship not found");
+
+        // Verify logger output
+        Assert.That(_logger.LogMessages, Does.Contain("Starting ExportRelationships_EnsuresRootNodeExists test"));
     }
 
     [Test]
@@ -85,24 +84,25 @@ public class RanttOutputPostProcessingTests
         };
 
         // Test RemoveOrphans strategy
-        _ranttOutput = InitializeRanttOutput(OrphanedNodeStrategy.RemoveOrphans);
-        await InitializeAndExportData(reportItems);
+        await InitializeAndExportDataWithStrategy(reportItems, OrphanedNodeStrategy.RemoveOrphans);
 
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", CsvFileName);
         var csvContent = await File.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV content (RemoveOrphans):\n{csvContent}");
         Assert.That(csvContent, Does.Contain("Method1"), "Method1 should be present");
         Assert.That(csvContent, Does.Not.Contain("OrphanedMethod"), "OrphanedMethod should not be present");
 
         // Test AttachToRoot strategy
-        _ranttOutput = InitializeRanttOutput(OrphanedNodeStrategy.AttachToRoot);
-        await InitializeAndExportData(reportItems);
+        await InitializeAndExportDataWithStrategy(reportItems, OrphanedNodeStrategy.AttachToRoot);
 
         csvContent = await File.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV content (AttachToRoot):\n{csvContent}");
         Assert.That(csvContent, Does.Contain("Method1"), "Method1 should be present");
         Assert.That(csvContent, Does.Contain("OrphanedMethod"), "OrphanedMethod should be present");
         Assert.That(csvContent, Does.Contain("2,ROOT,"), "OrphanedMethod should be attached to ROOT");
+
+        // Verify logger output
+        Assert.That(_logger.LogMessages, Does.Contain("Starting ExportToCsv_WithDifferentOrphanedNodeStrategies_AppliesCorrectStrategy test"));
     }
 
     [Test]
@@ -120,7 +120,7 @@ public class RanttOutputPostProcessingTests
 
         await InitializeAndExportData(reportItems);
 
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", CsvFileName);
         Assert.That(File.Exists(csvFilePath), Is.True, $"CSV file does not exist: {csvFilePath}");
 
         var csvContent = await File.ReadAllTextAsync(csvFilePath);
@@ -129,12 +129,15 @@ public class RanttOutputPostProcessingTests
         Assert.That(csvContent, Does.Contain("3,2,"), "Orphaned node should be attached to node 2");
         Assert.That(csvContent, Does.Contain("2,1,"), "Node 2 should still be a child of node 1");
         Assert.That(csvContent, Does.Contain("1,ROOT,"), "Node 1 should still be a child of ROOT");
+
+        // Verify logger output
+        Assert.That(_logger.LogMessages, Does.Contain("Starting ExportToCsv_WithOrphanedNodes_AppliesPostProcessing test"));
     }
 
     private async Task InitializeAndExportData(List<ReportItem> reportItems)
     {
         _logger.LogInformation("Initializing and exporting data");
-        var helper = new ReportOutputHelper();
+        var helper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
         helper.Initialize(_reporterMock.Object);
         var methodCallStarts = new List<MethodCallStart>();
 
@@ -150,7 +153,14 @@ public class RanttOutputPostProcessingTests
         {
             _ranttOutput.WriteItem(methodCallStart);
         }
+
         _logger.LogInformation("Data export completed");
+    }
+
+    private async Task InitializeAndExportDataWithStrategy(List<ReportItem> reportItems, OrphanedNodeStrategy strategy)
+    {
+        _ranttOutput = InitializeRanttOutput(strategy);
+        await InitializeAndExportData(reportItems);
     }
 
     private ReportItem CreateReportItem(string id, string? parent, string methodName)
@@ -212,8 +222,11 @@ public class RanttOutputPostProcessingTests
 
     private RanttOutput InitializeRanttOutput(OrphanedNodeStrategy strategy)
     {
-        _logger.LogInformation($"Initializing RanttOutput with strategy: {strategy}");
-        var output = new RanttOutput(() => new EnhancedDataPostProcessor());
+        _reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        var output = new RanttOutput(
+            _logger.CreateLogger<RanttOutput>(), 
+            () => new EnhancedDataPostProcessor(_logger.CreateLogger<EnhancedDataPostProcessor>()),
+            _reportOutputHelper);
         var parameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: strategy);
         output.SetParameters(parameters);
         return output;

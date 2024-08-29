@@ -44,7 +44,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 </Project>";
 
     private readonly ILogger<RanttOutput> _logger;
-    private readonly ReportOutputHelper _helper = new();
+    private readonly ReportOutputHelper _helper;
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
@@ -53,19 +53,19 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
 
     public RanttOutput()
-    : this(MonitoringController.CreateLogger<RanttOutput>(), MonitoringController.GetEnhancedDataPostProcessor)
+    : this(MonitoringController.CreateLogger<RanttOutput>(), MonitoringController.GetEnhancedDataPostProcessor, new ReportOutputHelper())
     {
     }
 
-    public RanttOutput(Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
-    : this(MonitoringController.CreateLogger<RanttOutput>(), enhancedDataPostProcessorFactory)
+    public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper)
     {
-    }
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(enhancedDataPostProcessorFactory);
+        ArgumentNullException.ThrowIfNull(reportOutputHelper);
 
-    public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
-    {
         _logger = logger;
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
+        _helper = reportOutputHelper;
     }
 
     public static RanttReportParameters CreateParameters(

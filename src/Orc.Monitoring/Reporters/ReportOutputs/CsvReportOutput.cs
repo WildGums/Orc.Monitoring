@@ -14,13 +14,27 @@ using Orc.Monitoring.Reporters;
 /// </summary>
 public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
 {
-    private readonly ILogger<CsvReportOutput> _logger = MonitoringController.CreateLogger<CsvReportOutput>();
-    private readonly ReportOutputHelper _helper = new();
+    private readonly ILogger<CsvReportOutput> _logger;
+    private readonly ReportOutputHelper _helper;
 
     private string? _fileName;
     private string? _folderPath;
     private MethodOverrideManager? _methodOverrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
+
+    public CsvReportOutput()
+    : this(MonitoringController.CreateLogger<CsvReportOutput>(), new ReportOutputHelper())
+    {
+
+    }
+
+    public CsvReportOutput(ILogger<CsvReportOutput> logger, ReportOutputHelper reportOutputHelper)
+    {
+        _logger = logger;
+        _helper = reportOutputHelper;
+
+        _logger.LogDebug($"Created {nameof(CsvReportOutput)}");
+    }
 
     /// <summary>
     /// Creates parameters for CSV report output.

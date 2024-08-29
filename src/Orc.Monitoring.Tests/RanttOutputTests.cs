@@ -19,19 +19,20 @@ public class RanttOutputTests
     private RanttOutput _ranttOutput;
     private MockReporter _mockReporter;
     private string _testFolderPath;
-    private ILogger<RanttOutputTests> _logger;
+    private TestLogger<RanttOutputTests> _logger;
     private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
 
     [SetUp]
     public void Setup()
     {
-        _logger = MonitoringController.CreateLogger<RanttOutputTests>();
+        _logger = new TestLogger<RanttOutputTests>();
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
         _mockReporter = new MockReporter { Name = "TestReporter", FullName = "TestReporter" };
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
-        var loggerMock = new Mock<ILogger<RanttOutput>>();
-        _ranttOutput = new RanttOutput(loggerMock.Object, () => _mockPostProcessor.Object);
+        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
+            () => _mockPostProcessor.Object,
+            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()));
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }

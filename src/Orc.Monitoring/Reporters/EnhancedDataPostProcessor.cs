@@ -3,7 +3,6 @@
 using System;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Reporters;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -142,22 +141,5 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
         var firstNonRootItem = allItems.FirstOrDefault(i => i.Id != "ROOT" && i.Id != item.Id);
         _logger.LogWarning($"No valid ancestor found for item {item.Id}. Returning {firstNonRootItem?.Id ?? "null"}.");
         return firstNonRootItem ?? allItems.First(i => i.Id == "ROOT");
-    }
-
-    private void EnsureRootNodeExists(List<ReportItem> items)
-    {
-        if (!items.Any(i => i.Id == "ROOT"))
-        {
-            var rootNode = new ReportItem
-            {
-                Id = "ROOT",
-                MethodName = "Root",
-                StartTime = items.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-                EndTime = items.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-                Parent = null
-            };
-            items.Insert(0, rootNode);
-            _logger.LogInformation("Added synthetic ROOT node");
-        }
     }
 }
