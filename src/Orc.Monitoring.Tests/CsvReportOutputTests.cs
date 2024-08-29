@@ -15,6 +15,7 @@ using Orc.Monitoring.MethodLifeCycleItems;
 [TestFixture]
 public class CsvReportOutputTests
 {
+    private TestLogger<CsvReportOutputTests> _logger;
     private CsvReportOutput _csvReportOutput;
     private Mock<IMethodCallReporter> _mockReporter;
     private string _testFolderPath;
@@ -23,10 +24,12 @@ public class CsvReportOutputTests
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<CsvReportOutputTests>();
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
         _testFileName = "TestReport";
-        _csvReportOutput = new CsvReportOutput();
+        var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper);
         _mockReporter = new Mock<IMethodCallReporter>();
         _mockReporter.Setup(r => r.FullName).Returns("TestReporter");
     }

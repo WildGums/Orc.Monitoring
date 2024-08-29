@@ -14,15 +14,21 @@ using System.Collections.Generic;
 [TestFixture]
 public class CsvReportOutputLimitableTests
 {
+    private TestLogger<CsvReportOutputLimitableTests> _logger;
     private CsvReportOutput _csvReportOutput;
     private string _testOutputPath;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<CsvReportOutputLimitableTests>();
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+
         Directory.CreateDirectory(_testOutputPath);
-        _csvReportOutput = new CsvReportOutput();
+
+        var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+
+        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper);
         var parameters = CsvReportOutput.CreateParameters(_testOutputPath, "TestReport");
         _csvReportOutput.SetParameters(parameters);
     }
