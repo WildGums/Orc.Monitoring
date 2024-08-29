@@ -1,5 +1,4 @@
-﻿#pragma warning disable CL0002
-namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.Tests;
 
 using System;
 using System.Collections.Generic;
@@ -12,6 +11,7 @@ using NUnit.Framework;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
+#pragma warning disable CL0002
 
 [TestFixture]
 public class RanttOutputPostProcessingTests
@@ -19,7 +19,6 @@ public class RanttOutputPostProcessingTests
     private RanttOutput _ranttOutput;
     private Mock<ILogger<RanttOutput>> _loggerMock;
     private Mock<IMethodCallReporter> _reporterMock;
-    private Mock<IEnhancedDataPostProcessor> _postProcessorMock;
     private string _testOutputPath;
 
     [SetUp]
@@ -30,10 +29,12 @@ public class RanttOutputPostProcessingTests
 
         _loggerMock = new Mock<ILogger<RanttOutput>>();
         _reporterMock = new Mock<IMethodCallReporter>();
-        _postProcessorMock = new Mock<IEnhancedDataPostProcessor>();
 
-        _ranttOutput = new RanttOutput(_loggerMock.Object, () => _postProcessorMock.Object);
-        var parameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor);
+        _ranttOutput = new RanttOutput(
+            _loggerMock.Object,
+            () => new EnhancedDataPostProcessor()
+        );
+        var parameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: OrphanedNodeStrategy.AttachToNearestAncestor);
         _ranttOutput.SetParameters(parameters);
 
         _reporterMock.Setup(r => r.FullName).Returns("TestReporter");
@@ -49,59 +50,14 @@ public class RanttOutputPostProcessingTests
     }
 
     [Test]
-    public async Task ExportToCsv_WithOrphanedNodes_AppliesPostProcessing()
-    {
-        // Arrange
-        var reportItems = new List<ReportItem>
-        {
-            CreateReportItem("1", "ROOT", "Method1"),
-            CreateReportItem("2", "1", "Method2"),
-            CreateReportItem("3", "999", "OrphanedMethod") // Orphaned node
-        };
-
-        var processedItems = new List<ReportItem>
-        {
-            CreateReportItem("1", "ROOT", "Method1"),
-            CreateReportItem("2", "1", "Method2"),
-            CreateReportItem("3", "1", "OrphanedMethod") // Attached to nearest ancestor
-        };
-
-        _postProcessorMock.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor))
-            .Returns(processedItems);
-
-        // Act
-        await InitializeAndExportData(reportItems);
-
-        // Assert
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
-        Assert.That(File.Exists(csvFilePath), Is.True);
-
-        var csvContent = await File.ReadAllTextAsync(csvFilePath);
-        Assert.That(csvContent, Does.Contain("OrphanedMethod"));
-        Assert.That(csvContent, Does.Contain("1,3,"));
-
-        _postProcessorMock.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor), Times.Once);
-    }
-
-    [Test]
     public async Task ExportRelationships_EnsuresRootNodeExists()
     {
         // Arrange
         var reportItems = new List<ReportItem>
         {
-            CreateReportItem("1", null, "Method1"),
-            CreateReportItem("2", "1", "Method2")
-        };
-
-        var processedItems = new List<ReportItem>
-        {
-            CreateReportItem("ROOT", null, "Root"),
             CreateReportItem("1", "ROOT", "Method1"),
             CreateReportItem("2", "1", "Method2")
         };
-
-        _postProcessorMock.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor))
-            .Returns(processedItems);
 
         // Act
         await InitializeAndExportData(reportItems);
@@ -123,27 +79,9 @@ public class RanttOutputPostProcessingTests
         // Arrange
         var reportItems = new List<ReportItem> { CreateReportItem("1", "ROOT", "Method1"), CreateReportItem("2", "999", "OrphanedMethod") };
 
-        _postProcessorMock.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<EnhancedDataPostProcessor.OrphanedNodeStrategy>()))
-            .Returns((List<ReportItem> items, EnhancedDataPostProcessor.OrphanedNodeStrategy strategy) =>
-            {
-                var processedItems = new List<ReportItem> { CreateReportItem("ROOT", null, "Root") };
-                if (strategy == EnhancedDataPostProcessor.OrphanedNodeStrategy.RemoveOrphans)
-                {
-                    processedItems.AddRange(items.Where(i => i.Parent == "ROOT"));
-                }
-                else
-                {
-                    processedItems.AddRange(items.Select(i => i.Parent == "999" ? CreateReportItem(i.Id, "ROOT", i.MethodName) : i));
-                }
-
-                Console.WriteLine($"PostProcessData called with strategy: {strategy}");
-                Console.WriteLine($"Processed items: {string.Join(", ", processedItems.Select(i => i.MethodName))}");
-                return processedItems;
-            });
-
         // Act & Assert
         // Test RemoveOrphans strategy
-        var removeOrphansParameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: EnhancedDataPostProcessor.OrphanedNodeStrategy.RemoveOrphans);
+        var removeOrphansParameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: OrphanedNodeStrategy.RemoveOrphans);
         _ranttOutput.SetParameters(removeOrphansParameters);
 
         await InitializeAndExportData(reportItems);
@@ -155,7 +93,7 @@ public class RanttOutputPostProcessingTests
         Assert.That(csvContent, Does.Not.Contain("OrphanedMethod"));
 
         // Test AttachToRoot strategy
-        var attachToRootParameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToRoot);
+        var attachToRootParameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: OrphanedNodeStrategy.AttachToRoot);
         _ranttOutput.SetParameters(attachToRootParameters);
 
         await InitializeAndExportData(reportItems);
@@ -164,24 +102,53 @@ public class RanttOutputPostProcessingTests
         Console.WriteLine($"CSV content (AttachToRoot):\n{csvContent}");
         Assert.That(csvContent, Does.Contain("Method1"));
         Assert.That(csvContent, Does.Contain("OrphanedMethod"));
+        Assert.That(csvContent, Does.Contain("ROOT,2,"));
+    }
 
-        _postProcessorMock.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), EnhancedDataPostProcessor.OrphanedNodeStrategy.RemoveOrphans), Times.Once);
-        _postProcessorMock.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToRoot), Times.Once);
+    [Test]
+    public async Task ExportToCsv_WithOrphanedNodes_AppliesPostProcessing()
+    {
+        // Arrange
+        var reportItems = new List<ReportItem>
+        {
+            CreateReportItem("1", "ROOT", "Method1"),
+            CreateReportItem("2", "1", "Method2"),
+            CreateReportItem("3", "999", "OrphanedMethod") // Orphaned node
+        };
+
+        var parameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: OrphanedNodeStrategy.AttachToNearestAncestor);
+        _ranttOutput.SetParameters(parameters);
+
+        // Act
+        await InitializeAndExportData(reportItems);
+
+        // Assert
+        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        Assert.That(File.Exists(csvFilePath), Is.True);
+
+        var csvContent = await File.ReadAllTextAsync(csvFilePath);
+        Console.WriteLine($"CSV content:\n{csvContent}");
+        Assert.That(csvContent, Does.Contain("OrphanedMethod"));
+        Assert.That(csvContent, Does.Contain("1,3,"));
     }
 
     private async Task InitializeAndExportData(List<ReportItem> reportItems)
     {
         var helper = new ReportOutputHelper();
         helper.Initialize(_reporterMock.Object);
+        var methodCallStarts = new List<MethodCallStart>();
+
         foreach (var item in reportItems)
         {
-            helper.ProcessCallStackItem(CreateMethodCallStart(item));
+            var methodCallStart = CreateMethodCallStart(item);
+            methodCallStarts.Add(methodCallStart);
+            helper.ProcessCallStackItem(methodCallStart);
         }
 
         var disposable = _ranttOutput.Initialize(_reporterMock.Object);
-        foreach (var item in reportItems)
+        foreach (var methodCallStart in methodCallStarts)
         {
-            _ranttOutput.WriteItem(CreateMethodCallStart(item));
+            _ranttOutput.WriteItem(methodCallStart);
         }
         await disposable.DisposeAsync();
     }
@@ -210,7 +177,24 @@ public class RanttOutputPostProcessingTests
             item.Id,
             new Dictionary<string, string>()
         );
-        methodCallInfo.Parent = item.Parent == "ROOT" ? MethodCallInfo.CreateNull() : null;
+
+        if (item.Parent == "ROOT")
+        {
+            methodCallInfo.Parent = MethodCallInfo.CreateNull();
+        }
+        else if (!string.IsNullOrEmpty(item.Parent))
+        {
+            methodCallInfo.Parent = MethodCallInfo.Create(
+                new MethodCallInfoPool(),
+                null,
+                typeof(RanttOutputPostProcessingTests),
+                new TestMethodInfo("ParentMethod", typeof(RanttOutputPostProcessingTests)),
+                Array.Empty<Type>(),
+                item.Parent,
+                new Dictionary<string, string>()
+            );
+        }
+
         return new MethodCallStart(methodCallInfo);
     }
 }

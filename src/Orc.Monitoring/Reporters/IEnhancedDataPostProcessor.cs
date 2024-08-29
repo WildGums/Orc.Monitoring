@@ -5,5 +5,5 @@ using ReportOutputs;
 
 public interface IEnhancedDataPostProcessor
 {
-    List<ReportItem> PostProcessData(List<ReportItem> items, EnhancedDataPostProcessor.OrphanedNodeStrategy strategy);
+    List<ReportItem> PostProcessData(List<ReportItem> items, OrphanedNodeStrategy strategy);
 }

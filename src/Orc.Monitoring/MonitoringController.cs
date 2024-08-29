@@ -131,7 +131,7 @@ public static class MonitoringController
         }
     }
 
-    public static EnhancedDataPostProcessor.OrphanedNodeStrategy GetOrphanedNodeStrategy()
+    public static OrphanedNodeStrategy GetOrphanedNodeStrategy()
     {
         return Configuration.OrphanedNodeStrategy;
     }

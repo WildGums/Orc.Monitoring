@@ -1,26 +1,27 @@
 ﻿namespace Orc.Monitoring.Reporters;
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters.ReportOutputs;
+using Orc.Monitoring.Reporters;
+using System.Collections.Generic;
+using System.Linq;
 
 public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 {
     private readonly ILogger<EnhancedDataPostProcessor> _logger;
 
-    public enum OrphanedNodeStrategy
+    public EnhancedDataPostProcessor()
+        : this(MonitoringController.CreateLogger<EnhancedDataPostProcessor>())
     {
-        RemoveOrphans,
-        AttachToRoot,
-        AttachToNearestAncestor
+
     }
 
     public EnhancedDataPostProcessor(ILogger<EnhancedDataPostProcessor> logger)
     {
         _logger = logger;
     }
+
 
     public virtual List<ReportItem> PostProcessData(List<ReportItem> items, OrphanedNodeStrategy strategy)
     {
@@ -49,6 +50,11 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
         EnsureRootNodeExists(result);
 
+        // Sort items to maintain correct order
+        result = result.OrderBy(i => i.Id == "ROOT" ? 0 : 1)
+            .ThenBy(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString()))
+            .ToList();
+
         _logger.LogInformation($"Post-processing completed. Result contains {result.Count} items");
 
         return result;
@@ -56,6 +62,8 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
     private void ProcessOrphanedNodes(List<ReportItem> orphanedNodes, List<ReportItem> result, HashSet<string> idSet, OrphanedNodeStrategy strategy)
     {
+        _logger.LogInformation($"Processing {orphanedNodes.Count} orphaned nodes with strategy: {strategy}");
+
         switch (strategy)
         {
             case OrphanedNodeStrategy.RemoveOrphans:
@@ -68,6 +76,7 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
                 {
                     orphan.Parent = "ROOT";
                     result.Add(orphan);
+                    _logger.LogDebug($"Orphan {orphan.Id} attached to ROOT");
                 }
                 break;
 
@@ -76,25 +85,21 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
                 foreach (var orphan in orphanedNodes)
                 {
                     var nearestAncestor = FindNearestAncestor(orphan, result, idSet);
-                    if (nearestAncestor is not null)
-                    {
-                        orphan.Parent = nearestAncestor.Id;
-                        result.Add(orphan);
-                        _logger.LogDebug($"Orphan {orphan.Id} attached to ancestor {nearestAncestor.Id}");
-                    }
-                    else
-                    {
-                        orphan.Parent = "ROOT";
-                        result.Add(orphan);
-                        _logger.LogDebug($"Orphan {orphan.Id} attached to ROOT as no valid ancestor found");
-                    }
+                    orphan.Parent = nearestAncestor?.Id ?? "ROOT";
+                    result.Add(orphan);
+                    idSet.Add(orphan.Id ?? string.Empty);
+                    _logger.LogDebug($"Orphan {orphan.Id} attached to {orphan.Parent}");
                 }
                 break;
         }
+
+        _logger.LogInformation($"Processed orphaned nodes. Result now contains {result.Count} items");
     }
 
     private ReportItem? FindNearestAncestor(ReportItem item, List<ReportItem> allItems, HashSet<string> validIds)
     {
+        _logger.LogDebug($"Finding nearest ancestor for item {item.Id} (Parent: {item.Parent})");
+
         var currentParentId = item.Parent;
         var visitedIds = new HashSet<string>();
 
@@ -110,32 +115,38 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
             if (validIds.Contains(currentParentId))
             {
-                return allItems.First(i => i.Id == currentParentId);
+                var ancestor = allItems.First(i => i.Id == currentParentId);
+                _logger.LogDebug($"Found valid ancestor {ancestor.Id} for item {item.Id}");
+                return ancestor;
             }
 
             var nextParent = allItems.FirstOrDefault(i => i.Id == currentParentId);
-            currentParentId = nextParent?.Parent;
+            if (nextParent is null)
+            {
+                _logger.LogWarning($"Parent {currentParentId} not found in allItems for item {item.Id}");
+                break;
+            }
+            currentParentId = nextParent.Parent;
         }
 
-        return null;
+        _logger.LogWarning($"No valid ancestor found for item {item.Id}. Returning first non-ROOT item.");
+        return allItems.FirstOrDefault(i => i.Id != "ROOT");
     }
 
     private void EnsureRootNodeExists(List<ReportItem> items)
     {
-        if (items.Any(i => i.Id == "ROOT"))
+        if (!items.Any(i => i.Id == "ROOT"))
         {
-            return;
+            var rootNode = new ReportItem
+            {
+                Id = "ROOT",
+                MethodName = "Root",
+                StartTime = items.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+                EndTime = items.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+                Parent = null
+            };
+            items.Insert(0, rootNode);
+            _logger.LogInformation("Added synthetic ROOT node");
         }
-
-        var rootNode = new ReportItem
-        {
-            Id = "ROOT",
-            MethodName = "Root",
-            StartTime = items.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            EndTime = items.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            Parent = null
-        };
-        items.Insert(0, rootNode);
-        _logger.LogInformation("Added synthetic ROOT node");
     }
 }

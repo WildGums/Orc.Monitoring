@@ -18,7 +18,7 @@ public class RanttReportParameters
     /// <summary>
     /// Gets or sets the strategy for handling orphaned nodes in the Rantt report.
     /// </summary>
-    public EnhancedDataPostProcessor.OrphanedNodeStrategy OrphanedNodeStrategy { get; set; } = EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor;
+    public OrphanedNodeStrategy OrphanedNodeStrategy { get; set; } = OrphanedNodeStrategy.AttachToNearestAncestor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RanttReportParameters"/> class.
@@ -33,7 +33,7 @@ public class RanttReportParameters
     /// <param name="folderPath">The folder path where the Rantt report files will be saved.</param>
     /// <param name="limitOptions">The output limit options for the Rantt report.</param>
     /// <param name="orphanedNodeStrategy">The strategy for handling orphaned nodes.</param>
-    public RanttReportParameters(string folderPath, OutputLimitOptions? limitOptions = null, EnhancedDataPostProcessor.OrphanedNodeStrategy orphanedNodeStrategy = EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor)
+    public RanttReportParameters(string folderPath, OutputLimitOptions? limitOptions = null, OrphanedNodeStrategy orphanedNodeStrategy = OrphanedNodeStrategy.AttachToNearestAncestor)
     {
         FolderPath = folderPath;
         LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited;
@@ -50,7 +50,7 @@ public class RanttReportParameters
     public static RanttReportParameters Create(
         string folderPath,
         OutputLimitOptions? limitOptions = null,
-        EnhancedDataPostProcessor.OrphanedNodeStrategy orphanedNodeStrategy = EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor)
+        OrphanedNodeStrategy orphanedNodeStrategy = OrphanedNodeStrategy.AttachToNearestAncestor)
     {
         return new RanttReportParameters(folderPath, limitOptions, orphanedNodeStrategy);
     }

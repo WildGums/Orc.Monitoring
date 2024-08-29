@@ -19,7 +19,7 @@ public class MonitoringConfiguration
     public List<Assembly> TrackedAssemblies { get; } = new List<Assembly>();
     public Dictionary<Type, bool> OutputTypeStates { get; } = new Dictionary<Type, bool>();
     public bool IsGloballyEnabled { get; set; } = true;
-    public EnhancedDataPostProcessor.OrphanedNodeStrategy OrphanedNodeStrategy { get; set; } = EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor;
+    public OrphanedNodeStrategy OrphanedNodeStrategy { get; set; } = OrphanedNodeStrategy.AttachToNearestAncestor;
 
     internal void AddFilter(IMethodFilter filter)
     {
@@ -58,7 +58,7 @@ public class MonitoringConfiguration
         OutputTypeStates[outputType] = enabled;
     }
 
-    internal void SetOrphanedNodeStrategy(EnhancedDataPostProcessor.OrphanedNodeStrategy strategy)
+    internal void SetOrphanedNodeStrategy(OrphanedNodeStrategy strategy)
     {
         OrphanedNodeStrategy = strategy;
     }

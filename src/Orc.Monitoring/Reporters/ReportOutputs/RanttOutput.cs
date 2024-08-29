@@ -49,7 +49,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
-    private EnhancedDataPostProcessor.OrphanedNodeStrategy _orphanedNodeStrategy;
+    private OrphanedNodeStrategy _orphanedNodeStrategy;
     private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
 
     public RanttOutput()
@@ -66,7 +66,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     public static RanttReportParameters CreateParameters(
         string folderPath,
         OutputLimitOptions? limitOptions = null,
-        EnhancedDataPostProcessor.OrphanedNodeStrategy orphanedNodeStrategy = EnhancedDataPostProcessor.OrphanedNodeStrategy.AttachToNearestAncestor) => new()
+        OrphanedNodeStrategy orphanedNodeStrategy = OrphanedNodeStrategy.AttachToNearestAncestor) => new()
         {
             FolderPath = folderPath,
             LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited,
@@ -213,29 +213,16 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 .ToList();
 
             _logger.LogInformation($"Number of sorted items: {sortedItems.Count}");
+            _logger.LogInformation($"Orphaned node strategy: {_orphanedNodeStrategy}");
 
             // Apply post-processing
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
             var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems, _orphanedNodeStrategy);
 
-            // Ensure ROOT node is present
-            if (processedItems.All(item => item.Id != "ROOT"))
-            {
-                var rootItem = new ReportItem
-                {
-                    Id = "ROOT",
-                    MethodName = "Root",
-                    Parent = null,
-                    StartTime = processedItems.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-                    EndTime = processedItems.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff")
-                };
-                processedItems.Insert(0, rootItem);
-            }
+            _logger.LogInformation($"Number of items after post-processing: {processedItems.Count}");
+            _logger.LogInformation($"Processed items: {string.Join(", ", processedItems.Select(i => $"{i.Id}:{i.MethodName}:{i.Parent}"))}");
 
-            // Create a new list with overrides applied
-            _logger.LogInformation($"Number of items after applying limit: {processedItems.Count}");
-
-            // Create a new list with overrides applied
+            // Apply overrides
             var itemsWithOverrides = processedItems.Select(item =>
             {
                 var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
