@@ -29,7 +29,8 @@ public class CsvReportOutputTests
         Directory.CreateDirectory(_testFolderPath);
         _testFileName = "TestReport";
         var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
-        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper);
+        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper, 
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
         _mockReporter = new Mock<IMethodCallReporter>();
         _mockReporter.Setup(r => r.FullName).Returns("TestReporter");
     }

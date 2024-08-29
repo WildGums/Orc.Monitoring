@@ -1,7 +1,6 @@
 ﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,6 +15,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
 {
     private readonly ILogger<CsvReportOutput> _logger;
     private readonly ReportOutputHelper _helper;
+    private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
 
     private string? _fileName;
     private string? _folderPath;
@@ -23,15 +23,20 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public CsvReportOutput()
-    : this(MonitoringController.CreateLogger<CsvReportOutput>(), new ReportOutputHelper())
+    : this(MonitoringController.CreateLogger<CsvReportOutput>(), new ReportOutputHelper(), (outputFolder) => new MethodOverrideManager(outputFolder))
     {
 
     }
 
-    public CsvReportOutput(ILogger<CsvReportOutput> logger, ReportOutputHelper reportOutputHelper)
+    public CsvReportOutput(ILogger<CsvReportOutput> logger, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(reportOutputHelper);
+        ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
+
         _logger = logger;
         _helper = reportOutputHelper;
+        _methodOverrideManagerFactory = methodOverrideManagerFactory;
 
         _logger.LogDebug($"Created {nameof(CsvReportOutput)}");
     }
@@ -99,7 +104,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
 
         SetLimitOptions(parameters.LimitOptions);
 
-        _methodOverrideManager = new MethodOverrideManager(_folderPath);
+        _methodOverrideManager = _methodOverrideManagerFactory(_folderPath);
         _methodOverrideManager.LoadOverrides();
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, FileName = {_fileName}");

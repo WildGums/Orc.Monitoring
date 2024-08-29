@@ -32,7 +32,8 @@ public class RanttOutputTests
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
         _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
             () => _mockPostProcessor.Object,
-            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()));
+            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
+            (outputFolder) => new MethodOverrideManager(outputFolder, _logger.CreateLogger<MethodOverrideManager>()));
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }

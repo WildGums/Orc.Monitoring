@@ -15,15 +15,20 @@ using System.Linq;
 [TestFixture]
 public class RanttOutputLimitableTests
 {
+    private TestLogger<RanttOutputLimitableTests> _logger;
     private RanttOutput _ranttOutput;
     private string _testOutputPath;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<RanttOutputLimitableTests>();
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testOutputPath);
-        _ranttOutput = new RanttOutput();
+        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
+            () => new EnhancedDataPostProcessor(_logger.CreateLogger<EnhancedDataPostProcessor>()),
+            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         _ranttOutput.SetParameters(parameters);
     }

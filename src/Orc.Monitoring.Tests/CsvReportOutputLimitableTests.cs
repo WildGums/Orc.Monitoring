@@ -28,7 +28,8 @@ public class CsvReportOutputLimitableTests
 
         var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
 
-        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper);
+        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper,
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
         var parameters = CsvReportOutput.CreateParameters(_testOutputPath, "TestReport");
         _csvReportOutput.SetParameters(parameters);
     }

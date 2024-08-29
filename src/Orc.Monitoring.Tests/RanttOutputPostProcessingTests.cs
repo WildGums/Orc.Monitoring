@@ -224,9 +224,10 @@ public class RanttOutputPostProcessingTests
     {
         _reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
         var output = new RanttOutput(
-            _logger.CreateLogger<RanttOutput>(), 
+            _logger.CreateLogger<RanttOutput>(),
             () => new EnhancedDataPostProcessor(_logger.CreateLogger<EnhancedDataPostProcessor>()),
-            _reportOutputHelper);
+            _reportOutputHelper,
+            (outputFolder) => new MethodOverrideManager(outputFolder, _logger.CreateLogger<MethodOverrideManager>()));
         var parameters = RanttOutput.CreateParameters(_testOutputPath, orphanedNodeStrategy: strategy);
         output.SetParameters(parameters);
         return output;

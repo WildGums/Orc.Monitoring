@@ -10,12 +10,6 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 {
     private readonly ILogger<EnhancedDataPostProcessor> _logger;
 
-    public EnhancedDataPostProcessor()
-        : this(MonitoringController.CreateLogger<EnhancedDataPostProcessor>())
-    {
-
-    }
-
     public EnhancedDataPostProcessor(ILogger<EnhancedDataPostProcessor> logger)
     {
         _logger = logger;

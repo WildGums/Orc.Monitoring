@@ -16,13 +16,23 @@ public class CsvReportWriter
     private readonly HashSet<string> _customColumns;
     private readonly ILogger<CsvReportWriter> _logger;
 
-    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager)
+    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager methodOverrideManager)
+    : this(writer, reportItems, methodOverrideManager, MonitoringController.CreateLogger<CsvReportWriter>())
     {
+    }
+
+    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager, ILogger<CsvReportWriter> logger)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(reportItems);
+        ArgumentNullException.ThrowIfNull(overrideManager);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _writer = writer;
         _reportItems = reportItems;
         _overrideManager = overrideManager;
         _customColumns = new HashSet<string>(overrideManager.GetCustomColumns());
-        _logger = MonitoringController.CreateLogger<CsvReportWriter>();
+        _logger = logger;
     }
 
     public void WriteReportItemsCsv()

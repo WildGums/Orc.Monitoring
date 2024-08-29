@@ -51,21 +51,28 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
     private OrphanedNodeStrategy _orphanedNodeStrategy;
     private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
+    private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
 
     public RanttOutput()
-    : this(MonitoringController.CreateLogger<RanttOutput>(), MonitoringController.GetEnhancedDataPostProcessor, new ReportOutputHelper())
+    : this(MonitoringController.CreateLogger<RanttOutput>(), 
+        MonitoringController.GetEnhancedDataPostProcessor,
+        new ReportOutputHelper(),
+        (outputDirectory) => new MethodOverrideManager(outputDirectory))
     {
     }
 
-    public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper)
+    public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
+        Func<string, MethodOverrideManager> methodOverrideManagerFactory)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(enhancedDataPostProcessorFactory);
         ArgumentNullException.ThrowIfNull(reportOutputHelper);
+        ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
 
         _logger = logger;
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
         _helper = reportOutputHelper;
+        _methodOverrideManagerFactory = methodOverrideManagerFactory;
     }
 
     public static RanttReportParameters CreateParameters(
@@ -110,7 +117,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         SetLimitOptions(parameters.LimitOptions);
         _orphanedNodeStrategy = parameters.OrphanedNodeStrategy;
 
-        _overrideManager = new MethodOverrideManager(_folderPath);
+        _overrideManager = _methodOverrideManagerFactory(_folderPath);
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, OrphanedNodeStrategy = {_orphanedNodeStrategy}");
     }
@@ -167,7 +174,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
         if (_overrideManager is null)
         {
-            _overrideManager = new MethodOverrideManager(_outputDirectory!);
+            _overrideManager = _methodOverrideManagerFactory(_outputDirectory!);
         }
         _overrideManager.LoadOverrides();
 
