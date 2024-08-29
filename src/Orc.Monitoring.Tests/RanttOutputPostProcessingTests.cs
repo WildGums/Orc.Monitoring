@@ -129,7 +129,9 @@ public class RanttOutputPostProcessingTests
         var csvContent = await File.ReadAllTextAsync(csvFilePath);
         Console.WriteLine($"CSV content:\n{csvContent}");
         Assert.That(csvContent, Does.Contain("OrphanedMethod"));
-        Assert.That(csvContent, Does.Contain("1,3,"));
+        Assert.That(csvContent, Does.Contain("3,2,")); // Expect orphaned node to be attached to node 2
+        Assert.That(csvContent, Does.Contain("2,1,")); // Verify node 2 is still a child of node 1
+        Assert.That(csvContent, Does.Contain("1,ROOT,")); // Verify node 1 is still a child of ROOT
     }
 
     private async Task InitializeAndExportData(List<ReportItem> reportItems)
@@ -161,7 +163,12 @@ public class RanttOutputPostProcessingTests
             Parent = parent,
             MethodName = methodName,
             StartTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            EndTime = DateTime.Now.AddSeconds(1).ToString("yyyy-MM-dd HH:mm:ss.fff")
+            EndTime = DateTime.Now.AddSeconds(1).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+            FullName = $"RanttOutputPostProcessingTests.{methodName}()",
+            ClassName = "RanttOutputPostProcessingTests",
+            ThreadId = "14",
+            ParentThreadId = parent == "ROOT" ? "0" : "14",
+            Report = "TestReporter"
         };
     }
 

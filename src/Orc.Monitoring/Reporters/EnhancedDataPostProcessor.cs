@@ -22,8 +22,7 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
         _logger = logger;
     }
 
-
-    public virtual List<ReportItem> PostProcessData(List<ReportItem> items, OrphanedNodeStrategy strategy)
+    public List<ReportItem> PostProcessData(List<ReportItem> items, OrphanedNodeStrategy strategy)
     {
         _logger.LogInformation($"Starting post-processing of {items.Count} items with strategy: {strategy}");
 
@@ -31,7 +30,19 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
         var result = new List<ReportItem>();
         var orphanedNodes = new List<ReportItem>();
 
-        foreach (var item in items)
+        // Ensure ROOT node exists
+        var rootNode = items.FirstOrDefault(i => i.Id == "ROOT") ?? new ReportItem
+        {
+            Id = "ROOT",
+            MethodName = "Root",
+            StartTime = items.Min(r => DateTime.Parse(r.StartTime ?? DateTime.MinValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+            EndTime = items.Max(r => DateTime.Parse(r.EndTime ?? DateTime.MaxValue.ToString())).ToString("yyyy-MM-dd HH:mm:ss.fff"),
+            Parent = null
+        };
+        result.Add(rootNode);
+        idSet.Add("ROOT");
+
+        foreach (var item in items.Where(i => i.Id != "ROOT"))
         {
             var itemParent = item.Parent ?? string.Empty;
             if (itemParent == "ROOT" || idSet.Contains(itemParent))
@@ -47,8 +58,6 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
         }
 
         ProcessOrphanedNodes(orphanedNodes, result, idSet, strategy);
-
-        EnsureRootNodeExists(result);
 
         // Sort items to maintain correct order
         result = result.OrderBy(i => i.Id == "ROOT" ? 0 : 1)
@@ -129,8 +138,10 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
             currentParentId = nextParent.Parent;
         }
 
-        _logger.LogWarning($"No valid ancestor found for item {item.Id}. Returning first non-ROOT item.");
-        return allItems.FirstOrDefault(i => i.Id != "ROOT");
+        // If no valid ancestor found, return the first non-ROOT item
+        var firstNonRootItem = allItems.FirstOrDefault(i => i.Id != "ROOT" && i.Id != item.Id);
+        _logger.LogWarning($"No valid ancestor found for item {item.Id}. Returning {firstNonRootItem?.Id ?? "null"}.");
+        return firstNonRootItem ?? allItems.First(i => i.Id == "ROOT");
     }
 
     private void EnsureRootNodeExists(List<ReportItem> items)
