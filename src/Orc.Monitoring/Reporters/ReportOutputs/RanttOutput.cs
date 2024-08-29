@@ -57,6 +57,11 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     {
     }
 
+    public RanttOutput(Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
+    : this(MonitoringController.CreateLogger<RanttOutput>(), enhancedDataPostProcessorFactory)
+    {
+    }
+
     public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
     {
         _logger = logger;

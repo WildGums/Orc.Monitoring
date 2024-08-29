@@ -2,7 +2,7 @@
 
 public enum OrphanedNodeStrategy
 {
-    RemoveOrphans,
+    RemoveOrphans, // should remove orphaned nodes recursively
     AttachToRoot,
     AttachToNearestAncestor
 }
