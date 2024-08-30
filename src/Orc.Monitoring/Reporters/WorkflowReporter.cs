@@ -62,9 +62,10 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         ArgumentNullException.ThrowIfNull(monitoringConfiguration);
         ArgumentNullException.ThrowIfNull(rootMethod);
-
+        ArgumentNullException.ThrowIfNull(rootMethod.MethodInfo);
+        
         _monitoringConfiguration = monitoringConfiguration;
-        RootMethod = rootMethod.MethodInfo;
+        SetRootMethod(rootMethod.MethodInfo);
         _rootMethodCallInfo = rootMethod;
     }
 
@@ -92,11 +93,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
         return _rootWorkflowItemName ??= parameters?[MethodCallParameter.WorkflowItemName];
     }
 
-    public MethodInfo? RootMethod
-    {
-        get => _rootMethod;
-        set => _rootMethod = value;
-    }
+    public MethodInfo RootMethod => _rootMethod ?? throw new InvalidOperationException("Root method not set");
 
     public string Id
     {
@@ -107,6 +104,14 @@ public sealed class WorkflowReporter : IMethodCallReporter
             _id = value;
         }
     }
+
+    public void SetRootMethod(MethodInfo methodInfo)
+    {
+        ArgumentNullException.ThrowIfNull(methodInfo);
+
+        _rootMethod = methodInfo;
+    }
+
     public IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack)
     {
         if (RootMethod is null)

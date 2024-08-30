@@ -1,5 +1,4 @@
-﻿#pragma warning disable IDISP015
-#pragma warning disable IDISP005
+﻿#pragma warning disable IDISP005
 namespace Orc.Monitoring;
 
 using System;
@@ -11,7 +10,7 @@ using Filters;
 using System.Linq;
 using System.Reflection;
 
-internal class ClassMonitor : IClassMonitor
+public class ClassMonitor : IClassMonitor
 {
     private readonly Type _classType;
     private readonly CallStack _callStack;
@@ -20,19 +19,8 @@ internal class ClassMonitor : IClassMonitor
 
     private HashSet<string>? _trackedMethodNames;
 
-    public ClassMonitor(Type classType, CallStack callStack, MonitoringConfiguration monitoringConfig)
-    : this(classType, callStack, monitoringConfig, MonitoringController.CreateLogger<ClassMonitor>())
-    {
-
-    }
-
     public ClassMonitor(Type classType, CallStack callStack, MonitoringConfiguration monitoringConfig, ILogger<ClassMonitor> logger)
     {
-        ArgumentNullException.ThrowIfNull(classType);
-        ArgumentNullException.ThrowIfNull(callStack);
-        ArgumentNullException.ThrowIfNull(monitoringConfig);
-        ArgumentNullException.ThrowIfNull(logger);
-
         _classType = classType;
         _callStack = callStack;
         _monitoringConfig = monitoringConfig;
@@ -87,6 +75,15 @@ internal class ClassMonitor : IClassMonitor
         {
             reporter.Initialize(_monitoringConfig, methodCallInfo);
 
+            // Only set root method if it hasn't been set already
+            if (reporter.RootMethod is null)
+            {
+                reporter.SetRootMethod(methodInfo);
+                _logger.LogDebug($"Set root method for reporter: {reporter.GetType().Name}");
+            }
+
+            methodCallInfo.AssociatedReporter = reporter;
+
             if (MonitoringController.IsReporterEnabled(reporter.GetType()))
             {
                 _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
@@ -101,7 +98,7 @@ internal class ClassMonitor : IClassMonitor
             }
         }
 
-        PushMethodCallInfoToStack(methodCallInfo);
+        _callStack.Push(methodCallInfo);
 
         if (!ShouldTrackMethod(methodCallInfo, operationVersion, enabledReporterIds))
         {
@@ -220,12 +217,6 @@ internal class ClassMonitor : IClassMonitor
         return genericArgs.Length == configGenericArgs.Count;
     }
 
-    private void PushMethodCallInfoToStack(MethodCallInfo methodCallInfo)
-    {
-        _callStack.Push(methodCallInfo);
-        _logger.LogDebug($"MethodCallInfo pushed. IsNull: {methodCallInfo.IsNull}, Version: {methodCallInfo.Version}");
-    }
-
     private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
     {
         EnsureMethodsLoaded();
@@ -261,8 +252,8 @@ internal class ClassMonitor : IClassMonitor
     private object GetDummyContext(bool async)
     {
         _logger.LogDebug("Returning Dummy context");
-        return async 
-            ? AsyncMethodCallContext.GetDummyCallContext(() => new AsyncMethodCallContext(MonitoringController.CreateLogger<AsyncMethodCallContext>())) 
+        return async
+            ? AsyncMethodCallContext.GetDummyCallContext(() => new AsyncMethodCallContext(MonitoringController.CreateLogger<AsyncMethodCallContext>()))
             : MethodCallContext.GetDummyCallContext(() => new MethodCallContext(MonitoringController.CreateLogger<MethodCallContext>()));
     }
 

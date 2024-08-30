@@ -51,8 +51,10 @@ public class MethodCallInfo
     public Type[]? GenericArguments { get; private set; }
     public bool IsExtensionMethod { get; set; }
     public Type? ExtendedType { get; set; }
+    public IMethodCallReporter? AssociatedReporter { get; set; }
+    public bool IsRootForAssociatedReporter => AssociatedReporter?.RootMethod == MethodInfo;
 
-    private MethodCallInfo(MethodCallInfoPool? pool)
+private MethodCallInfo(MethodCallInfoPool? pool)
     {
         _pool = pool;
     }

@@ -62,11 +62,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
         Func<string, MethodOverrideManager> methodOverrideManagerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(enhancedDataPostProcessorFactory);
-        ArgumentNullException.ThrowIfNull(reportOutputHelper);
-        ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
-
         _logger = logger;
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
         _helper = reportOutputHelper;
@@ -91,7 +86,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Disposing {nameof(RanttOutput)}");
             try
             {
-                await ExportDataAsync();
+                await ExportDataAsync(reporter);
             }
             catch (Exception ex)
             {
@@ -127,7 +122,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         var reportItem = _helper.ProcessCallStackItem(callStackItem);
         if (reportItem is not null)
         {
-            // Ensure custom columns are added to the report item
             if (callStackItem is MethodCallStart methodCallStart)
             {
                 var parameters = new Dictionary<string, string>(reportItem.Parameters);
@@ -149,17 +143,11 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         _logger.LogError(exception, "Error occurred during Rantt report generation");
     }
 
-    private async Task ExportDataAsync()
+    private async Task ExportDataAsync(IMethodCallReporter reporter)
     {
         if (_folderPath is null)
         {
             throw new InvalidOperationException("Folder path is not set");
-        }
-
-        var reporter = _helper.Reporter;
-        if (reporter is null)
-        {
-            throw new InvalidOperationException("Reporter is not set");
         }
 
         _outputDirectory = Path.Combine(_folderPath, reporter.FullName);
@@ -179,9 +167,9 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         try
         {
             _logger.LogInformation("Starting Rantt data export");
-            await ExportToCsvAsync(fileName);
+            await ExportToCsvAsync(fileName, reporter);
             await ExportRelationshipsToCsvAsync(relationshipsFileName);
-            ExportToRantt(reporter.FullName, fileName, relationshipsFileName);
+            ExportToRantt(reporter, fileName, relationshipsFileName);
 
             _logger.LogInformation($"Rantt data exported with {_helper.ReportItems.Count} items");
 
@@ -201,7 +189,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         }
     }
 
-    private async Task ExportToCsvAsync(string fileName)
+    private async Task ExportToCsvAsync(string fileName, IMethodCallReporter reporter)
     {
         if (_outputDirectory is null || _overrideManager is null)
         {
@@ -221,14 +209,11 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
             _logger.LogInformation($"Number of sorted items: {sortedItems.Count}");
 
-            // Apply post-processing
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
             var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
 
             _logger.LogInformation($"Number of items after post-processing: {processedItems.Count}");
-            _logger.LogInformation($"Processed items: {string.Join(", ", processedItems.Select(i => $"{i.Id}:{i.MethodName}:{i.Parent}"))}");
 
-            // Apply overrides
             var itemsWithOverrides = processedItems.Select(item =>
             {
                 var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
@@ -268,12 +253,9 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
             _logger.LogInformation($"CSV report written to {fullPath} with {itemsWithOverrides.Count} items");
 
-            // Verify file content
             var fileContent = await File.ReadAllTextAsync(fullPath);
             var lineCount = fileContent.Split('\n').Length;
             _logger.LogInformation($"Actual line count in file: {lineCount}");
-
-            // Log the content of the file for debugging
             _logger.LogDebug($"File content:\n{fileContent}");
         }
         catch (IOException ex)
@@ -296,7 +278,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         {
             _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
 
-            // Use the same post-processing as in ExportToCsvAsync
             var sortedItems = _helper.ReportItems
                 .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
                 .ToList();
@@ -334,18 +315,18 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         return "Regular";
     }
 
-    private void ExportToRantt(string reporterName, string dataFileName, string relationshipsFileName)
+    private void ExportToRantt(IMethodCallReporter reporter, string dataFileName, string relationshipsFileName)
     {
         if (_outputDirectory is null)
         {
             throw new InvalidOperationException("Output directory is not set");
         }
 
-        var ranttProjectFileName = $"{reporterName}.rprjx";
+        var ranttProjectFileName = $"{reporter.FullName}.rprjx";
         var ranttProjectContents = RanttProjectContents
             .Replace("%SourceFileName%", dataFileName)
             .Replace("%RelationshipsFileName%", relationshipsFileName)
-            .Replace("%reportName%", reporterName);
+            .Replace("%reportName%", reporter.FullName);
         var ranttProjectPath = Path.Combine(_outputDirectory, ranttProjectFileName);
 
         try
@@ -394,6 +375,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogError(ex, "Error creating timestamped folder copy");
         }
     }
+
 
     private static string GetArchiveDirectory(string directory)
     {

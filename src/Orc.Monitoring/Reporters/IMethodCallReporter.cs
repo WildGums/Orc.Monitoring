@@ -23,9 +23,9 @@ public interface IMethodCallReporter : IOutputContainer
     string FullName { get; }
 
     /// <summary>
-    /// Gets or sets the root method for this reporter.
+    /// Gets the root method for this reporter.
     /// </summary>
-    MethodInfo? RootMethod { get; set; }
+    MethodInfo RootMethod { get; }
 
     /// <summary>
     /// Gets or sets the unique identifier for this reporter instance.
@@ -40,4 +40,5 @@ public interface IMethodCallReporter : IOutputContainer
     IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack);
 
     void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod);
+    void SetRootMethod(MethodInfo methodInfo);
 }

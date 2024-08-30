@@ -59,6 +59,14 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
         _logger.LogInformation($"TestWorkflowReporter initialized with root method: {rootMethod.MethodName}");
     }
 
+    public void SetRootMethod(MethodInfo methodInfo)
+    {
+        ArgumentNullException.ThrowIfNull(methodInfo);
+
+        RootMethod = methodInfo;
+        _logger.LogInformation($"Root method set to: {methodInfo.Name}");
+    }
+
     public IOutputContainer AddFilter<T>() where T : IMethodFilter
     {
         _filterTypes.Add(typeof(T));
@@ -82,7 +90,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
         return _rootWorkflowItemName ??= parameters?[MethodCallParameter.WorkflowItemName];
     }
 
-    public MethodInfo? RootMethod
+    public MethodInfo RootMethod
     {
         get => _rootMethod;
         set => _rootMethod = value;

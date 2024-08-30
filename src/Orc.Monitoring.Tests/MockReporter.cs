@@ -57,7 +57,7 @@ public class MockReporter : IMethodCallReporter
     private MethodInfo? _rootMethod;
     private readonly List<Type> _filters = new();
 
-    public MethodInfo? RootMethod
+    public MethodInfo RootMethod
     {
         get => _rootMethod;
         set
@@ -90,6 +90,20 @@ public class MockReporter : IMethodCallReporter
     {
         _monitoringConfiguration = monitoringConfiguration;
         RootMethod = rootMethod.MethodInfo;
+    }
+
+    public void SetRootMethod(MethodInfo methodInfo)
+    {
+        if (_rootMethod is null)
+        {
+            _rootMethod = methodInfo;
+            _logger.LogInformation($"SetRootMethod called for {methodInfo.Name}");
+            OperationSequence.Add("SetRootMethod");
+        }
+        else
+        {
+            _logger.LogWarning($"Attempted to set root method again. Ignoring call for {methodInfo.Name}");
+        }
     }
 
     public IOutputContainer AddFilter<T>() where T : IMethodFilter

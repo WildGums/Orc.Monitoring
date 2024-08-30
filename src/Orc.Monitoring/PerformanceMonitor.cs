@@ -133,7 +133,7 @@ public static class PerformanceMonitor
         _logger.LogDebug($"CreateClassMonitor called for {callingType.Name}");
 
         _logger.LogDebug($"Creating ClassMonitor for {callingType.Name}");
-        return new ClassMonitor(callingType, _callStack, _configuration);
+        return new ClassMonitor(callingType, _callStack, _configuration, MonitoringController.CreateLogger<ClassMonitor>());
     }
 
     private static Type? GetCallingType()
