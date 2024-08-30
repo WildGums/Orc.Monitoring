@@ -13,9 +13,13 @@ using Filters;
 [TestFixture]
 public class MonitoringControllerTests
 {
+    private TestLogger<MonitoringControllerTests> _logger;
+
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MonitoringControllerTests>();
+
         MonitoringController.ResetForTesting();
         MonitoringController.Enable(); // Enable monitoring by default for tests
     }
@@ -90,9 +94,9 @@ public class MonitoringControllerTests
         var builder = new ConfigurationBuilder();
         builder.SetGlobalState(monitoringEnabled);
 
-        var reporter = new MockReporter(); // Use MockReporter instead of WorkflowReporter
+        var reporter = new MockReporter(_logger.CreateLogger<MockReporter>()); // Use MockReporter instead of WorkflowReporter
         if (reporterEnabled)
-            builder.AddReporter(typeof(WorkflowReporter));
+            builder.AddReporterType(typeof(WorkflowReporter));
 
         MonitoringController.Configuration = builder.Build();
 
@@ -158,8 +162,8 @@ public class MonitoringControllerTests
     public void GlobalDisableEnable_RestoresCorrectComponentStates()
     {
         var builder = new ConfigurationBuilder();
-        builder.AddReporter(typeof(WorkflowReporter));
-        builder.AddFilter<AlwaysIncludeFilter>();
+        builder.AddReporterType(typeof(WorkflowReporter));
+        builder.AddFilter(new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>()));
         MonitoringController.Configuration = builder.Build();
 
         MonitoringController.Disable();
@@ -228,7 +232,7 @@ public class MonitoringControllerTests
         Console.WriteLine($"Initial version: {initialVersion}");
 
         var builder = new ConfigurationBuilder();
-        builder.AddReporter(typeof(WorkflowReporter));
+        builder.AddReporterType(typeof(WorkflowReporter));
         MonitoringController.Configuration = builder.Build();
 
         var newVersion = MonitoringController.GetCurrentVersion();

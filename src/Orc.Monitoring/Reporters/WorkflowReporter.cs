@@ -41,8 +41,16 @@ public sealed class WorkflowReporter : IMethodCallReporter
 #pragma warning restore IDISP006
 
     public WorkflowReporter()
+    : this(MonitoringController.CreateLogger<WorkflowReporter>())
     {
-        _logger = MonitoringController.CreateLogger<WorkflowReporter>();
+        
+    }
+
+    public WorkflowReporter(ILogger<WorkflowReporter> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
 
         Name = "Workflow";
 

@@ -82,19 +82,21 @@ public static class MonitoringController
     private static readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?, long), bool> _shouldTrackCache = new();
     private static readonly ConcurrentDictionary<(Type ReporterType, Type FilterType), bool> _reporterSpecificFilterStates = new();
     private static readonly ConcurrentDictionary<(string ReporterId, Type FilterType), bool> _reporterInstanceFilterStates = new();
-    
-    private static readonly ILoggerFactory _loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+
+    private static readonly IMonitoringLoggerFactory _loggerFactory = new MonitoringLoggerFactory();
     private static readonly ILogger _logger = CreateLogger(typeof(MonitoringController));
 
     private static long _cacheVersion = 0;
     private static int _isUpdating = 0;
 
     private static MonitoringConfiguration _configuration = new();
+    private static EnhancedDataPostProcessor? _enhancedDataPostProcessor;
 
     public static event EventHandler<VersionChangedEventArgs>? VersionChanged;
 
     public static ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();
     public static ILogger CreateLogger(Type type) => _loggerFactory.CreateLogger(type);
+
 
 
     public static MonitoringConfiguration Configuration
@@ -113,12 +115,40 @@ public static class MonitoringController
                 OnStateChanged(MonitoringComponentType.Configuration, "Configuration", true, _currentVersion);
 
                 ApplyConfiguration(oldConfig, value);
+
+                // Initialize or update EnhancedDataPostProcessor
+                if (_enhancedDataPostProcessor is null)
+                {
+                    _enhancedDataPostProcessor = new EnhancedDataPostProcessor(CreateLogger<EnhancedDataPostProcessor>());
+                }
+                // Apply the new OrphanedNodeStrategy
+                // Note: We don't need to do anything here as the strategy is read directly from the configuration when used
             }
             finally
             {
                 _stateLock.ExitWriteLock();
             }
         }
+    }
+
+    public static EnhancedDataPostProcessor GetEnhancedDataPostProcessor()
+    {
+        if (_enhancedDataPostProcessor is null)
+        {
+            _stateLock.EnterWriteLock();
+            try
+            {
+                if (_enhancedDataPostProcessor is null)
+                {
+                    _enhancedDataPostProcessor = new EnhancedDataPostProcessor(CreateLogger<EnhancedDataPostProcessor>());
+                }
+            }
+            finally
+            {
+                _stateLock.ExitWriteLock();
+            }
+        }
+        return _enhancedDataPostProcessor;
     }
 
     public static void EnableFilterForReporterType(Type reporterType, Type filterType)

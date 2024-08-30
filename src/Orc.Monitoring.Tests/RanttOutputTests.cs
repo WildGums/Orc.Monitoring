@@ -11,7 +11,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
-
+using Moq;
 
 [TestFixture]
 public class RanttOutputTests
@@ -19,17 +19,21 @@ public class RanttOutputTests
     private RanttOutput _ranttOutput;
     private MockReporter _mockReporter;
     private string _testFolderPath;
-    private ILogger<RanttOutputTests> _logger = MonitoringController.CreateLogger<RanttOutputTests>();
-
+    private TestLogger<RanttOutputTests> _logger;
+    private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
 
     [SetUp]
     public void Setup()
     {
-        _logger = MonitoringController.CreateLogger<RanttOutputTests>();
+        _logger = new TestLogger<RanttOutputTests>();
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
-        _ranttOutput = new RanttOutput();
-        _mockReporter = new MockReporter { Name = "TestReporter", FullName = "TestReporter" };
+        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>()) { Name = "TestReporter", FullName = "TestReporter" };
+        _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
+        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(),
+            () => _mockPostProcessor.Object,
+            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
+            (outputFolder) => new MethodOverrideManager(outputFolder, _logger.CreateLogger<MethodOverrideManager>()));
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }
@@ -49,21 +53,22 @@ public class RanttOutputTests
         // Arrange
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
-        // Create a parent method call
         var parentMethodInfo = CreateMethodCallInfo("ParentMethod", null);
         var parentStart = new MethodCallStart(parentMethodInfo);
         _ranttOutput.WriteItem(parentStart);
 
-        // Create a child method call
         var childMethodInfo = CreateMethodCallInfo("ChildMethod", parentMethodInfo);
         var childStart = new MethodCallStart(childMethodInfo);
         _ranttOutput.WriteItem(childStart);
 
-        // End both method calls
         var childEnd = new MethodCallEnd(childMethodInfo);
         _ranttOutput.WriteItem(childEnd);
         var parentEnd = new MethodCallEnd(parentMethodInfo);
         _ranttOutput.WriteItem(parentEnd);
+
+        // Mock the post-processor to return the same items
+        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>()))
+            .Returns((List<ReportItem> items) => items);
 
         // Act
         await disposable.DisposeAsync();
@@ -89,13 +94,55 @@ public class RanttOutputTests
 
         Assert.That(lines.Any(l => l.StartsWith($"{parentMethodInfo.Id},{childMethodInfo.Id}")), Is.True,
             $"Relationship between parent and child should be present. Expected: {parentMethodInfo.Id},{childMethodInfo.Id}");
+
+        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>()), Times.Exactly(2));
+    }
+
+    [Test]
+    public async Task ExportToCsv_AppliesPostProcessing()
+    {
+        // Arrange
+        var disposable = _ranttOutput.Initialize(_mockReporter);
+
+        var methodInfo1 = CreateMethodCallInfo("Method1", null);
+        var methodInfo2 = CreateMethodCallInfo("Method2", methodInfo1);
+
+        _ranttOutput.WriteItem(new MethodCallStart(methodInfo1));
+        _ranttOutput.WriteItem(new MethodCallStart(methodInfo2));
+        _ranttOutput.WriteItem(new MethodCallEnd(methodInfo2));
+        _ranttOutput.WriteItem(new MethodCallEnd(methodInfo1));
+
+        // Mock the post-processor to return modified items
+        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>()))
+            .Returns((List<ReportItem> items) =>
+            {
+                items.First(i => i.Id == methodInfo1.Id).Parent = null;
+                return items;
+            });
+
+        // Act
+        await disposable.DisposeAsync();
+
+        // Assert
+        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        Assert.That(File.Exists(csvFilePath), Is.True, "CSV file should exist");
+
+        var csvContent = await File.ReadAllTextAsync(csvFilePath);
+        _logger.LogInformation($"CSV file content:\n{csvContent}");
+
+        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines[1], Does.StartWith($"{methodInfo1.Id},"), "Method1 should have an empty parent");
+        Assert.That(lines[2], Does.StartWith($"{methodInfo2.Id},{methodInfo1.Id}"), "Method2 should be a child of Method1");
+
+        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>()), Times.Exactly(2));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(RanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(RanttOutputTests),
             methodInfo,

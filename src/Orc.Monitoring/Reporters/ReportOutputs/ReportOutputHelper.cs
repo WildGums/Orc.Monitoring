@@ -12,7 +12,18 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public class ReportOutputHelper
 {
-    private readonly ILogger<ReportOutputHelper> _logger = MonitoringController.CreateLogger<ReportOutputHelper>();
+    private readonly ILogger<ReportOutputHelper> _logger;
+
+    public ReportOutputHelper()
+    : this(MonitoringController.CreateLogger<ReportOutputHelper>())
+    {
+        
+    }
+
+    public ReportOutputHelper(ILogger<ReportOutputHelper> logger)
+    {
+        _logger = logger;
+    }
 
     public IMethodCallReporter? Reporter { get; private set; }
     private readonly Dictionary<string, ReportItem> _reportItems = new();

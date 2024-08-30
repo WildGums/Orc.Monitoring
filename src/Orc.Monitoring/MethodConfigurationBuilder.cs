@@ -3,22 +3,29 @@
 using System;
 using System.Linq;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Filters;
 using Reporters;
 
 public class MethodConfigurationBuilder
 {
-    private readonly ILogger<MethodConfigurationBuilder> _logger = MonitoringController.CreateLogger<MethodConfigurationBuilder>();
+    private readonly ILogger<MethodConfigurationBuilder> _logger;
     private readonly MethodConfiguration _config = new();
 
     public MethodConfigurationBuilder()
+    : this(MonitoringController.CreateLogger<MethodConfigurationBuilder>())
     {
         
     }
 
+    public MethodConfigurationBuilder(ILogger<MethodConfigurationBuilder> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
+    }
+
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
     {
-        _logger.LogDebug($"Adding reporter: {reporter.GetType().Name}");
+        _logger.LogDebug($"Added reporter: {reporter.GetType().Name} with ID: {reporter.Id}");
         _config.Reporters.Add(reporter);
         return this;
     }
@@ -31,9 +38,8 @@ public class MethodConfigurationBuilder
             reporter.Id = Guid.NewGuid().ToString(); // Assign a unique Id only if one doesn't exist
         }
         configAction?.Invoke(reporter);
-        _config.Reporters.Add(reporter);
-        _logger.LogDebug($"Added reporter: {reporter.GetType().Name} with ID: {reporter.Id}");
-        return this;
+
+        return AddReporter(reporter);
     }
 
     public MethodConfigurationBuilder WithArguments(params object[] parameters)

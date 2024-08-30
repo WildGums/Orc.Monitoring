@@ -16,7 +16,7 @@ public static class PerformanceMonitor
     private static readonly object _configLock = new object();
     private static CallStack? _callStack;
     private static MonitoringConfiguration? _configuration;
-    private static readonly ILogger _logger = CreateLogger(typeof(PerformanceMonitor));
+    private static readonly ILogger _logger = MonitoringController.CreateLogger(typeof(PerformanceMonitor));
 
     public static void Configure(Action<ConfigurationBuilder> configAction)
     {
@@ -47,7 +47,7 @@ public static class PerformanceMonitor
                 }
 
                 _logger.LogDebug("Creating CallStack instance");
-                _callStack = new CallStack(_configuration);
+                _callStack = new CallStack(_configuration, new MethodCallInfoPool(), MonitoringController.CreateLogger<CallStack>());
                 _logger.LogInformation($"CallStack instance created: {_callStack is not null}");
 
                 if (_callStack is null)
@@ -66,7 +66,7 @@ public static class PerformanceMonitor
 
     public static void LogCurrentConfiguration()
     {
-        var logger = CreateLogger(typeof(PerformanceMonitor));
+        var logger = MonitoringController.CreateLogger(typeof(PerformanceMonitor));
         var config = GetCurrentConfiguration();
         if (config is not null)
         {
@@ -141,9 +141,6 @@ public static class PerformanceMonitor
         var frame = new System.Diagnostics.StackFrame(2, false);
         return frame.GetMethod()?.DeclaringType;
     }
-
-    public static ILogger<T> CreateLogger<T>() => MonitoringController.CreateLogger<T>();
-    public static ILogger CreateLogger(Type type) => MonitoringController.CreateLogger(type);
 
     // Method to reset the configuration and CallStack if needed
     public static void Reset()

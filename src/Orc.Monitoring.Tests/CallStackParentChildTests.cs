@@ -15,6 +15,7 @@ using Moq;
 [TestFixture]
 public class CallStackParentChildTests
 {
+    private TestLogger<CallStackParentChildTests> _logger;
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;
     private MonitoringConfiguration? _config;
@@ -22,8 +23,10 @@ public class CallStackParentChildTests
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<CallStackParentChildTests>();
         _config = new MonitoringConfiguration();
-        _callStack = new CallStack(_config);
+        var methodCallInfoPool = new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>());
+        _callStack = new CallStack(_config, methodCallInfoPool, _logger.CreateLogger<CallStack>());
         _mockClassMonitor = new Mock<IClassMonitor>();
 
         MonitoringController.Enable();

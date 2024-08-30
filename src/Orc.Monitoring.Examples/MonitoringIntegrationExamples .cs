@@ -21,7 +21,7 @@ public class MonitoringIntegrationExamples
         Console.WriteLine("Configuring PerformanceMonitor...");
         PerformanceMonitor.Configure(config =>
         {
-            config.AddReporter(typeof(WorkflowReporter));
+            config.AddReporterType(typeof(WorkflowReporter));
             config.AddFilter<WorkflowItemFilter>();
             config.TrackAssembly(typeof(MonitoringIntegrationExamples).Assembly);
         });
@@ -68,7 +68,7 @@ public class MonitoringIntegrationExamples
     {
         Console.WriteLine("Enabling monitoring...");
         MonitoringController.Enable();
-        var callStack = new CallStack(new MonitoringConfiguration());
+        var callStack = new CallStack(new MonitoringConfiguration(), new MethodCallInfoPool(), MonitoringController.CreateLogger<CallStack>());
         var observer = new CallStackObserver();
         var classMonitor = PerformanceMonitor.ForClass<MonitoringIntegrationExamples>();
 

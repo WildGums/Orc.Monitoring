@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MethodLifeCycleItems;
@@ -44,22 +43,43 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 </Project>";
 
     private readonly ILogger<RanttOutput> _logger;
-    private readonly ReportOutputHelper _helper = new();
+    private readonly ReportOutputHelper _helper;
     private string? _folderPath;
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
+    private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
+    private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
 
     public RanttOutput()
+    : this(MonitoringController.CreateLogger<RanttOutput>(),
+        MonitoringController.GetEnhancedDataPostProcessor,
+        new ReportOutputHelper(),
+        (outputDirectory) => new MethodOverrideManager(outputDirectory))
     {
-        _logger = MonitoringController.CreateLogger<RanttOutput>();
     }
 
-    public static RanttReportParameters CreateParameters(string folderPath, OutputLimitOptions? limitOptions = null) => new()
+    public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
+        Func<string, MethodOverrideManager> methodOverrideManagerFactory)
     {
-        FolderPath = folderPath,
-        LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
-    };
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(enhancedDataPostProcessorFactory);
+        ArgumentNullException.ThrowIfNull(reportOutputHelper);
+        ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
+
+        _logger = logger;
+        _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
+        _helper = reportOutputHelper;
+        _methodOverrideManagerFactory = methodOverrideManagerFactory;
+    }
+
+    public static RanttReportParameters CreateParameters(
+        string folderPath,
+        OutputLimitOptions? limitOptions = null) => new()
+        {
+            FolderPath = folderPath,
+            LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
+        };
 
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
     {
@@ -84,7 +104,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     public void SetParameters(object? parameter = null)
     {
         ArgumentNullException.ThrowIfNull(parameter, "Parameters cannot be null");
-        
+
         var parameters = (RanttReportParameters)parameter;
 
         _folderPath = parameters.FolderPath;
@@ -92,7 +112,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
         SetLimitOptions(parameters.LimitOptions);
 
-        _overrideManager = new MethodOverrideManager(_folderPath);
+        _overrideManager = _methodOverrideManagerFactory(_folderPath);
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
     }
@@ -149,7 +169,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
         if (_overrideManager is null)
         {
-            _overrideManager = new MethodOverrideManager(_outputDirectory!);
+            _overrideManager = _methodOverrideManagerFactory(_outputDirectory!);
         }
         _overrideManager.LoadOverrides();
 
@@ -193,14 +213,23 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         try
         {
             _logger.LogInformation($"Starting CSV export to {fullPath}");
-            _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
+            _logger.LogInformation($"Number of report items before processing: {_helper.ReportItems.Count}");
 
             var sortedItems = _helper.ReportItems
                 .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
                 .ToList();
 
-            // Create a new list with overrides applied
-            var itemsWithOverrides = sortedItems.Select(item =>
+            _logger.LogInformation($"Number of sorted items: {sortedItems.Count}");
+
+            // Apply post-processing
+            var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
+            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
+
+            _logger.LogInformation($"Number of items after post-processing: {processedItems.Count}");
+            _logger.LogInformation($"Processed items: {string.Join(", ", processedItems.Select(i => $"{i.Id}:{i.MethodName}:{i.Parent}"))}");
+
+            // Apply overrides
+            var itemsWithOverrides = processedItems.Select(item =>
             {
                 var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
                 var overrides = _overrideManager.GetOverridesForMethod(fullName);
@@ -229,6 +258,8 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 };
             }).ToList();
 
+            _logger.LogInformation($"Number of items with overrides: {itemsWithOverrides.Count}");
+
             await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
                 var csvReportWriter = new CsvReportWriter(writer, itemsWithOverrides, _overrideManager);
@@ -241,6 +272,9 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             var fileContent = await File.ReadAllTextAsync(fullPath);
             var lineCount = fileContent.Split('\n').Length;
             _logger.LogInformation($"Actual line count in file: {lineCount}");
+
+            // Log the content of the file for debugging
+            _logger.LogDebug($"File content:\n{fileContent}");
         }
         catch (IOException ex)
         {
@@ -261,10 +295,19 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         try
         {
             _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
+
+            // Use the same post-processing as in ExportToCsvAsync
+            var sortedItems = _helper.ReportItems
+                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .ToList();
+
+            var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
+            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
+
             await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
                 await writer.WriteLineAsync("From,To,RelationType");
-                foreach (var item in _helper.ReportItems.Where(r => r.Parent is not null))
+                foreach (var item in processedItems.Where(r => r.Parent is not null))
                 {
                     var relationType = DetermineRelationType(item);
                     await writer.WriteLineAsync($"{item.Parent},{item.Id},{relationType}");

@@ -34,12 +34,14 @@ public class RanttReportParameters
     }
 
     /// <summary>
-    /// Creates a new instance of RanttReportParameters with the specified folder path and optional limit options.
+    /// Creates a new instance of RanttReportParameters with the specified folder path, optional limit options, and orphaned node strategy.
     /// </summary>
     /// <param name="folderPath">The folder path where the Rantt report files will be saved.</param>
     /// <param name="limitOptions">The output limit options for the Rantt report. If null, no limits will be applied.</param>
     /// <returns>A new instance of RanttReportParameters.</returns>
-    public static RanttReportParameters Create(string folderPath, OutputLimitOptions? limitOptions = null)
+    public static RanttReportParameters Create(
+        string folderPath,
+        OutputLimitOptions? limitOptions = null)
     {
         return new RanttReportParameters(folderPath, limitOptions);
     }

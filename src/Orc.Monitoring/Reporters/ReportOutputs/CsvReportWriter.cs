@@ -16,13 +16,23 @@ public class CsvReportWriter
     private readonly HashSet<string> _customColumns;
     private readonly ILogger<CsvReportWriter> _logger;
 
-    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager)
+    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager methodOverrideManager)
+    : this(writer, reportItems, methodOverrideManager, MonitoringController.CreateLogger<CsvReportWriter>())
     {
+    }
+
+    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager, ILogger<CsvReportWriter> logger)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(reportItems);
+        ArgumentNullException.ThrowIfNull(overrideManager);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _writer = writer;
         _reportItems = reportItems;
         _overrideManager = overrideManager;
         _customColumns = new HashSet<string>(overrideManager.GetCustomColumns());
-        _logger = MonitoringController.CreateLogger<CsvReportWriter>();
+        _logger = logger;
     }
 
     public void WriteReportItemsCsv()
@@ -99,12 +109,21 @@ public class CsvReportWriter
 
     private IEnumerable<Dictionary<string, string>> PrepareReportItems()
     {
-        return _reportItems
-            .Where(item => !string.IsNullOrEmpty(item.StartTime))
+        var rootItem = _reportItems.FirstOrDefault(item => item.Id == "ROOT");
+        var nonRootItems = _reportItems
+            .Where(item => item.Id != "ROOT" && !string.IsNullOrEmpty(item.StartTime))
             .OrderBy(item => DateTime.Parse(item.StartTime ?? string.Empty))
             .ThenBy(item => item.ThreadId)
-            .ThenBy(item => item.Level)
-            .Select(PrepareReportItem);
+            .ThenBy(item => item.Level);
+
+        var allItems = new List<ReportItem>();
+        if (rootItem is not null)
+        {
+            allItems.Add(rootItem);
+        }
+        allItems.AddRange(nonRootItems);
+
+        return allItems.Select(PrepareReportItem);
     }
 
     private Dictionary<string, string> PrepareReportItem(ReportItem item)
@@ -112,14 +131,13 @@ public class CsvReportWriter
         var result = new Dictionary<string, string>
         {
             ["Id"] = item.Id ?? string.Empty,
-            ["ParentId"] = item.Parent ?? "ROOT",
+            ["ParentId"] = item.Id == "ROOT" ? string.Empty : (item.Parent ?? "ROOT"),
             ["StartTime"] = item.StartTime ?? string.Empty,
             ["EndTime"] = item.EndTime ?? string.Empty,
             ["Report"] = item.Report ?? string.Empty,
             ["ClassName"] = item.ClassName ?? string.Empty,
             ["MethodName"] = item.MethodName ?? string.Empty,
             ["FullName"] = item.FullName ?? string.Empty,
-            ["ItemName"] = item.ItemName ?? string.Empty,
             ["Duration"] = item.Duration ?? string.Empty,
             ["ThreadId"] = item.ThreadId ?? string.Empty,
             ["ParentThreadId"] = item.ParentThreadId ?? string.Empty,

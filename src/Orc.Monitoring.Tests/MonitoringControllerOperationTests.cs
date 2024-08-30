@@ -11,13 +11,17 @@ using System.Threading.Tasks;
 public class MonitoringControllerOperationTests
 {
     private MockReporter _mockReporter;
+    private TestLogger<MonitoringControllerOperationTests> _logger;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MonitoringControllerOperationTests>();
+
         MonitoringController.ResetForTesting();
         MonitoringController.Enable();
-        _mockReporter = new MockReporter();
+        
+        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
     }
 
     [Test]

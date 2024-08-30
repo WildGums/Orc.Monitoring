@@ -22,7 +22,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     private string _testOutputPath;
     private string _overrideFilePath;
     private string _overrideTemplateFilePath;
-    private ILogger<MethodOverrideManagerAndRanttOutputTests> _logger;
+    private TestLogger<MethodOverrideManagerAndRanttOutputTests> _logger;
 
     [SetUp]
     public void Setup()
@@ -31,7 +31,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         Directory.CreateDirectory(_testOutputPath);
         _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
-        _logger = MonitoringController.CreateLogger<MethodOverrideManagerAndRanttOutputTests>();
+        _logger = new TestLogger<MethodOverrideManagerAndRanttOutputTests>();
     }
 
     [TearDown]
@@ -115,7 +115,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     [Test]
     public async Task RanttOutput_GenerateReport_ShouldProduceValidRanttFile()
     {
-        var ranttOutput = new RanttOutput();
+        var ranttOutput = CreateRanttOutput();
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         ranttOutput.SetParameters(parameters);
 
@@ -147,7 +147,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         await File.WriteAllTextAsync(_overrideFilePath, csvContent);
         _logger.LogInformation($"Override file content: {csvContent}");
 
-        var ranttOutput = new RanttOutput();
+        var ranttOutput = CreateRanttOutput();
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         ranttOutput.SetParameters(parameters);
 
@@ -175,7 +175,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(MethodOverrideManagerAndRanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,
@@ -197,7 +197,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     public async Task RanttOutput_GenerateReport_ShouldUpdateTemplateFile()
     {
         // Arrange
-        var ranttOutput = new RanttOutput();
+        var ranttOutput = CreateRanttOutput();
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         ranttOutput.SetParameters(parameters);
 
@@ -222,7 +222,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(MethodOverrideManagerAndRanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,
@@ -264,5 +264,16 @@ public class MethodOverrideManagerAndRanttOutputTests
         // Check for duplicate columns in CSV
         var uniqueHeaders = new HashSet<string>(headers);
         Assert.That(headers.Length, Is.EqualTo(uniqueHeaders.Count), "CSV should not contain duplicate columns");
+    }
+
+    private RanttOutput CreateRanttOutput()
+    {
+        var ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
+            () => new EnhancedDataPostProcessor(_logger.CreateLogger<EnhancedDataPostProcessor>()),
+            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
+        var parameters = RanttOutput.CreateParameters(_testOutputPath);
+        ranttOutput.SetParameters(parameters);
+        return ranttOutput;
     }
 }

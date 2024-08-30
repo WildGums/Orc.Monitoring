@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Orc.Monitoring.Filters;
 using Orc.Monitoring.Reporters;
+using Orc.Monitoring.Reporters.ReportOutputs;
 
 public class MonitoringConfiguration
 {

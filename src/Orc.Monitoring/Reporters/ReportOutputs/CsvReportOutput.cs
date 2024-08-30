@@ -1,7 +1,6 @@
 ﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,13 +13,33 @@ using Orc.Monitoring.Reporters;
 /// </summary>
 public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
 {
-    private readonly ILogger<CsvReportOutput> _logger = MonitoringController.CreateLogger<CsvReportOutput>();
-    private readonly ReportOutputHelper _helper = new();
+    private readonly ILogger<CsvReportOutput> _logger;
+    private readonly ReportOutputHelper _helper;
+    private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
 
     private string? _fileName;
     private string? _folderPath;
     private MethodOverrideManager? _methodOverrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
+
+    public CsvReportOutput()
+    : this(new MonitoringLoggerFactory(), new ReportOutputHelper(), (outputFolder) => new MethodOverrideManager(outputFolder))
+    {
+
+    }
+
+    public CsvReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(reportOutputHelper);
+        ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
+
+        _logger = loggerFactory.CreateLogger<CsvReportOutput>();
+        _helper = reportOutputHelper;
+        _methodOverrideManagerFactory = methodOverrideManagerFactory;
+
+        _logger.LogDebug($"Created {nameof(CsvReportOutput)}");
+    }
 
     /// <summary>
     /// Creates parameters for CSV report output.
@@ -85,7 +104,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
 
         SetLimitOptions(parameters.LimitOptions);
 
-        _methodOverrideManager = new MethodOverrideManager(_folderPath);
+        _methodOverrideManager = _methodOverrideManagerFactory(_folderPath);
         _methodOverrideManager.LoadOverrides();
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, FileName = {_fileName}");

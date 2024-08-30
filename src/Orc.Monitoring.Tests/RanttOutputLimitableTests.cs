@@ -10,19 +10,25 @@ using System.IO;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 [TestFixture]
 public class RanttOutputLimitableTests
 {
+    private TestLogger<RanttOutputLimitableTests> _logger;
     private RanttOutput _ranttOutput;
     private string _testOutputPath;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<RanttOutputLimitableTests>();
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testOutputPath);
-        _ranttOutput = new RanttOutput();
+        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
+            () => new EnhancedDataPostProcessor(_logger.CreateLogger<EnhancedDataPostProcessor>()),
+            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         _ranttOutput.SetParameters(parameters);
     }
@@ -70,7 +76,12 @@ public class RanttOutputLimitableTests
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         var lines = await File.ReadAllLinesAsync(filePath);
-        Assert.That(lines.Length, Is.EqualTo(6)); // Header + 5 items
+
+        Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
+
+        Assert.That(lines.Length, Is.EqualTo(6), "Expected 6 lines (header + 5 items)");
+        Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(5), "Should have 5 items");
     }
 
     [Test]
@@ -89,14 +100,19 @@ public class RanttOutputLimitableTests
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         var lines = await File.ReadAllLinesAsync(filePath);
-        Assert.That(lines.Length, Is.EqualTo(11)); // Header + 10 items
+
+        Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
+
+        Assert.That(lines.Length, Is.EqualTo(11), "Expected 11 lines (header + 10 items)");
+        Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(10), "Should have 10 items");
     }
 
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(RanttOutputLimitableTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(RanttOutputLimitableTests),
             methodInfo,

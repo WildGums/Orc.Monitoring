@@ -13,13 +13,13 @@ using System.Threading.Tasks;
 public class VersionManagerTests
 {
     private VersionManager _versionManager;
-    private ILogger<VersionManagerTests> _logger;
+    private TestLogger<VersionManagerTests> _logger;
 
     [SetUp]
     public void Setup()
     {
         _versionManager = new VersionManager();
-        _logger = MonitoringController.CreateLogger<VersionManagerTests>();
+        _logger = new TestLogger<VersionManagerTests>();
     }
 
     [Test]

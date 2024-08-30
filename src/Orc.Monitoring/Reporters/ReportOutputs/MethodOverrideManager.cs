@@ -19,14 +19,20 @@ public class MethodOverrideManager
     private readonly ILogger<MethodOverrideManager> _logger;
 
     public MethodOverrideManager(string outputDirectory)
+    : this(outputDirectory, MonitoringController.CreateLogger<MethodOverrideManager>())
+    {
+    }
+
+    public MethodOverrideManager(string outputDirectory, ILogger<MethodOverrideManager> logger)
     {
         ArgumentNullException.ThrowIfNull(outputDirectory);
+        ArgumentNullException.ThrowIfNull(logger);
 
         _overrideFilePath = Path.Combine(outputDirectory, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(outputDirectory, "method_overrides.template");
         _overrides = new Dictionary<string, Dictionary<string, string>>();
         _customColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        _logger = MonitoringController.CreateLogger<MethodOverrideManager>();
+        _logger = logger;
         _obsoleteColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     }

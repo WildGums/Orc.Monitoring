@@ -1,4 +1,4 @@
-namespace Orc.Monitoring.Reporters.ReportOutputs;
+﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
 using System.Collections.Generic;
@@ -15,8 +15,8 @@ using Orc.Monitoring.Reporters;
 /// </summary>
 public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
 {
-    private readonly ILogger<TxtReportOutput> _logger = MonitoringController.CreateLogger<TxtReportOutput>();
-    private readonly ReportOutputHelper _helper = new();
+    private readonly ILogger<TxtReportOutput> _logger;
+    private readonly ReportOutputHelper _helper;
     private readonly Queue<LogEntry> _logEntries = new();
     private readonly List<int> _nestingLevels = [];
 
@@ -26,7 +26,19 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public TxtReportOutput()
+    : this(MonitoringController.CreateLogger<TxtReportOutput>(), new ReportOutputHelper())
     {
+        
+    }
+
+    public TxtReportOutput(ILogger<TxtReportOutput> logger, ReportOutputHelper reportOutputHelper)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(reportOutputHelper);
+
+        _logger = logger;
+        _helper = reportOutputHelper;
+
         _logger.LogDebug("Creating TxtReportOutput instance");
     }
 

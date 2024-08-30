@@ -9,28 +9,46 @@ using MethodLifeCycleItems;
 
 public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
 {
-    private readonly ILogger<MethodCallContext> _logger = MonitoringController.CreateLogger<MethodCallContext>();
+    private readonly ILogger<MethodCallContext> _logger;
 
     private readonly IClassMonitor? _classMonitor;
     private readonly List<IAsyncDisposable>? _disposables;
     private readonly System.Diagnostics.Stopwatch _stopwatch = new();
     private bool _isDisposed;
 
-    public static MethodCallContext Dummy { get; } = new();
+    private static MethodCallContext? Dummy;
 
     public MethodCallInfo? MethodCallInfo { get; }
 
     public IReadOnlyList<string> ReporterIds { get; }
 
-    private MethodCallContext() : base()
+    private MethodCallContext() 
+    : this(MonitoringController.CreateLogger<MethodCallContext>())
     {
+    }
+
+    public MethodCallContext(ILogger<MethodCallContext> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
         // Dummy constructor
+        _logger = logger;
+
         ReporterIds = Array.Empty<string>();
     }
 
     public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
-        : base()
+        : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringController.CreateLogger<MethodCallContext>())
     {
+
+    }
+
+    public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
+        ILogger<MethodCallContext> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
         _classMonitor = classMonitor;
         _disposables = disposables;
         MethodCallInfo = methodCallInfo;
@@ -44,6 +62,11 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
             var startStatus = new MethodCallStart(methodCallInfo);
             (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
         }
+    }
+
+    public static MethodCallContext GetDummyCallContext(Func<MethodCallContext> dummyContextFactory)
+    {
+        return Dummy ??= dummyContextFactory();
     }
 
     public void LogException(Exception exception)
@@ -150,7 +173,7 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    MonitoringController.CreateLogger<MethodCallContext>().LogError(ex, "Error disposing async disposable");
+                    _logger.LogError(ex, "Error disposing async disposable");
                 }
             }
 

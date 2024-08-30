@@ -15,12 +15,16 @@ using System.Threading.Tasks;
 public class MonitoringIntegrationTests
 {
     private MockReporter _mockReporter;
+    private TestLogger<MonitoringIntegrationTests> _logger;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MonitoringIntegrationTests>();
+
         MonitoringController.ResetForTesting();
-        _mockReporter = new MockReporter
+
+        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>())
         {
             Name = "MockSequenceReporter",
             FullName = "MockSequenceReporter"
@@ -28,7 +32,7 @@ public class MonitoringIntegrationTests
 
         PerformanceMonitor.Configure(config =>
         {
-            config.AddReporter(_mockReporter.GetType());
+            config.AddReporterType(_mockReporter.GetType());
             config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
         });
 
@@ -44,14 +48,14 @@ public class MonitoringIntegrationTests
     {
         PerformanceMonitor.Configure(config =>
         {
-            config.AddReporter<MockReporter>();
+            config.AddReporterType<MockReporter>();
         });
 
         MonitoringController.EnableReporter(typeof(MockReporter));
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
 
-        using var context = monitor.Start(builder => builder.AddReporter<MockReporter>());
+        using var context = monitor.Start(builder => builder.AddReporter(new MockReporter(_logger.CreateLogger<MockReporter>())));
 
         Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.True);
 
@@ -63,7 +67,8 @@ public class MonitoringIntegrationTests
     [Test]
     public void CallStack_RespectsHierarchicalControl()
     {
-        var callStack = new CallStack(new MonitoringConfiguration());
+        var methodCallInfoPool = new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>());
+        var callStack = new CallStack(new MonitoringConfiguration(), methodCallInfoPool, _logger.CreateLogger<CallStack>());
         var observer = new TestObserver();
 
         using (callStack.Subscribe(observer))

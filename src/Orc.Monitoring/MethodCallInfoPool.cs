@@ -8,8 +8,21 @@ using Microsoft.Extensions.Logging;
 
 public class MethodCallInfoPool
 {
-    private readonly ILogger<MethodCallInfoPool> _logger = MonitoringController.CreateLogger<MethodCallInfoPool>();
+    private readonly ILogger<MethodCallInfoPool> _logger;
     private readonly ConcurrentBag<MethodCallInfo> _pool = [];
+
+    public MethodCallInfoPool()
+    : this(MonitoringController.CreateLogger<MethodCallInfoPool>())
+    {
+        
+    }
+
+    public MethodCallInfoPool(ILogger<MethodCallInfoPool> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
+    }
 
     public MethodCallInfo Rent(IClassMonitor? classMonitor, Type callerType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)

@@ -3,23 +3,26 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Filters;
+using MethodLifeCycleItems;
+using Reporters;
+using Reporters.ReportOutputs;
+using Filters;
 using Microsoft.Extensions.Logging;
 
 public class MockReporter : IMethodCallReporter
 {
-    private readonly ILogger<MockReporter> _logger = MonitoringController.CreateLogger<MockReporter>();
+    private readonly ILogger<MockReporter> _logger;
 
     private int _callCount;
     private string _id;
     private MonitoringConfiguration _monitoringConfiguration;
 
-    public MockReporter()
+    public MockReporter(ILogger<MockReporter> logger)
     {
-        
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
+        _logger.LogInformation($"MockReporter created at {DateTime.Now:HH:mm:ss.fff}");
     }
 
     public string Id
