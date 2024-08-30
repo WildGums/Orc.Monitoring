@@ -16,11 +16,6 @@ public class RanttReportParameters
     public OutputLimitOptions LimitOptions { get; set; } = OutputLimitOptions.Unlimited;
 
     /// <summary>
-    /// Gets or sets the strategy for handling orphaned nodes in the Rantt report.
-    /// </summary>
-    public OrphanedNodeStrategy OrphanedNodeStrategy { get; set; } = OrphanedNodeStrategy.AttachToNearestAncestor;
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="RanttReportParameters"/> class.
     /// </summary>
     public RanttReportParameters()
@@ -32,12 +27,10 @@ public class RanttReportParameters
     /// </summary>
     /// <param name="folderPath">The folder path where the Rantt report files will be saved.</param>
     /// <param name="limitOptions">The output limit options for the Rantt report.</param>
-    /// <param name="orphanedNodeStrategy">The strategy for handling orphaned nodes.</param>
-    public RanttReportParameters(string folderPath, OutputLimitOptions? limitOptions = null, OrphanedNodeStrategy orphanedNodeStrategy = OrphanedNodeStrategy.AttachToNearestAncestor)
+    public RanttReportParameters(string folderPath, OutputLimitOptions? limitOptions = null)
     {
         FolderPath = folderPath;
         LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited;
-        OrphanedNodeStrategy = orphanedNodeStrategy;
     }
 
     /// <summary>
@@ -45,13 +38,11 @@ public class RanttReportParameters
     /// </summary>
     /// <param name="folderPath">The folder path where the Rantt report files will be saved.</param>
     /// <param name="limitOptions">The output limit options for the Rantt report. If null, no limits will be applied.</param>
-    /// <param name="orphanedNodeStrategy">The strategy for handling orphaned nodes. Defaults to AttachToNearestAncestor.</param>
     /// <returns>A new instance of RanttReportParameters.</returns>
     public static RanttReportParameters Create(
         string folderPath,
-        OutputLimitOptions? limitOptions = null,
-        OrphanedNodeStrategy orphanedNodeStrategy = OrphanedNodeStrategy.AttachToNearestAncestor)
+        OutputLimitOptions? limitOptions = null)
     {
-        return new RanttReportParameters(folderPath, limitOptions, orphanedNodeStrategy);
+        return new RanttReportParameters(folderPath, limitOptions);
     }
 }

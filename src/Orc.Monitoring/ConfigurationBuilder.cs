@@ -121,12 +121,6 @@ public class ConfigurationBuilder
         return this;
     }
 
-    public ConfigurationBuilder SetOrphanedNodeStrategy(OrphanedNodeStrategy strategy)
-    {
-        _config.SetOrphanedNodeStrategy(strategy);
-        return this;
-    }
-
     public MonitoringConfiguration Build()
     {
         if (!_config.OutputTypeStates.ContainsKey(typeof(RanttOutput)))

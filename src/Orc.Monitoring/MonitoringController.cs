@@ -131,11 +131,6 @@ public static class MonitoringController
         }
     }
 
-    public static OrphanedNodeStrategy GetOrphanedNodeStrategy()
-    {
-        return Configuration.OrphanedNodeStrategy;
-    }
-
     public static EnhancedDataPostProcessor GetEnhancedDataPostProcessor()
     {
         if (_enhancedDataPostProcessor is null)

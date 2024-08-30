@@ -30,7 +30,7 @@ public class RanttOutputTests
         Directory.CreateDirectory(_testFolderPath);
         _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>()) { Name = "TestReporter", FullName = "TestReporter" };
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
-        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
+        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(),
             () => _mockPostProcessor.Object,
             new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
             (outputFolder) => new MethodOverrideManager(outputFolder, _logger.CreateLogger<MethodOverrideManager>()));
@@ -67,8 +67,8 @@ public class RanttOutputTests
         _ranttOutput.WriteItem(parentEnd);
 
         // Mock the post-processor to return the same items
-        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<OrphanedNodeStrategy>()))
-            .Returns((List<ReportItem> items, OrphanedNodeStrategy strategy) => items);
+        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>()))
+            .Returns((List<ReportItem> items) => items);
 
         // Act
         await disposable.DisposeAsync();
@@ -95,7 +95,7 @@ public class RanttOutputTests
         Assert.That(lines.Any(l => l.StartsWith($"{parentMethodInfo.Id},{childMethodInfo.Id}")), Is.True,
             $"Relationship between parent and child should be present. Expected: {parentMethodInfo.Id},{childMethodInfo.Id}");
 
-        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<OrphanedNodeStrategy>()), Times.Exactly(2));
+        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>()), Times.Exactly(2));
     }
 
     [Test]
@@ -112,20 +112,11 @@ public class RanttOutputTests
         _ranttOutput.WriteItem(new MethodCallEnd(methodInfo2));
         _ranttOutput.WriteItem(new MethodCallEnd(methodInfo1));
 
-        // Mock the post-processor to return modified items, including the ROOT node
-        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<OrphanedNodeStrategy>()))
-            .Returns((List<ReportItem> items, OrphanedNodeStrategy strategy) =>
+        // Mock the post-processor to return modified items
+        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>()))
+            .Returns((List<ReportItem> items) =>
             {
-                var rootItem = new ReportItem
-                {
-                    Id = "ROOT",
-                    MethodName = "Root",
-                    Parent = null,
-                    StartTime = items.Min(r => r.StartTime),
-                    EndTime = items.Max(r => r.EndTime)
-                };
-                items.Insert(0, rootItem); // Add ROOT as the first item
-                items.First(i => i.Id == methodInfo1.Id).Parent = "ROOT";
+                items.First(i => i.Id == methodInfo1.Id).Parent = null;
                 return items;
             });
 
@@ -141,11 +132,10 @@ public class RanttOutputTests
 
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-        Assert.That(lines[1], Does.StartWith("ROOT,"), "ROOT node should have an empty parent");
-        Assert.That(lines[2], Does.StartWith($"{methodInfo1.Id},ROOT"), "Method1 should be a child of ROOT");
-        Assert.That(lines[3], Does.StartWith($"{methodInfo2.Id},{methodInfo1.Id}"), "Method2 should be a child of Method1");
+        Assert.That(lines[1], Does.StartWith($"{methodInfo1.Id},"), "Method1 should have an empty parent");
+        Assert.That(lines[2], Does.StartWith($"{methodInfo2.Id},{methodInfo1.Id}"), "Method2 should be a child of Method1");
 
-        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>(), It.IsAny<OrphanedNodeStrategy>()), Times.Exactly(2));
+        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>()), Times.Exactly(2));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)

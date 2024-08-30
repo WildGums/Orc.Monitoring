@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MethodLifeCycleItems;
@@ -49,12 +48,11 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
-    private OrphanedNodeStrategy _orphanedNodeStrategy;
     private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
 
     public RanttOutput()
-    : this(MonitoringController.CreateLogger<RanttOutput>(), 
+    : this(MonitoringController.CreateLogger<RanttOutput>(),
         MonitoringController.GetEnhancedDataPostProcessor,
         new ReportOutputHelper(),
         (outputDirectory) => new MethodOverrideManager(outputDirectory))
@@ -77,12 +75,10 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
     public static RanttReportParameters CreateParameters(
         string folderPath,
-        OutputLimitOptions? limitOptions = null,
-        OrphanedNodeStrategy orphanedNodeStrategy = OrphanedNodeStrategy.AttachToNearestAncestor) => new()
+        OutputLimitOptions? limitOptions = null) => new()
         {
             FolderPath = folderPath,
-            LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited,
-            OrphanedNodeStrategy = orphanedNodeStrategy
+            LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited
         };
 
     public IAsyncDisposable Initialize(IMethodCallReporter reporter)
@@ -115,11 +111,10 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         ArgumentNullException.ThrowIfNull(_folderPath, "FolderPath cannot be null");
 
         SetLimitOptions(parameters.LimitOptions);
-        _orphanedNodeStrategy = parameters.OrphanedNodeStrategy;
 
         _overrideManager = _methodOverrideManagerFactory(_folderPath);
 
-        _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, OrphanedNodeStrategy = {_orphanedNodeStrategy}");
+        _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
     }
 
     public void WriteSummary(string message)
@@ -225,11 +220,10 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 .ToList();
 
             _logger.LogInformation($"Number of sorted items: {sortedItems.Count}");
-            _logger.LogInformation($"Orphaned node strategy: {_orphanedNodeStrategy}");
 
             // Apply post-processing
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
-            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems, _orphanedNodeStrategy);
+            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
 
             _logger.LogInformation($"Number of items after post-processing: {processedItems.Count}");
             _logger.LogInformation($"Processed items: {string.Join(", ", processedItems.Select(i => $"{i.Id}:{i.MethodName}:{i.Parent}"))}");
@@ -308,7 +302,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 .ToList();
 
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
-            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems, _orphanedNodeStrategy);
+            var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
 
             await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
             {
