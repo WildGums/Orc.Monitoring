@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncDisposable
 {
-    private readonly ILogger<AsyncMethodCallContext> _logger = MonitoringController.CreateLogger<AsyncMethodCallContext>();
+    private readonly ILogger<AsyncMethodCallContext> _logger;
 
     private readonly IClassMonitor? _classMonitor;
     private readonly List<IAsyncDisposable>? _disposables;
@@ -18,21 +18,38 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
     private bool _isDisposed;
 
 
-    public static AsyncMethodCallContext Dummy { get; } = new AsyncMethodCallContext();
+    public static AsyncMethodCallContext? Dummy;
 
     public MethodCallInfo? MethodCallInfo { get; }
 
     public IReadOnlyList<string> ReporterIds { get; }
 
     private AsyncMethodCallContext()
+    : this(MonitoringController.CreateLogger<AsyncMethodCallContext>())
     {
+    }
+
+    public AsyncMethodCallContext(ILogger<AsyncMethodCallContext> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
         // Dummy constructor
+        _logger = logger;
+
         ReporterIds = Array.Empty<string>();
     }
 
     public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
-        : base()
+    : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringController.CreateLogger<AsyncMethodCallContext>())
     {
+    }
+
+    public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
+        ILogger<AsyncMethodCallContext> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
         _classMonitor = classMonitor;
         _disposables = disposables;
         MethodCallInfo = methodCallInfo;
@@ -46,6 +63,11 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
             var startStatus = new MethodCallStart(methodCallInfo);
             (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
         }
+    }
+
+    public static AsyncMethodCallContext GetDummyCallContext(Func<AsyncMethodCallContext> dummyContextFactory)
+    {
+        return Dummy ??= dummyContextFactory();
     }
 
     public void LogException(Exception exception)
@@ -141,7 +163,7 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
                     }
                     catch (Exception ex)
                     {
-                        MonitoringController.CreateLogger<AsyncMethodCallContext>().LogError(ex, "Error disposing async disposable");
+                        _logger.LogError(ex, "Error disposing async disposable");
                     }
                 }
             }

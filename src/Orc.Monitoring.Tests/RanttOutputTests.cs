@@ -152,7 +152,7 @@ public class RanttOutputTests
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(RanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(RanttOutputTests),
             methodInfo,

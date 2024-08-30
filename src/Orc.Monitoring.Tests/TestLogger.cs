@@ -34,4 +34,10 @@ public class TestLogger<T> : ILogger<T>
     public IEnumerable<string> LogMessages => _logMessages;
 
     public ILogger<T2> CreateLogger<T2>() => new TestLogger<T2>(_logMessages);
+
+    public ILogger CreateLogger(Type type)
+    {
+        var loggerType = typeof(TestLogger<>).MakeGenericType(type);
+        return (ILogger)Activator.CreateInstance(loggerType, _logMessages);
+    }
 }

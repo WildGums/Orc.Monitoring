@@ -149,13 +149,13 @@ public class PerformanceMonitorIntegrationTests
         // Assert
         _logger.LogInformation("Starting method and creating context");
         using (var context = monitor.Start(builder =>
-        {
-            builder.AddReporter(new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = reporterId });
-            _logger.LogInformation($"Added MockReporter with ID: {reporterId} to method configuration");
-        }, nameof(TestClass2.TestMethod)))
+               {
+                   builder.AddReporter(new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = reporterId });
+                   _logger.LogInformation($"Added MockReporter with ID: {reporterId} to method configuration");
+               }, nameof(TestClass2.TestMethod)))
         {
             _logger.LogInformation($"Context type: {context.GetType().Name}");
-            Assert.That(context, Is.Not.EqualTo(MethodCallContext.Dummy),
+            Assert.That(context, Is.Not.EqualTo(MethodCallContext.GetDummyCallContext(() => new MethodCallContext(_logger.CreateLogger<MethodCallContext>()))),
                 "The context should not be a Dummy context when the filter includes all methods");
         }
     }

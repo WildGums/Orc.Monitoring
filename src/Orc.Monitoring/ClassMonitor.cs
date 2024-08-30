@@ -21,11 +21,22 @@ internal class ClassMonitor : IClassMonitor
     private HashSet<string>? _trackedMethodNames;
 
     public ClassMonitor(Type classType, CallStack callStack, MonitoringConfiguration monitoringConfig)
+    : this(classType, callStack, monitoringConfig, MonitoringController.CreateLogger<ClassMonitor>())
     {
+
+    }
+
+    public ClassMonitor(Type classType, CallStack callStack, MonitoringConfiguration monitoringConfig, ILogger<ClassMonitor> logger)
+    {
+        ArgumentNullException.ThrowIfNull(classType);
+        ArgumentNullException.ThrowIfNull(callStack);
+        ArgumentNullException.ThrowIfNull(monitoringConfig);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _classType = classType;
         _callStack = callStack;
         _monitoringConfig = monitoringConfig;
-        _logger = MonitoringController.CreateLogger<ClassMonitor>();
+        _logger = logger;
         _logger.LogInformation($"ClassMonitor created for {classType.Name}");
     }
 
@@ -250,7 +261,9 @@ internal class ClassMonitor : IClassMonitor
     private object GetDummyContext(bool async)
     {
         _logger.LogDebug("Returning Dummy context");
-        return async ? AsyncMethodCallContext.Dummy : MethodCallContext.Dummy;
+        return async 
+            ? AsyncMethodCallContext.GetDummyCallContext(() => new AsyncMethodCallContext(MonitoringController.CreateLogger<AsyncMethodCallContext>())) 
+            : MethodCallContext.GetDummyCallContext(() => new MethodCallContext(MonitoringController.CreateLogger<MethodCallContext>()));
     }
 
     private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)

@@ -175,7 +175,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(MethodOverrideManagerAndRanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,
@@ -222,7 +222,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(MethodOverrideManagerAndRanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,

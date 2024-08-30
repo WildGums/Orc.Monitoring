@@ -23,18 +23,18 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public CsvReportOutput()
-    : this(MonitoringController.CreateLogger<CsvReportOutput>(), new ReportOutputHelper(), (outputFolder) => new MethodOverrideManager(outputFolder))
+    : this(new MonitoringLoggerFactory(), new ReportOutputHelper(), (outputFolder) => new MethodOverrideManager(outputFolder))
     {
 
     }
 
-    public CsvReportOutput(ILogger<CsvReportOutput> logger, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory)
+    public CsvReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(reportOutputHelper);
         ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<CsvReportOutput>();
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
 

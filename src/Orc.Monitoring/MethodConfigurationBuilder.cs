@@ -3,17 +3,24 @@
 using System;
 using System.Linq;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Filters;
 using Reporters;
 
 public class MethodConfigurationBuilder
 {
-    private readonly ILogger<MethodConfigurationBuilder> _logger = MonitoringController.CreateLogger<MethodConfigurationBuilder>();
+    private readonly ILogger<MethodConfigurationBuilder> _logger;
     private readonly MethodConfiguration _config = new();
 
     public MethodConfigurationBuilder()
+    : this(MonitoringController.CreateLogger<MethodConfigurationBuilder>())
     {
         
+    }
+
+    public MethodConfigurationBuilder(ILogger<MethodConfigurationBuilder> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
     }
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)

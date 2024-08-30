@@ -104,7 +104,7 @@ public class TxtReportOutputLimitableTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(TxtReportOutputLimitableTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(TxtReportOutputLimitableTests),
             methodInfo,

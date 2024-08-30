@@ -5,13 +5,18 @@ using System;
 using Orc.Monitoring;
 using Orc.Monitoring.MethodLifeCycleItems;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class MonitoringRobustnessTests
 {
+    private TestLogger<MonitoringRobustnessTests> _logger;
+
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MonitoringRobustnessTests>();
+
         MonitoringController.ResetForTesting();
         // Ensure monitoring is not configured
         MonitoringController.Disable();
@@ -37,7 +42,7 @@ public class MonitoringRobustnessTests
         {
             using var context = monitor.Start(builder => { });
             Assert.That(context, Is.Not.Null);
-            Assert.That(context, Is.EqualTo(MethodCallContext.Dummy));
+            Assert.That(context, Is.EqualTo(MethodCallContext.GetDummyCallContext(() => new MethodCallContext(_logger.CreateLogger<MethodCallContext>()))));
         });
     }
 

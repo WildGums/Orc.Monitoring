@@ -115,7 +115,7 @@ public class RanttOutputLimitableTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(RanttOutputLimitableTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(RanttOutputLimitableTests),
             methodInfo,

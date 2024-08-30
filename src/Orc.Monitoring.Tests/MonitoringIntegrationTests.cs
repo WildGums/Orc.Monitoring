@@ -67,7 +67,8 @@ public class MonitoringIntegrationTests
     [Test]
     public void CallStack_RespectsHierarchicalControl()
     {
-        var callStack = new CallStack(new MonitoringConfiguration());
+        var methodCallInfoPool = new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>());
+        var callStack = new CallStack(new MonitoringConfiguration(), methodCallInfoPool, _logger.CreateLogger<CallStack>());
         var observer = new TestObserver();
 
         using (callStack.Subscribe(observer))

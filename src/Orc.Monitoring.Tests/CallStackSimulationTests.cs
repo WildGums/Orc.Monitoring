@@ -11,6 +11,7 @@ using Moq;
 [TestFixture]
 public partial class CallStackSimulationTests
 {
+    private TestLogger<CallStackSimulationTests> _logger;
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;
     private MonitoringConfiguration? _config;
@@ -19,8 +20,10 @@ public partial class CallStackSimulationTests
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<CallStackSimulationTests>();
         _config = new MonitoringConfiguration();
-        _callStack = new CallStack(_config);
+        var methodCallInfoPool = new MethodCallInfoPool();
+        _callStack = new CallStack(_config, methodCallInfoPool, _logger.CreateLogger<CallStack>());
         _mockClassMonitor = new Mock<IClassMonitor>();
         _methodCalls = new List<MethodCallInfo>();
 

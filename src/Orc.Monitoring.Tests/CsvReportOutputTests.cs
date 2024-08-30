@@ -16,6 +16,7 @@ using Orc.Monitoring.MethodLifeCycleItems;
 public class CsvReportOutputTests
 {
     private TestLogger<CsvReportOutputTests> _logger;
+    private IMonitoringLoggerFactory _loggerFactory;
     private CsvReportOutput _csvReportOutput;
     private Mock<IMethodCallReporter> _mockReporter;
     private string _testFolderPath;
@@ -25,11 +26,13 @@ public class CsvReportOutputTests
     public void Setup()
     {
         _logger = new TestLogger<CsvReportOutputTests>();
+        _loggerFactory = new TestLoggerFactory<CsvReportOutputTests>(_logger);
+
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
         _testFileName = "TestReport";
         var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
-        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper, 
+        _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper, 
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
         _mockReporter = new Mock<IMethodCallReporter>();
         _mockReporter.Setup(r => r.FullName).Returns("TestReporter");
@@ -74,7 +77,7 @@ public class CsvReportOutputTests
         _csvReportOutput.SetParameters(parameters);
         var disposable = _csvReportOutput.Initialize(_mockReporter.Object);
 
-        var methodCallInfo = MethodCallInfo.Create(new MethodCallInfoPool(), null, typeof(CsvReportOutputTests),
+        var methodCallInfo = MethodCallInfo.Create(new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()), null, typeof(CsvReportOutputTests),
             GetType().GetMethod(nameof(WriteItem_AddsItemToReport)),
             Array.Empty<Type>(), "TestId", new Dictionary<string, string>());
 

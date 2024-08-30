@@ -15,8 +15,8 @@ using System.Runtime;
 public class CallStack : IObservable<ICallStackItem>
 {
     private const int MaxCallStackDepth = 1000;
-    private readonly ILogger<CallStack> _logger = MonitoringController.CreateLogger<CallStack>();
-    private readonly MethodCallInfoPool _methodCallInfoPool = new();
+    private readonly ILogger<CallStack> _logger;
+    private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
     private readonly ConcurrentStack<MethodCallInfo> _globalCallStack = new();
     private readonly object _idLock = new();
@@ -29,10 +29,15 @@ public class CallStack : IObservable<ICallStackItem>
     private int _idCounter;
     private int _currentDepth = 0;
 
-    public CallStack(MonitoringConfiguration monitoringConfig)
+    public CallStack(MonitoringConfiguration monitoringConfig, MethodCallInfoPool methodCallInfoPool, ILogger<CallStack> logger)
     {
         ArgumentNullException.ThrowIfNull(monitoringConfig);
+        ArgumentNullException.ThrowIfNull(methodCallInfoPool);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _monitoringConfig = monitoringConfig;
+        _methodCallInfoPool = methodCallInfoPool;
+        _logger = logger;
     }
 
     public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null)

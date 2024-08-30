@@ -68,7 +68,7 @@ public class MonitoringIntegrationExamples
     {
         Console.WriteLine("Enabling monitoring...");
         MonitoringController.Enable();
-        var callStack = new CallStack(new MonitoringConfiguration());
+        var callStack = new CallStack(new MonitoringConfiguration(), new MethodCallInfoPool(), MonitoringController.CreateLogger<CallStack>());
         var observer = new CallStackObserver();
         var classMonitor = PerformanceMonitor.ForClass<MonitoringIntegrationExamples>();
 

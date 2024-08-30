@@ -15,6 +15,7 @@ using System.Collections.Generic;
 public class CsvReportOutputLimitableTests
 {
     private TestLogger<CsvReportOutputLimitableTests> _logger;
+    private IMonitoringLoggerFactory _loggerFactory;
     private CsvReportOutput _csvReportOutput;
     private string _testOutputPath;
 
@@ -22,13 +23,15 @@ public class CsvReportOutputLimitableTests
     public void Setup()
     {
         _logger = new TestLogger<CsvReportOutputLimitableTests>();
+        _loggerFactory = new TestLoggerFactory<CsvReportOutputLimitableTests>(_logger);
+
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
         Directory.CreateDirectory(_testOutputPath);
 
         var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
 
-        _csvReportOutput = new CsvReportOutput(_logger.CreateLogger<CsvReportOutput>(), reportOutputHelper,
+        _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
         var parameters = CsvReportOutput.CreateParameters(_testOutputPath, "TestReport");
         _csvReportOutput.SetParameters(parameters);
@@ -101,7 +104,7 @@ public class CsvReportOutputLimitableTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(CsvReportOutputLimitableTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(CsvReportOutputLimitableTests),
             methodInfo,

@@ -184,7 +184,7 @@ public class RanttOutputPostProcessingTests
     {
         var methodInfo = new TestMethodInfo(item.MethodName, typeof(RanttOutputPostProcessingTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(),
+            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
             null,
             typeof(RanttOutputPostProcessingTests),
             methodInfo,
@@ -200,7 +200,7 @@ public class RanttOutputPostProcessingTests
         else if (!string.IsNullOrEmpty(item.Parent))
         {
             methodCallInfo.Parent = MethodCallInfo.Create(
-                new MethodCallInfoPool(),
+                new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
                 null,
                 typeof(RanttOutputPostProcessingTests),
                 new TestMethodInfo("ParentMethod", typeof(RanttOutputPostProcessingTests)),
