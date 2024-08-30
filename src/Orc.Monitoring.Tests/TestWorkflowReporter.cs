@@ -15,11 +15,11 @@ using Microsoft.Extensions.Logging;
 using Reporters.ReportOutputs;
 using Reporters;
 
-public sealed class WorkflowReporter : IMethodCallReporter
+public sealed class TestWorkflowReporter : IMethodCallReporter
 {
     private const int BatchSize = 100;
 
-    private readonly TestLogger<WorkflowReporter> _logger;
+    private readonly TestLogger<TestWorkflowReporter> _logger;
 
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
@@ -38,9 +38,9 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private bool _disposing;
     private List<IAsyncDisposable>? _disposables;
 
-    public WorkflowReporter()
+    public TestWorkflowReporter()
     {
-        _logger = new TestLogger<WorkflowReporter>();
+        _logger = new TestLogger<TestWorkflowReporter>();
 
         Name = "Workflow";
 
@@ -56,7 +56,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
         _monitoringConfiguration = monitoringConfiguration;
         RootMethod = rootMethod.MethodInfo;
         _rootMethodCallInfo = rootMethod;
-        _logger.LogInformation($"WorkflowReporter initialized with root method: {rootMethod.MethodName}");
+        _logger.LogInformation($"TestWorkflowReporter initialized with root method: {rootMethod.MethodName}");
     }
 
     public IOutputContainer AddFilter<T>() where T : IMethodFilter
@@ -99,7 +99,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             }
 
             _id = value;
-            _logger.LogInformation($"WorkflowReporter Id set to: {_id}");
+            _logger.LogInformation($"TestWorkflowReporter Id set to: {_id}");
         }
     }
 
@@ -111,7 +111,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             throw new InvalidOperationException("Unable to start reporting when root method is not set");
         }
 
-        _logger.LogInformation($"WorkflowReporter (Id: {Id}) started reporting");
+        _logger.LogInformation($"TestWorkflowReporter (Id: {Id}) started reporting");
 
         foreach (var disposable in _disposables ?? [])
         {
@@ -126,13 +126,13 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         _disposables.Add(new AsyncDisposable(async () =>
         {
-            _logger.LogInformation("Async disposable for WorkflowReporter created");
+            _logger.LogInformation("Async disposable for TestWorkflowReporter created");
         }));
 
         return new AsyncDisposable(async () =>
         {
             _disposing = true;
-            _logger.LogInformation("WorkflowReporter disposing");
+            _logger.LogInformation("TestWorkflowReporter disposing");
 
             ProcessBatch();
 
@@ -144,7 +144,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             }
 
             ProcessBatch();
-            _logger.LogInformation("WorkflowReporter disposed");
+            _logger.LogInformation("TestWorkflowReporter disposed");
         });
     }
 

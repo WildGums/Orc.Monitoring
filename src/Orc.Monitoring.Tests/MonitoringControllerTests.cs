@@ -51,7 +51,7 @@ public class MonitoringControllerTests
     [Test]
     public void EnableFilterForReporterType_EnablesFilterForSpecificReporter()
     {
-        var reporterType = typeof(WorkflowReporter);
+        var reporterType = typeof(TestWorkflowReporter);
         var filterType = typeof(WorkflowItemFilter);
 
         MonitoringController.EnableReporter(reporterType);
@@ -64,14 +64,14 @@ public class MonitoringControllerTests
     [Test]
     public void EnableReporter_WhenCalled_EnablesReporter()
     {
-        EnableReporter(typeof(WorkflowReporter));
+        EnableReporter(typeof(TestWorkflowReporter));
     }
 
     [Test]
     public void DisableReporter_WhenCalled_DisablesReporter()
     {
-        EnableReporter(typeof(WorkflowReporter));
-        DisableReporter(typeof(WorkflowReporter));
+        EnableReporter(typeof(TestWorkflowReporter));
+        DisableReporter(typeof(TestWorkflowReporter));
     }
 
     [Test]
@@ -94,9 +94,9 @@ public class MonitoringControllerTests
         var builder = new ConfigurationBuilder();
         builder.SetGlobalState(monitoringEnabled);
 
-        var reporter = new MockReporter(_logger.CreateLogger<MockReporter>()); // Use MockReporter instead of WorkflowReporter
+        var reporter = new MockReporter(_logger.CreateLogger<MockReporter>()); // Use MockReporter instead of TestWorkflowReporter
         if (reporterEnabled)
-            builder.AddReporterType(typeof(WorkflowReporter));
+            builder.AddReporterType(typeof(TestWorkflowReporter));
 
         MonitoringController.Configuration = builder.Build();
 
@@ -107,15 +107,15 @@ public class MonitoringControllerTests
     [Test]
     public void TemporarilyEnableReporter_EnablesReporterAndRevertOnDispose()
     {
-        MonitoringController.DisableReporter(typeof(WorkflowReporter));
-        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+        MonitoringController.DisableReporter(typeof(TestWorkflowReporter));
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(TestWorkflowReporter)), Is.False);
 
-        using (var temp = MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
+        using (var temp = MonitoringController.TemporarilyEnableReporter<TestWorkflowReporter>())
         {
-            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(TestWorkflowReporter)), Is.True);
         }
 
-        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(TestWorkflowReporter)), Is.False);
     }
 
     [Test]
@@ -140,7 +140,7 @@ public class MonitoringControllerTests
 
         Thread.Sleep(10); // Ensure timestamp change
 
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
         var newVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"New version: {newVersion}");
 
@@ -162,7 +162,7 @@ public class MonitoringControllerTests
     public void GlobalDisableEnable_RestoresCorrectComponentStates()
     {
         var builder = new ConfigurationBuilder();
-        builder.AddReporterType(typeof(WorkflowReporter));
+        builder.AddReporterType(typeof(TestWorkflowReporter));
         builder.AddFilter(new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>()));
         MonitoringController.Configuration = builder.Build();
 
@@ -171,7 +171,7 @@ public class MonitoringControllerTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(TestWorkflowReporter)), Is.True);
             Assert.That(MonitoringController.IsFilterEnabled(typeof(AlwaysIncludeFilter)), Is.True);
         });
     }
@@ -184,14 +184,14 @@ public class MonitoringControllerTests
         {
             tasks.Add(Task.Run(() =>
             {
-                MonitoringController.EnableReporter(typeof(WorkflowReporter));
-                MonitoringController.DisableReporter(typeof(WorkflowReporter));
+                MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
+                MonitoringController.DisableReporter(typeof(TestWorkflowReporter));
             }));
         }
 
         Task.WaitAll(tasks.ToArray());
 
-        Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+        Assert.That(MonitoringController.IsReporterEnabled(typeof(TestWorkflowReporter)), Is.False);
     }
 
     [Test]
@@ -208,7 +208,7 @@ public class MonitoringControllerTests
             newVersion = args.NewVersion;
         };
 
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
 
         Assert.That(eventFired, Is.True);
         Assert.That(newVersion, Is.Not.Null);
@@ -232,7 +232,7 @@ public class MonitoringControllerTests
         Console.WriteLine($"Initial version: {initialVersion}");
 
         var builder = new ConfigurationBuilder();
-        builder.AddReporterType(typeof(WorkflowReporter));
+        builder.AddReporterType(typeof(TestWorkflowReporter));
         MonitoringController.Configuration = builder.Build();
 
         var newVersion = MonitoringController.GetCurrentVersion();
@@ -257,7 +257,7 @@ public class MonitoringControllerTests
         MonitoringController.VersionChanged += (sender, version) => versionChangeCount++;
 
         var initialVersion = MonitoringController.GetCurrentVersion();
-        var reporterType = typeof(WorkflowReporter);
+        var reporterType = typeof(TestWorkflowReporter);
 
         MonitoringController.EnableReporter(reporterType);
         var afterFirstEnableVersion = MonitoringController.GetCurrentVersion();
@@ -288,7 +288,7 @@ public class MonitoringControllerTests
             {
                 Assert.That(initialVersion, Is.EqualTo(operationVersion));
                 await Task.Delay(1000); // Simulate long-running operation
-                return MonitoringController.ShouldTrack(operationVersion, typeof(WorkflowReporter));
+                return MonitoringController.ShouldTrack(operationVersion, typeof(TestWorkflowReporter));
             }
         });
 
@@ -307,7 +307,7 @@ public class MonitoringControllerTests
             ?.SetValue(null, new MonitoringVersion(long.MaxValue, int.MaxValue, Guid.NewGuid()));
 
         var beforeOverflow = MonitoringController.GetCurrentVersion();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter)); // This should increment the version
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter)); // This should increment the version
         var afterOverflow = MonitoringController.GetCurrentVersion();
 
         Assert.That(afterOverflow.Timestamp, Is.LessThan(beforeOverflow.Timestamp));
@@ -318,7 +318,7 @@ public class MonitoringControllerTests
     public void VersionChange_LogsChangeAndGeneratesReport()
     {
         var initialVersion = MonitoringController.GetCurrentVersion();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
         var newVersion = MonitoringController.GetCurrentVersion();
 
         Assert.That(newVersion, Is.Not.EqualTo(initialVersion));

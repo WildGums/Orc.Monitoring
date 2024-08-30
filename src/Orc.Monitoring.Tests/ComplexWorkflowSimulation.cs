@@ -27,7 +27,7 @@ public class ComplexWorkflowSimulation
     {
         await using var context = _monitor.AsyncStart(builder =>
         {
-            builder.AddReporter<WorkflowReporter>(reporter =>
+            builder.AddReporter<TestWorkflowReporter>(reporter =>
             {
                 reporter.AddOutput<RanttOutput>(RanttOutput.CreateParameters(_outputFolder));
                 reporter.AddOutput<CsvReportOutput>(CsvReportOutput.CreateParameters(_outputFolder, "WorkflowReport"));
@@ -61,7 +61,7 @@ public class ComplexWorkflowSimulation
     {
         for (int i = 0; i < 5; i++)
         {
-            using (var context = _monitor.Start(builder => builder.AddReporter<WorkflowReporter>()))
+            using (var context = _monitor.Start(builder => builder.AddReporter<TestWorkflowReporter>()))
             {
                 context.SetParameter(MethodCallParameter.WorkflowItemName, $"SubProcess_{i}");
                 context.SetParameter(MethodCallParameter.WorkflowItemType, MethodCallParameter.Types.DataProcess);
@@ -79,7 +79,7 @@ public class ComplexWorkflowSimulation
         {
             await using (var context = _monitor.StartAsyncMethod(new MethodConfiguration
             {
-                Reporters = new List<IMethodCallReporter> { new WorkflowReporter() }
+                Reporters = new List<IMethodCallReporter> { new TestWorkflowReporter() }
             }))
             {
                 context.SetParameter(MethodCallParameter.WorkflowItemName, $"AsyncOperation_{i}");
@@ -95,7 +95,7 @@ public class ComplexWorkflowSimulation
     {
         for (int i = 0; i < 2; i++)
         {
-            using (var context = _monitor.Start(builder => builder.AddReporter<WorkflowReporter>()))
+            using (var context = _monitor.Start(builder => builder.AddReporter<TestWorkflowReporter>()))
             {
                 context.SetParameter(MethodCallParameter.WorkflowItemName, $"ExceptionSimulation_{i}");
                 context.SetParameter(MethodCallParameter.WorkflowItemType, MethodCallParameter.Types.DataProcess);

@@ -19,7 +19,7 @@ public class MonitoringControllerHierarchicalTests
     public void GlobalDisable_DisablesAllComponents()
     {
         MonitoringController.Enable();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
 
         MonitoringController.Disable();
@@ -27,7 +27,7 @@ public class MonitoringControllerHierarchicalTests
         Assert.Multiple(() =>
         {
             Assert.That(MonitoringController.IsEnabled, Is.False);
-            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.False);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(TestWorkflowReporter)), Is.False);
             Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
         });
     }
@@ -36,7 +36,7 @@ public class MonitoringControllerHierarchicalTests
     public void GlobalEnable_RestoresComponentStates()
     {
         MonitoringController.Enable();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
         MonitoringController.Disable();
 
@@ -45,7 +45,7 @@ public class MonitoringControllerHierarchicalTests
         Assert.Multiple(() =>
         {
             Assert.That(MonitoringController.IsEnabled, Is.True);
-            Assert.That(MonitoringController.IsReporterEnabled(typeof(WorkflowReporter)), Is.True);
+            Assert.That(MonitoringController.IsReporterEnabled(typeof(TestWorkflowReporter)), Is.True);
             Assert.That(MonitoringController.IsFilterEnabled(typeof(WorkflowItemFilter)), Is.False);
         });
     }
@@ -55,35 +55,35 @@ public class MonitoringControllerHierarchicalTests
     {
         // Arrange
         MonitoringController.Enable();
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
         MonitoringController.EnableFilter(typeof(WorkflowItemFilter));
-        MonitoringController.EnableFilterForReporterType(typeof(WorkflowReporter), typeof(WorkflowItemFilter));
+        MonitoringController.EnableFilterForReporterType(typeof(TestWorkflowReporter), typeof(WorkflowItemFilter));
 
         var currentVersion = MonitoringController.GetCurrentVersion();
 
         // Act & Assert
-        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.True, "All components should be enabled");
+        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(TestWorkflowReporter), typeof(WorkflowItemFilter)), Is.True, "All components should be enabled");
 
         MonitoringController.Disable();
 
-        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False, "All components should be disabled when globally disabled");
+        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(TestWorkflowReporter), typeof(WorkflowItemFilter)), Is.False, "All components should be disabled when globally disabled");
 
         MonitoringController.Enable();
-        MonitoringController.DisableReporter(typeof(WorkflowReporter));
+        MonitoringController.DisableReporter(typeof(TestWorkflowReporter));
 
-        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False, "Should not track when reporter is disabled");
+        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(TestWorkflowReporter), typeof(WorkflowItemFilter)), Is.False, "Should not track when reporter is disabled");
 
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
         MonitoringController.DisableFilter(typeof(WorkflowItemFilter));
 
-        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(WorkflowReporter), typeof(WorkflowItemFilter)), Is.False, "Should not track when filter is disabled");
+        Assert.That(MonitoringController.ShouldTrack(currentVersion, typeof(TestWorkflowReporter), typeof(WorkflowItemFilter)), Is.False, "Should not track when filter is disabled");
     }
 
     [Test]
     public void ComponentStateChanges_DontAffectGlobalState()
     {
         MonitoringController.Enable();
-        MonitoringController.DisableReporter(typeof(WorkflowReporter));
+        MonitoringController.DisableReporter(typeof(TestWorkflowReporter));
 
         Assert.That(MonitoringController.IsEnabled, Is.True);
     }
@@ -98,8 +98,8 @@ public class MonitoringControllerHierarchicalTests
         {
             tasks.Add(Task.Run(() =>
             {
-                MonitoringController.EnableReporter(typeof(WorkflowReporter));
-                MonitoringController.DisableReporter(typeof(WorkflowReporter));
+                MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
+                MonitoringController.DisableReporter(typeof(TestWorkflowReporter));
             }));
         }
 

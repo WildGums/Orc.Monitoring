@@ -148,7 +148,7 @@ public class MonitoringIntegrationTests
 
         Assert.That(afterConfigChangeVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after changing configuration");
 
-        MonitoringController.EnableReporter(typeof(WorkflowReporter));
+        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
         Task.Delay(50).Wait(); // Add a small delay
         var finalVersion = MonitoringController.GetCurrentVersion();
         Console.WriteLine($"Final Version: {finalVersion}");
