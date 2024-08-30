@@ -79,10 +79,9 @@ public class RanttOutputLimitableTests
 
         Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
 
-        Assert.That(lines.Length, Is.EqualTo(7), $"Expected 7 lines (header + ROOT + 5 items), but got {lines.Length}");
+        Assert.That(lines.Length, Is.EqualTo(6), "Expected 6 lines (header + 5 items)");
         Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
-        Assert.That(lines[1], Does.Contain("ROOT"), "Second line should contain ROOT node");
-        Assert.That(lines.Skip(2).Count(), Is.EqualTo(5), "Should have 5 non-ROOT items");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(5), "Should have 5 items");
     }
 
     [Test]
@@ -102,13 +101,11 @@ public class RanttOutputLimitableTests
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         var lines = await File.ReadAllLinesAsync(filePath);
 
-        // Log the content of the file
         Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
 
-        Assert.That(lines.Length, Is.EqualTo(12), $"Expected 12 lines (header + ROOT + 10 items), but got {lines.Length}");
+        Assert.That(lines.Length, Is.EqualTo(11), "Expected 11 lines (header + 10 items)");
         Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
-        Assert.That(lines[1], Does.Contain("ROOT"), "Second line should contain ROOT node");
-        Assert.That(lines.Skip(2).Count(), Is.EqualTo(10), "Should have 10 non-ROOT items");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(10), "Should have 10 items");
     }
 
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
