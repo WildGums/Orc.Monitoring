@@ -1,4 +1,4 @@
-﻿#pragma warning disable IDISP005
+#pragma warning disable IDISP005
 namespace Orc.Monitoring;
 
 using System;
@@ -19,12 +19,17 @@ public class ClassMonitor : IClassMonitor
 
     private HashSet<string>? _trackedMethodNames;
 
-    public ClassMonitor(Type classType, CallStack callStack, MonitoringConfiguration monitoringConfig, ILogger<ClassMonitor> logger)
+    public ClassMonitor(Type classType, CallStack? callStack, MonitoringConfiguration? monitoringConfig, IMonitoringLoggerFactory loggerFactory)
     {
+        ArgumentNullException.ThrowIfNull(classType);
+        ArgumentNullException.ThrowIfNull(callStack);
+        ArgumentNullException.ThrowIfNull(monitoringConfig);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+
         _classType = classType;
         _callStack = callStack;
         _monitoringConfig = monitoringConfig;
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<ClassMonitor>();
         _logger.LogInformation($"ClassMonitor created for {classType.Name}");
     }
 
@@ -253,8 +258,8 @@ public class ClassMonitor : IClassMonitor
     {
         _logger.LogDebug("Returning Dummy context");
         return async
-            ? AsyncMethodCallContext.GetDummyCallContext(() => new AsyncMethodCallContext(MonitoringController.CreateLogger<AsyncMethodCallContext>()))
-            : MethodCallContext.GetDummyCallContext(() => new MethodCallContext(MonitoringController.CreateLogger<MethodCallContext>()));
+            ? AsyncMethodCallContext.GetDummyCallContext(() => new AsyncMethodCallContext(MonitoringLoggerFactory.Instance))
+            : MethodCallContext.GetDummyCallContext(() => new MethodCallContext(MonitoringLoggerFactory.Instance));
     }
 
     private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)

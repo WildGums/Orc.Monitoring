@@ -11,17 +11,11 @@ public class MethodCallInfoPool
     private readonly ILogger<MethodCallInfoPool> _logger;
     private readonly ConcurrentBag<MethodCallInfo> _pool = [];
 
-    public MethodCallInfoPool()
-    : this(MonitoringController.CreateLogger<MethodCallInfoPool>())
+    public MethodCallInfoPool(IMonitoringLoggerFactory loggerFactory)
     {
-        
-    }
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
-    public MethodCallInfoPool(ILogger<MethodCallInfoPool> logger)
-    {
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MethodCallInfoPool>();
     }
 
     public MethodCallInfo Rent(IClassMonitor? classMonitor, Type callerType, MethodInfo methodInfo,

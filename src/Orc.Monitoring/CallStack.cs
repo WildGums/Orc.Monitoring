@@ -31,15 +31,15 @@ public class CallStack : IObservable<ICallStackItem>
     private int _idCounter;
     private int _currentDepth = 0;
 
-    public CallStack(MonitoringConfiguration monitoringConfig, MethodCallInfoPool methodCallInfoPool, ILogger<CallStack> logger)
+    public CallStack(MonitoringConfiguration? monitoringConfig, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(monitoringConfig);
         ArgumentNullException.ThrowIfNull(methodCallInfoPool);
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         _monitoringConfig = monitoringConfig;
         _methodCallInfoPool = methodCallInfoPool;
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<CallStack>();
     }
 
     public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null)

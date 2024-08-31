@@ -16,14 +16,17 @@ public class PerformanceMonitorTests
 {
     private MockReporter _mockReporter;
     private TestLogger<PerformanceMonitorTests> _logger;
+    private TestLoggerFactory<PerformanceMonitorTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<PerformanceMonitorTests>();
+        _loggerFactory = new TestLoggerFactory<PerformanceMonitorTests>(_logger);
+
         PerformanceMonitor.Reset();
         MonitoringController.ResetForTesting();
-        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
+        _mockReporter = new MockReporter(_loggerFactory);
         _logger.LogInformation("Test setup complete");
     }
 
@@ -116,7 +119,7 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_WithCustomConfiguration_ShouldApplyConfiguration()
     {
-        var mockFilter = new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>());
+        var mockFilter = new AlwaysIncludeFilter(_loggerFactory);
 
         PerformanceMonitor.Configure(config =>
         {
@@ -141,7 +144,7 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_WithMultipleReporters_ShouldEnableAllReporters()
     {
-        var secondMockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
+        var secondMockReporter = new MockReporter(_loggerFactory);
 
         PerformanceMonitor.Configure(config =>
         {
@@ -214,7 +217,7 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_WithMultipleFilters_ShouldAddAllFilters()
     {
-        var filter1 = new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>());
+        var filter1 = new AlwaysIncludeFilter(_loggerFactory);
         var filter2 = new WorkflowItemFilter();
 
         PerformanceMonitor.Configure(config =>

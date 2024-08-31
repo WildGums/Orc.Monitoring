@@ -17,11 +17,11 @@ public class MockReporter : IMethodCallReporter
     private string _id;
     private MonitoringConfiguration _monitoringConfiguration;
 
-    public MockReporter(ILogger<MockReporter> logger)
+    public MockReporter(IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MockReporter>();
         _logger.LogInformation($"MockReporter created at {DateTime.Now:HH:mm:ss.fff}");
     }
 

@@ -29,10 +29,10 @@ public class CsvReportOutputLimitableTests
 
         Directory.CreateDirectory(_testOutputPath);
 
-        var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
 
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory));
         var parameters = CsvReportOutput.CreateParameters(_testOutputPath, "TestReport");
         _csvReportOutput.SetParameters(parameters);
     }
@@ -104,7 +104,7 @@ public class CsvReportOutputLimitableTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(CsvReportOutputLimitableTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            new MethodCallInfoPool(_loggerFactory),
             null,
             typeof(CsvReportOutputLimitableTests),
             methodInfo,

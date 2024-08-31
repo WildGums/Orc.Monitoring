@@ -1,11 +1,16 @@
 ﻿namespace Orc.Monitoring;
 
 using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 
 public sealed class MonitoringLoggerFactory : IMonitoringLoggerFactory, IDisposable
 {
     private readonly ILoggerFactory _loggerFactory;
+
+    private readonly Dictionary<Type, ILogger> _loggers = new();
+
+    public static MonitoringLoggerFactory Instance { get; } = new MonitoringLoggerFactory();
 
     public MonitoringLoggerFactory()
     {
@@ -14,12 +19,25 @@ public sealed class MonitoringLoggerFactory : IMonitoringLoggerFactory, IDisposa
 
     public ILogger<T> CreateLogger<T>()
     {
-        return _loggerFactory.CreateLogger<T>();
+        if (!_loggers.TryGetValue(typeof(T), out var logger))
+        {
+            logger = _loggerFactory.CreateLogger<T>();
+            _loggers[typeof(T)] = logger;
+
+        }
+
+        return (ILogger<T>)logger;
     }
 
     public ILogger CreateLogger(Type type)
     {
-        return _loggerFactory.CreateLogger(type);
+        if (!_loggers.TryGetValue(type, out var logger))
+        {
+            logger = _loggerFactory.CreateLogger(type);
+            _loggers[type] = logger;
+        }
+
+        return logger;
     }
 
     public void Dispose()

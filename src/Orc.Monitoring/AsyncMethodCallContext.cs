@@ -25,31 +25,31 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
     public IReadOnlyList<string> ReporterIds { get; }
 
     private AsyncMethodCallContext()
-    : this(MonitoringController.CreateLogger<AsyncMethodCallContext>())
+    : this(MonitoringLoggerFactory.Instance)
     {
     }
 
-    public AsyncMethodCallContext(ILogger<AsyncMethodCallContext> logger)
+    public AsyncMethodCallContext(IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         // Dummy constructor
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<AsyncMethodCallContext>();
 
         ReporterIds = Array.Empty<string>();
     }
 
     public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
-    : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringController.CreateLogger<AsyncMethodCallContext>())
+    : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringLoggerFactory.Instance)
     {
     }
 
     public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
-        ILogger<AsyncMethodCallContext> logger)
+        IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<AsyncMethodCallContext>();
         _classMonitor = classMonitor;
         _disposables = disposables;
         MethodCallInfo = methodCallInfo;

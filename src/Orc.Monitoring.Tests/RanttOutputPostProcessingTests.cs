@@ -19,6 +19,7 @@ public class RanttOutputPostProcessingTests
     private Mock<IMethodCallReporter> _reporterMock;
     private string _testOutputPath;
     private TestLogger<RanttOutputPostProcessingTests> _logger;
+    private TestLoggerFactory<RanttOutputPostProcessingTests> _loggerFactory;
     private ReportOutputHelper _reportOutputHelper;
     private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
 
@@ -29,6 +30,7 @@ public class RanttOutputPostProcessingTests
     public void Setup()
     {
         _logger = new TestLogger<RanttOutputPostProcessingTests>();
+        _loggerFactory = new TestLoggerFactory<RanttOutputPostProcessingTests>(_logger);
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
@@ -116,7 +118,7 @@ public class RanttOutputPostProcessingTests
     private async Task InitializeAndExportData(List<ReportItem> reportItems)
     {
         _logger.LogInformation("Initializing and exporting data");
-        var helper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        var helper = new ReportOutputHelper(_loggerFactory);
         helper.Initialize(_reporterMock.Object);
         var methodCallStarts = new List<MethodCallStart>();
 
@@ -157,7 +159,7 @@ public class RanttOutputPostProcessingTests
     {
         var methodInfo = new TestMethodInfo(item.MethodName, typeof(RanttOutputPostProcessingTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            new MethodCallInfoPool(_loggerFactory),
             null,
             typeof(RanttOutputPostProcessingTests),
             methodInfo,
@@ -173,7 +175,7 @@ public class RanttOutputPostProcessingTests
         else if (!string.IsNullOrEmpty(item.Parent))
         {
             methodCallInfo.Parent = MethodCallInfo.Create(
-                new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+                new MethodCallInfoPool(_loggerFactory),
                 null,
                 typeof(RanttOutputPostProcessingTests),
                 new TestMethodInfo("ParentMethod", typeof(RanttOutputPostProcessingTests)),
@@ -195,12 +197,12 @@ public class RanttOutputPostProcessingTests
 
     private RanttOutput InitializeRanttOutput()
     {
-        _reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
         var output = new RanttOutput(
-            _logger.CreateLogger<RanttOutput>(),
+            MonitoringLoggerFactory.Instance,
             () => _mockPostProcessor.Object,
             _reportOutputHelper,
-            (outputFolder) => new MethodOverrideManager(outputFolder, _logger.CreateLogger<MethodOverrideManager>()));
+            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory));
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         output.SetParameters(parameters);
         return output;

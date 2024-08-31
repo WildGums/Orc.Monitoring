@@ -23,6 +23,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     private string _overrideFilePath;
     private string _overrideTemplateFilePath;
     private TestLogger<MethodOverrideManagerAndRanttOutputTests> _logger;
+    private TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
@@ -32,6 +33,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
         _logger = new TestLogger<MethodOverrideManagerAndRanttOutputTests>();
+        _loggerFactory = new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger);
     }
 
     [TearDown]
@@ -175,7 +177,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(MethodOverrideManagerAndRanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            new MethodCallInfoPool(new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger)),
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,
@@ -222,7 +224,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(MethodOverrideManagerAndRanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            new MethodCallInfoPool(new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger)),
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,
@@ -268,10 +270,10 @@ public class MethodOverrideManagerAndRanttOutputTests
 
     private RanttOutput CreateRanttOutput()
     {
-        var ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
-            () => new EnhancedDataPostProcessor(_logger.CreateLogger<EnhancedDataPostProcessor>()),
-            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
+        var ranttOutput = new RanttOutput(MonitoringLoggerFactory.Instance, 
+            () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
+            new ReportOutputHelper(_loggerFactory),
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory));
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         ranttOutput.SetParameters(parameters);
         return ranttOutput;

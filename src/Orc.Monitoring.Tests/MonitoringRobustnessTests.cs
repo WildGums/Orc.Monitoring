@@ -11,11 +11,13 @@ using Microsoft.Extensions.Logging;
 public class MonitoringRobustnessTests
 {
     private TestLogger<MonitoringRobustnessTests> _logger;
+    private TestLoggerFactory<MonitoringRobustnessTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<MonitoringRobustnessTests>();
+        _loggerFactory = new TestLoggerFactory<MonitoringRobustnessTests>(_logger);
 
         MonitoringController.ResetForTesting();
         // Ensure monitoring is not configured
@@ -42,7 +44,7 @@ public class MonitoringRobustnessTests
         {
             using var context = monitor.Start(builder => { });
             Assert.That(context, Is.Not.Null);
-            Assert.That(context, Is.EqualTo(MethodCallContext.GetDummyCallContext(() => new MethodCallContext(_logger.CreateLogger<MethodCallContext>()))));
+            Assert.That(context, Is.EqualTo(MethodCallContext.GetDummyCallContext(() => new MethodCallContext(_loggerFactory))));
         });
     }
 

@@ -14,11 +14,13 @@ using Filters;
 public class MonitoringControllerTests
 {
     private TestLogger<MonitoringControllerTests> _logger;
+    private TestLoggerFactory<MonitoringControllerTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<MonitoringControllerTests>();
+        _loggerFactory = new TestLoggerFactory<MonitoringControllerTests>(_logger);
 
         MonitoringController.ResetForTesting();
         MonitoringController.Enable(); // Enable monitoring by default for tests
@@ -94,7 +96,7 @@ public class MonitoringControllerTests
         var builder = new ConfigurationBuilder();
         builder.SetGlobalState(monitoringEnabled);
 
-        var reporter = new MockReporter(_logger.CreateLogger<MockReporter>()); // Use MockReporter instead of TestWorkflowReporter
+        var reporter = new MockReporter(_loggerFactory); // Use MockReporter instead of TestWorkflowReporter
         if (reporterEnabled)
             builder.AddReporterType(typeof(TestWorkflowReporter));
 
@@ -163,7 +165,7 @@ public class MonitoringControllerTests
     {
         var builder = new ConfigurationBuilder();
         builder.AddReporterType(typeof(TestWorkflowReporter));
-        builder.AddFilter(new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>()));
+        builder.AddFilter(new AlwaysIncludeFilter(_loggerFactory));
         MonitoringController.Configuration = builder.Build();
 
         MonitoringController.Disable();

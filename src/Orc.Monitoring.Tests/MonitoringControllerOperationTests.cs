@@ -12,16 +12,18 @@ public class MonitoringControllerOperationTests
 {
     private MockReporter _mockReporter;
     private TestLogger<MonitoringControllerOperationTests> _logger;
+    private TestLoggerFactory<MonitoringControllerOperationTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<MonitoringControllerOperationTests>();
+        _loggerFactory = new TestLoggerFactory<MonitoringControllerOperationTests>(_logger);
 
         MonitoringController.ResetForTesting();
         MonitoringController.Enable();
         
-        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
+        _mockReporter = new MockReporter(_loggerFactory);
     }
 
     [Test]

@@ -18,16 +18,19 @@ public class TxtReportOutputLimitableTests
     private TxtReportOutput _txtReportOutput;
     private string _testOutputPath;
     private TestLogger<TxtReportOutputLimitableTests> _logger;
+    private TestLoggerFactory<TxtReportOutputLimitableTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<TxtReportOutputLimitableTests>();
+        _loggerFactory = new TestLoggerFactory<TxtReportOutputLimitableTests>(_logger);
+
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testOutputPath);
         
-        var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
-        _txtReportOutput = new TxtReportOutput(_logger.CreateLogger<TxtReportOutput>(), reportOutputHelper);
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        _txtReportOutput = new TxtReportOutput(_loggerFactory, reportOutputHelper);
 
         var parameters = TxtReportOutput.CreateParameters(_testOutputPath, "TestDisplay");
         _txtReportOutput.SetParameters(parameters);
@@ -104,7 +107,7 @@ public class TxtReportOutputLimitableTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(TxtReportOutputLimitableTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            new MethodCallInfoPool(_loggerFactory),
             null,
             typeof(TxtReportOutputLimitableTests),
             methodInfo,

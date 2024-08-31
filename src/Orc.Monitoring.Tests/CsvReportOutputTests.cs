@@ -31,9 +31,9 @@ public class CsvReportOutputTests
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
         _testFileName = "TestReport";
-        var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper, 
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory));
         _mockReporter = new Mock<IMethodCallReporter>();
         _mockReporter.Setup(r => r.FullName).Returns("TestReporter");
     }
@@ -77,7 +77,7 @@ public class CsvReportOutputTests
         _csvReportOutput.SetParameters(parameters);
         var disposable = _csvReportOutput.Initialize(_mockReporter.Object);
 
-        var methodCallInfo = MethodCallInfo.Create(new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()), null, typeof(CsvReportOutputTests),
+        var methodCallInfo = MethodCallInfo.Create(new MethodCallInfoPool(_loggerFactory), null, typeof(CsvReportOutputTests),
             GetType().GetMethod(nameof(WriteItem_AddsItemToReport)),
             Array.Empty<Type>(), "TestId", new Dictionary<string, string>());
 

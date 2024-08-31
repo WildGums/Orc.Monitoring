@@ -11,16 +11,18 @@ public class MonitoringControllerShouldTrackTests
 {
     private MockReporter _mockReporter;
     private TestLogger<MonitoringControllerShouldTrackTests> _logger;
+    private TestLoggerFactory<MonitoringControllerShouldTrackTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<MonitoringControllerShouldTrackTests>();
+        _loggerFactory = new TestLoggerFactory<MonitoringControllerShouldTrackTests>(_logger);
 
         MonitoringController.ResetForTesting();
         MonitoringController.Enable();
         
-        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
+        _mockReporter = new MockReporter(_loggerFactory);
     }
 
     [Test]
@@ -61,8 +63,8 @@ public class MonitoringControllerShouldTrackTests
     public void ShouldTrack_WithReporterIds_ReturnsExpectedResult()
     {
         MonitoringController.Enable();
-        var reporter1 = new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = "Reporter1" };
-        var reporter2 = new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = "Reporter2" };
+        var reporter1 = new MockReporter(_loggerFactory) { Id = "Reporter1" };
+        var reporter2 = new MockReporter(_loggerFactory) { Id = "Reporter2" };
         MonitoringController.EnableReporter(typeof(MockReporter));
 
         var version = MonitoringController.GetCurrentVersion();

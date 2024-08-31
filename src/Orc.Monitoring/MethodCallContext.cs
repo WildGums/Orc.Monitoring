@@ -23,32 +23,32 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
     public IReadOnlyList<string> ReporterIds { get; }
 
     private MethodCallContext() 
-    : this(MonitoringController.CreateLogger<MethodCallContext>())
+    : this(MonitoringLoggerFactory.Instance)
     {
     }
 
-    public MethodCallContext(ILogger<MethodCallContext> logger)
+    public MethodCallContext(IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         // Dummy constructor
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MethodCallContext>();
 
         ReporterIds = Array.Empty<string>();
     }
 
     public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
-        : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringController.CreateLogger<MethodCallContext>())
+        : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringLoggerFactory.Instance)
     {
 
     }
 
     public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
-        ILogger<MethodCallContext> logger)
+        IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MethodCallContext>();
         _classMonitor = classMonitor;
         _disposables = disposables;
         MethodCallInfo = methodCallInfo;

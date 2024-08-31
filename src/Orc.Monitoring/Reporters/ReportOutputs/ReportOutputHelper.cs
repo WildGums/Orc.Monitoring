@@ -14,15 +14,9 @@ public class ReportOutputHelper
 {
     private readonly ILogger<ReportOutputHelper> _logger;
 
-    public ReportOutputHelper()
-    : this(MonitoringController.CreateLogger<ReportOutputHelper>())
+    public ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
     {
-        
-    }
-
-    public ReportOutputHelper(ILogger<ReportOutputHelper> logger)
-    {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<ReportOutputHelper>();
     }
 
     public IMethodCallReporter? Reporter { get; private set; }

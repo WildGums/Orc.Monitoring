@@ -20,20 +20,22 @@ public class RanttOutputTests
     private MockReporter _mockReporter;
     private string _testFolderPath;
     private TestLogger<RanttOutputTests> _logger;
+    private TestLoggerFactory<RanttOutputTests> _loggerFactory;
     private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<RanttOutputTests>();
+        _loggerFactory = new TestLoggerFactory<RanttOutputTests>(_logger);
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
-        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>()) { Name = "TestReporter", FullName = "TestReporter" };
+        _mockReporter = new MockReporter(_loggerFactory) { Name = "TestReporter", FullName = "TestReporter" };
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
-        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(),
+        _ranttOutput = new RanttOutput(MonitoringLoggerFactory.Instance,
             () => _mockPostProcessor.Object,
-            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
-            (outputFolder) => new MethodOverrideManager(outputFolder, _logger.CreateLogger<MethodOverrideManager>()));
+            new ReportOutputHelper(_loggerFactory),
+            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory));
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }
@@ -142,7 +144,7 @@ public class RanttOutputTests
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(RanttOutputTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            new MethodCallInfoPool(_loggerFactory),
             null,
             typeof(RanttOutputTests),
             methodInfo,

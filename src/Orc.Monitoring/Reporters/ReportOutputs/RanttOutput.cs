@@ -52,17 +52,17 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
 
     public RanttOutput()
-    : this(MonitoringController.CreateLogger<RanttOutput>(),
-        MonitoringController.GetEnhancedDataPostProcessor,
-        new ReportOutputHelper(),
+    : this(MonitoringLoggerFactory.Instance,
+        () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
+        new ReportOutputHelper(MonitoringLoggerFactory.Instance),
         (outputDirectory) => new MethodOverrideManager(outputDirectory))
     {
     }
 
-    public RanttOutput(ILogger<RanttOutput> logger, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
+    public RanttOutput(IMonitoringLoggerFactory monitoringLoggerFactory, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
         Func<string, MethodOverrideManager> methodOverrideManagerFactory)
     {
-        _logger = logger;
+        _logger = monitoringLoggerFactory.CreateLogger<RanttOutput>();
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;

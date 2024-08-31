@@ -18,6 +18,7 @@ public class PerformanceMonitorIntegrationTests
     private MockReporter _mockReporter;
     private readonly string reporterId = "TestReporter";
     private TestLogger<PerformanceMonitorIntegrationTests> _logger;
+    private TestLoggerFactory<PerformanceMonitorIntegrationTests> _loggerFactory;
 
     private class TestClass
     {
@@ -25,12 +26,12 @@ public class PerformanceMonitorIntegrationTests
         private readonly ILogger<TestClass> _logger;
         private readonly IMethodCallReporter _reporter;
 
-        public TestClass(ILogger<TestClass> logger, IMethodCallReporter reporter)
+        public TestClass(IMonitoringLoggerFactory loggerFactory, IMethodCallReporter reporter)
         {
-            ArgumentNullException.ThrowIfNull(logger);
+            ArgumentNullException.ThrowIfNull(loggerFactory);
             ArgumentNullException.ThrowIfNull(reporter);
 
-            _logger = logger;
+            _logger = loggerFactory.CreateLogger<TestClass>();
             _reporter = reporter;
             _logger.LogInformation("TestClass static constructor called");
             _monitor = PerformanceMonitor.ForClass<TestClass>();
@@ -74,11 +75,13 @@ public class PerformanceMonitorIntegrationTests
     public void Setup()
     {
         _logger = new TestLogger<PerformanceMonitorIntegrationTests>();
+        _loggerFactory = new TestLoggerFactory<PerformanceMonitorIntegrationTests>(_logger);
+
         _logger.LogInformation("Setup started");
 
         MonitoringController.ResetForTesting();
 
-        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = reporterId };
+        _mockReporter = new MockReporter(_loggerFactory) { Id = reporterId };
         _logger.LogInformation($"Setup completed at {DateTime.Now:HH:mm:ss.fff}");
         _mockReporter.Reset();
 
@@ -86,7 +89,7 @@ public class PerformanceMonitorIntegrationTests
         {
             _logger.LogInformation($"Configuring PerformanceMonitor. Tracking assembly: {typeof(TestClass).Assembly.FullName}");
             config.TrackAssembly(typeof(TestClass).Assembly);
-            var filter = new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>());
+            var filter = new AlwaysIncludeFilter(_loggerFactory);
             config.AddFilter(filter);
             config.AddReporterType(typeof(MockReporter));
             _logger.LogInformation($"Added AlwaysIncludeFilter: {filter.GetType().FullName}");
@@ -124,7 +127,7 @@ public class PerformanceMonitorIntegrationTests
         {
             _logger.LogInformation($"Configuring PerformanceMonitor. Tracking assembly: {typeof(TestClass2).Assembly.FullName}");
             config.TrackAssembly(typeof(TestClass2).Assembly);
-            var filter = new AlwaysIncludeFilter(_logger.CreateLogger<AlwaysIncludeFilter>());
+            var filter = new AlwaysIncludeFilter(_loggerFactory);
             config.AddFilter(filter);
             config.AddReporterType(typeof(MockReporter));
             _logger.LogInformation($"Added AlwaysIncludeFilter: {filter.GetType().FullName}");
@@ -150,12 +153,12 @@ public class PerformanceMonitorIntegrationTests
         _logger.LogInformation("Starting method and creating context");
         using (var context = monitor.Start(builder =>
                {
-                   builder.AddReporter(new MockReporter(_logger.CreateLogger<MockReporter>()) { Id = reporterId });
+                   builder.AddReporter(new MockReporter(_loggerFactory) { Id = reporterId });
                    _logger.LogInformation($"Added MockReporter with ID: {reporterId} to method configuration");
                }, nameof(TestClass2.TestMethod)))
         {
             _logger.LogInformation($"Context type: {context.GetType().Name}");
-            Assert.That(context, Is.Not.EqualTo(MethodCallContext.GetDummyCallContext(() => new MethodCallContext(_logger.CreateLogger<MethodCallContext>()))),
+            Assert.That(context, Is.Not.EqualTo(MethodCallContext.GetDummyCallContext(() => new MethodCallContext(_loggerFactory))),
                 "The context should not be a Dummy context when the filter includes all methods");
         }
     }
@@ -163,7 +166,7 @@ public class PerformanceMonitorIntegrationTests
     [Test]
     public void WhenMonitoringIsEnabled_MethodsAreTracked()
     {
-        var testClass = new TestClass(_logger.CreateLogger<TestClass>(), _mockReporter);
+        var testClass = new TestClass(_loggerFactory, _mockReporter);
         testClass.TestMethod();
         _logger.LogInformation($"CallCount after method execution: {_mockReporter.CallCount}");
         Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call for the sync method");
@@ -173,7 +176,7 @@ public class PerformanceMonitorIntegrationTests
     public async Task WhenMonitoringIsEnabled_AsyncMethodsAreTracked()
     {
         _logger.LogInformation("Async test started");
-        var testClass = new TestClass(_logger.CreateLogger<TestClass>(), _mockReporter);
+        var testClass = new TestClass(_loggerFactory, _mockReporter);
         await testClass.TestAsyncMethod();
         _logger.LogInformation($"Final CallCount: {_mockReporter.CallCount}");
         Assert.That(_mockReporter.CallCount, Is.EqualTo(1), "Expected 1 call for the async method");
@@ -183,7 +186,7 @@ public class PerformanceMonitorIntegrationTests
     public void WhenMonitoringIsDisabled_MethodsAreNotTracked()
     {
         MonitoringController.Disable();
-        var testClass = new TestClass(_logger.CreateLogger<TestClass>(), _mockReporter);
+        var testClass = new TestClass(_loggerFactory, _mockReporter);
         testClass.TestMethod();
         Assert.That(_mockReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
     }
@@ -192,7 +195,7 @@ public class PerformanceMonitorIntegrationTests
     public async Task WhenMonitoringIsDisabled_AsyncMethodsAreNotTracked()
     {
         MonitoringController.Disable();
-        var testClass = new TestClass(_logger.CreateLogger<TestClass>(), _mockReporter);
+        var testClass = new TestClass(_loggerFactory, _mockReporter);
         await testClass.TestAsyncMethod();
         Assert.That(_mockReporter.CallCount, Is.EqualTo(0), "Expected no calls when monitoring is disabled");
     }
@@ -200,7 +203,7 @@ public class PerformanceMonitorIntegrationTests
     [Test]
     public void WhenMonitoringIsToggled_TrackingRespondsAccordingly()
     {
-        var testClass = new TestClass(_logger.CreateLogger<TestClass>(), _mockReporter);
+        var testClass = new TestClass(_loggerFactory, _mockReporter);
 
         _logger.LogInformation("Running first method call with monitoring enabled");
         testClass.TestMethod();
@@ -224,7 +227,7 @@ public class PerformanceMonitorIntegrationTests
     public void WhenMonitoringIsDisabledMidMethod_MethodCompletesTracking()
     {
         _logger.LogInformation("Test started");
-        var testClass = new TestClass(_logger.CreateLogger<TestClass>(), _mockReporter);
+        var testClass = new TestClass(_loggerFactory, _mockReporter);
 
         _logger.LogInformation("Calling TestMethod first time");
         testClass.TestMethod();
@@ -254,7 +257,7 @@ public class PerformanceMonitorIntegrationTests
     public async Task WhenMonitoringIsDisabledMidAsyncMethod_MethodCompletesTracking()
     {
         _logger.LogInformation("Test started");
-        var testClass = new TestClass(_logger.CreateLogger<TestClass>(), _mockReporter);
+        var testClass = new TestClass(_loggerFactory, _mockReporter);
 
         var task = testClass.TestAsyncMethod();
 

@@ -16,15 +16,17 @@ public class MonitoringIntegrationTests
 {
     private MockReporter _mockReporter;
     private TestLogger<MonitoringIntegrationTests> _logger;
+    private TestLoggerFactory<MonitoringIntegrationTests> _loggerFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<MonitoringIntegrationTests>();
+        _loggerFactory = new TestLoggerFactory<MonitoringIntegrationTests>(_logger);
 
         MonitoringController.ResetForTesting();
 
-        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>())
+        _mockReporter = new MockReporter(_loggerFactory)
         {
             Name = "MockSequenceReporter",
             FullName = "MockSequenceReporter"
@@ -55,7 +57,7 @@ public class MonitoringIntegrationTests
 
         var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
 
-        using var context = monitor.Start(builder => builder.AddReporter(new MockReporter(_logger.CreateLogger<MockReporter>())));
+        using var context = monitor.Start(builder => builder.AddReporter(new MockReporter(_loggerFactory)));
 
         Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.True);
 
@@ -67,8 +69,8 @@ public class MonitoringIntegrationTests
     [Test]
     public void CallStack_RespectsHierarchicalControl()
     {
-        var methodCallInfoPool = new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>());
-        var callStack = new CallStack(new MonitoringConfiguration(), methodCallInfoPool, _logger.CreateLogger<CallStack>());
+        var methodCallInfoPool = new MethodCallInfoPool(_loggerFactory);
+        var callStack = new CallStack(new MonitoringConfiguration(), methodCallInfoPool, _loggerFactory);
         var observer = new TestObserver();
 
         using (callStack.Subscribe(observer))

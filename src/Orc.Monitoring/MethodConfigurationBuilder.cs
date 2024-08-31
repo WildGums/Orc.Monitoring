@@ -11,16 +11,16 @@ public class MethodConfigurationBuilder
     private readonly MethodConfiguration _config = new();
 
     public MethodConfigurationBuilder()
-    : this(MonitoringController.CreateLogger<MethodConfigurationBuilder>())
+    : this(MonitoringLoggerFactory.Instance)
     {
         
     }
 
-    public MethodConfigurationBuilder(ILogger<MethodConfigurationBuilder> logger)
+    public MethodConfigurationBuilder(IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MethodConfigurationBuilder>();
     }
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)

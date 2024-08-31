@@ -12,6 +12,7 @@ using Moq;
 public class CallStackSimulationTests
 {
     private TestLogger<CallStackSimulationTests> _logger;
+    private TestLoggerFactory<CallStackSimulationTests> _loggerFactory;
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;
     private MonitoringConfiguration? _config;
@@ -21,9 +22,11 @@ public class CallStackSimulationTests
     public void Setup()
     {
         _logger = new TestLogger<CallStackSimulationTests>();
+        _loggerFactory = new TestLoggerFactory<CallStackSimulationTests>(_logger);
+
         _config = new MonitoringConfiguration();
-        var methodCallInfoPool = new MethodCallInfoPool();
-        _callStack = new CallStack(_config, methodCallInfoPool, _logger.CreateLogger<CallStack>());
+        var methodCallInfoPool = new MethodCallInfoPool(_loggerFactory);
+        _callStack = new CallStack(_config, methodCallInfoPool, _loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
         _methodCalls = new List<MethodCallInfo>();
 

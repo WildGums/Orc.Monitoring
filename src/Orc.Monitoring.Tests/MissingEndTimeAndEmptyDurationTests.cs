@@ -16,6 +16,7 @@ using Orc.Monitoring.MethodLifeCycleItems;
 public class MissingEndTimeAndEmptyDurationTests
 {
     private TestLogger<MissingEndTimeAndEmptyDurationTests> _logger;
+    private TestLoggerFactory<MissingEndTimeAndEmptyDurationTests> _loggerFactory;
     private CallStack _callStack;
     private Mock<IClassMonitor> _mockClassMonitor;
     private MonitoringConfiguration _config;
@@ -27,15 +28,16 @@ public class MissingEndTimeAndEmptyDurationTests
     public void Setup()
     {
         _logger = new TestLogger<MissingEndTimeAndEmptyDurationTests>();
+        _loggerFactory = new TestLoggerFactory<MissingEndTimeAndEmptyDurationTests>(_logger);
         _config = new MonitoringConfiguration();
-        var methodCallInfoPool = new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>());
-        _callStack = new CallStack(_config, methodCallInfoPool, _logger.CreateLogger<CallStack>());
+        var methodCallInfoPool = new MethodCallInfoPool(_loggerFactory);
+        _callStack = new CallStack(_config, methodCallInfoPool, _loggerFactory);
         _callStackItems = new List<ICallStackItem>();
 
         _callStackObserver = StartObservingCallStack();
 
         _mockClassMonitor = new Mock<IClassMonitor>();
-        _reportOutputHelper = new ReportOutputHelper();
+        _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
         MonitoringController.Enable();
     }
 

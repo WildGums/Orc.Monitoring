@@ -26,17 +26,17 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public TxtReportOutput()
-    : this(MonitoringController.CreateLogger<TxtReportOutput>(), new ReportOutputHelper())
+    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance))
     {
         
     }
 
-    public TxtReportOutput(ILogger<TxtReportOutput> logger, ReportOutputHelper reportOutputHelper)
+    public TxtReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(reportOutputHelper);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<TxtReportOutput>();
         _helper = reportOutputHelper;
 
         _logger.LogDebug("Creating TxtReportOutput instance");

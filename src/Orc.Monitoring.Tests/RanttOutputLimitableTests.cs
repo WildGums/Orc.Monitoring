@@ -16,6 +16,7 @@ using System.Linq;
 public class RanttOutputLimitableTests
 {
     private TestLogger<RanttOutputLimitableTests> _logger;
+    private TestLoggerFactory<RanttOutputLimitableTests> _loggerFactory;
     private RanttOutput _ranttOutput;
     private string _testOutputPath;
 
@@ -23,12 +24,13 @@ public class RanttOutputLimitableTests
     public void Setup()
     {
         _logger = new TestLogger<RanttOutputLimitableTests>();
+        _loggerFactory = new TestLoggerFactory<RanttOutputLimitableTests>(_logger);
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testOutputPath);
-        _ranttOutput = new RanttOutput(_logger.CreateLogger<RanttOutput>(), 
-            () => new EnhancedDataPostProcessor(_logger.CreateLogger<EnhancedDataPostProcessor>()),
-            new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>()),
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
+        _ranttOutput = new RanttOutput(_loggerFactory, 
+            () => new EnhancedDataPostProcessor(_loggerFactory),
+            new ReportOutputHelper(_loggerFactory),
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory));
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         _ranttOutput.SetParameters(parameters);
     }
@@ -112,7 +114,7 @@ public class RanttOutputLimitableTests
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(RanttOutputLimitableTests));
         var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            new MethodCallInfoPool(_loggerFactory),
             null,
             typeof(RanttOutputLimitableTests),
             methodInfo,

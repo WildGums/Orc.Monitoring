@@ -10,9 +10,9 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 {
     private readonly ILogger<EnhancedDataPostProcessor> _logger;
 
-    public EnhancedDataPostProcessor(ILogger<EnhancedDataPostProcessor> logger)
+    public EnhancedDataPostProcessor(IMonitoringLoggerFactory loggerFactory)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<EnhancedDataPostProcessor>();
     }
 
     public List<ReportItem> PostProcessData(List<ReportItem> items)

@@ -16,12 +16,21 @@ public static class PerformanceMonitor
     private static readonly object _configLock = new object();
     private static CallStack? _callStack;
     private static MonitoringConfiguration? _configuration;
-    private static readonly ILogger _logger = MonitoringController.CreateLogger(typeof(PerformanceMonitor));
+    private static ILogger? _logger;
+
+    internal static IMonitoringLoggerFactory MonitoringLoggerFactory { get; set; } = Orc.Monitoring.MonitoringLoggerFactory.Instance;
+    internal static Func<MethodCallInfoPool> MethodCallInfoPoolFactory { get; set; } = () => new MethodCallInfoPool(MonitoringLoggerFactory);
+    internal static Func<CallStack> CallStackFactory { get; set; } = () => new CallStack(_configuration, MethodCallInfoPoolFactory(), MonitoringLoggerFactory);
+    internal static Func<ClassMonitor> ClassMonitorFactory { get; set; } = () => new ClassMonitor(typeof(PerformanceMonitor), _callStack, _configuration, MonitoringLoggerFactory);
+    internal static Func<NullClassMonitor> NullClassMonitorFactory { get; set; } = () => new NullClassMonitor(MonitoringLoggerFactory);
+    internal static Func<ConfigurationBuilder> ConfigurationBuilderFactory { get; set; } = () => new ConfigurationBuilder();
 
     public static void Configure(Action<ConfigurationBuilder> configAction)
     {
+        _logger = MonitoringLoggerFactory.CreateLogger(typeof(PerformanceMonitor));
+
         _logger.LogInformation("PerformanceMonitor.Configure called");
-        var builder = new ConfigurationBuilder();
+        var builder = ConfigurationBuilderFactory();
 
         lock (_configLock)
         {
@@ -47,7 +56,9 @@ public static class PerformanceMonitor
                 }
 
                 _logger.LogDebug("Creating CallStack instance");
-                _callStack = new CallStack(_configuration, new MethodCallInfoPool(), MonitoringController.CreateLogger<CallStack>());
+
+                _callStack = CallStackFactory();
+
                 _logger.LogInformation($"CallStack instance created: {_callStack is not null}");
 
                 if (_callStack is null)
@@ -66,7 +77,8 @@ public static class PerformanceMonitor
 
     public static void LogCurrentConfiguration()
     {
-        var logger = MonitoringController.CreateLogger(typeof(PerformanceMonitor));
+        var logger = MonitoringLoggerFactory.CreateLogger(typeof(PerformanceMonitor));
+
         var config = GetCurrentConfiguration();
         if (config is not null)
         {
@@ -82,6 +94,8 @@ public static class PerformanceMonitor
 
     private static void EnableDefaultOutputTypes(ConfigurationBuilder builder)
     {
+        _logger ??= MonitoringLoggerFactory.CreateLogger(typeof(PerformanceMonitor));
+
         var outputTypes = new[]
         {
             typeof(RanttOutput),
@@ -109,11 +123,13 @@ public static class PerformanceMonitor
 
     public static IClassMonitor ForClass<T>()
     {
+        _logger ??= MonitoringLoggerFactory.CreateLogger(typeof(PerformanceMonitor));
+
         _logger.LogDebug($"PerformanceMonitor.ForClass<{typeof(T).Name}> called");
         if (!MonitoringController.IsEnabled)
         {
             _logger.LogWarning("Monitoring is disabled. Returning NullClassMonitor.");
-            return new NullClassMonitor();
+            return NullClassMonitorFactory();
         }
         var monitor = CreateClassMonitor(typeof(T));
         _logger.LogDebug($"Created monitor of type: {monitor.GetType().Name}");
@@ -124,16 +140,18 @@ public static class PerformanceMonitor
     {
         ArgumentNullException.ThrowIfNull(callingType);
 
+        _logger ??= MonitoringLoggerFactory.CreateLogger(typeof(PerformanceMonitor));
+
         if (_configuration is null || _callStack is null)
         {
             _logger.LogWarning("MonitoringConfiguration or CallStack is null. Returning NullClassMonitor");
-            return new NullClassMonitor();
+            return NullClassMonitorFactory();
         }
 
         _logger.LogDebug($"CreateClassMonitor called for {callingType.Name}");
 
         _logger.LogDebug($"Creating ClassMonitor for {callingType.Name}");
-        return new ClassMonitor(callingType, _callStack, _configuration, MonitoringController.CreateLogger<ClassMonitor>());
+        return ClassMonitorFactory();
     }
 
     private static Type? GetCallingType()
@@ -147,6 +165,8 @@ public static class PerformanceMonitor
     {
         lock (_configLock)
         {
+            _logger ??= MonitoringLoggerFactory.CreateLogger(typeof(PerformanceMonitor));
+
             _logger.LogDebug("Resetting PerformanceMonitor");
             _configuration = null;
             _callStack = null;
@@ -160,6 +180,8 @@ public static class PerformanceMonitor
     {
         get
         {
+            _logger ??= MonitoringLoggerFactory.CreateLogger(typeof(PerformanceMonitor));
+
             var isConfigured = _configuration is not null && _callStack is not null;
             _logger.LogDebug($"IsConfigured called, returning: {isConfigured}. Configuration: {_configuration is not null}, CallStack: {_callStack is not null}");
             return isConfigured;
