@@ -19,12 +19,16 @@ public class TxtReportOutputLimitableTests
     private string _testOutputPath;
     private TestLogger<TxtReportOutputLimitableTests> _logger;
     private TestLoggerFactory<TxtReportOutputLimitableTests> _loggerFactory;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<TxtReportOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<TxtReportOutputLimitableTests>(_logger);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testOutputPath);
@@ -106,8 +110,7 @@ public class TxtReportOutputLimitableTests
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(TxtReportOutputLimitableTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_loggerFactory),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(TxtReportOutputLimitableTests),
             methodInfo,

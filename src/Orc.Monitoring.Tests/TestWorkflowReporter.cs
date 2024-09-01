@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using MethodLifeCycleItems;
@@ -17,9 +18,11 @@ using Reporters;
 
 public sealed class TestWorkflowReporter : IMethodCallReporter
 {
+    private readonly IMonitoringController _monitoringController;
+    private readonly MethodCallInfoPool _methodCallInfoPool;
     private const int BatchSize = 100;
 
-    private readonly TestLogger<TestWorkflowReporter> _logger;
+    private readonly ILogger<TestWorkflowReporter> _logger;
 
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
@@ -38,9 +41,12 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
     private bool _disposing;
     private List<IAsyncDisposable>? _disposables;
 
-    public TestWorkflowReporter()
+    public TestWorkflowReporter(IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory monitoringLoggerFactory)
     {
-        _logger = new TestLogger<TestWorkflowReporter>();
+        _monitoringController = monitoringController;
+        _methodCallInfoPool = methodCallInfoPool;
+
+        _logger = monitoringLoggerFactory.CreateLogger<TestWorkflowReporter>();
 
         Name = "Workflow";
 
@@ -172,7 +178,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
 
         foreach (var reportOutput in _outputs)
         {
-            if (MonitoringController.IsOutputTypeEnabled(reportOutput.GetType()))
+            if (_monitoringController.IsOutputTypeEnabled(reportOutput.GetType()))
             {
                 _disposables.Add(reportOutput.Initialize(this));
                 _logger.LogInformation($"Output initialized: {reportOutput.GetType().Name}");
@@ -202,7 +208,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
         }
 
         return _filterTypes
-            .Where(filterType => MonitoringController.IsFilterEnabledForReporterType(GetType(), filterType) || MonitoringController.IsFilterEnabledForReporter(Id, filterType))
+            .Where(filterType => _monitoringController.IsFilterEnabledForReporterType(GetType(), filterType) || _monitoringController.IsFilterEnabledForReporter(Id, filterType))
             .All(filterType => _monitoringConfiguration.FilterDictionary[filterType].ShouldInclude(methodCallInfo));
     }
 
@@ -224,7 +230,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
 
     private void ProcessMethodLifeCycleItem(IMethodLifeCycleItem item)
     {
-        _disposables?.Add(item.MethodCallInfo.Use());
+        _disposables?.Add(_methodCallInfoPool.UseAndReturn(item.MethodCallInfo));
         _itemBatch.Enqueue(item);
 
         if (_disposing || _itemBatch.Count >= BatchSize)
@@ -424,7 +430,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
     {
         foreach (var output in _outputs)
         {
-            if (MonitoringController.IsOutputTypeEnabled(output.GetType()))
+            if (_monitoringController.IsOutputTypeEnabled(output.GetType()))
             {
                 action(output);
             }

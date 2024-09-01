@@ -1,4 +1,4 @@
-#pragma warning disable IDISP005
+﻿#pragma warning disable IDISP005
 namespace Orc.Monitoring;
 
 using System;
@@ -12,23 +12,37 @@ using System.Reflection;
 
 public class ClassMonitor : IClassMonitor
 {
+    private readonly IMonitoringController _monitoringController;
     private readonly Type _classType;
     private readonly CallStack _callStack;
     private readonly MonitoringConfiguration _monitoringConfig;
+    private readonly MethodCallContextFactory _methodCallContextFactory;
+    private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ILogger<ClassMonitor> _logger;
 
     private HashSet<string>? _trackedMethodNames;
 
-    public ClassMonitor(Type classType, CallStack? callStack, MonitoringConfiguration? monitoringConfig, IMonitoringLoggerFactory loggerFactory)
+    public ClassMonitor(IMonitoringController monitoringController, 
+        Type classType,
+        CallStack? callStack, 
+        MonitoringConfiguration monitoringConfig,
+        IMonitoringLoggerFactory loggerFactory,
+        MethodCallContextFactory methodCallContextFactory,
+        MethodCallInfoPool methodCallInfoPool)
     {
+        ArgumentNullException.ThrowIfNull(monitoringController);
         ArgumentNullException.ThrowIfNull(classType);
         ArgumentNullException.ThrowIfNull(callStack);
         ArgumentNullException.ThrowIfNull(monitoringConfig);
         ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(methodCallContextFactory);
 
+        _monitoringController = monitoringController;
         _classType = classType;
         _callStack = callStack;
         _monitoringConfig = monitoringConfig;
+        _methodCallContextFactory = methodCallContextFactory;
+        _methodCallInfoPool = methodCallInfoPool;
         _logger = loggerFactory.CreateLogger<ClassMonitor>();
         _logger.LogInformation($"ClassMonitor created for {classType.Name}");
     }
@@ -45,8 +59,8 @@ public class ClassMonitor : IClassMonitor
 
     private object StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
     {
-        var currentVersion = MonitoringController.GetCurrentVersion();
-        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {MonitoringController.IsEnabled}, Version: {currentVersion}");
+        var currentVersion = _monitoringController.GetCurrentVersion();
+        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {_monitoringController.IsEnabled}, Version: {currentVersion}");
 
         if (!IsMonitoringEnabled(callerMethod, currentVersion))
         {
@@ -54,7 +68,7 @@ public class ClassMonitor : IClassMonitor
             return GetDummyContext(async);
         }
 
-        using var operation = MonitoringController.BeginOperation(out var operationVersion);
+        using var operation = _monitoringController.BeginOperation(out var operationVersion);
 
         var methodCallInfo = CreateMethodCallInfo(config, callerMethod);
         if (methodCallInfo.IsNull)
@@ -89,7 +103,7 @@ public class ClassMonitor : IClassMonitor
 
             methodCallInfo.AssociatedReporter = reporter;
 
-            if (MonitoringController.IsReporterEnabled(reporter.GetType()))
+            if (_monitoringController.IsReporterEnabled(reporter.GetType()))
             {
                 _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
                 var reporterDisposable = reporter.StartReporting(_callStack);
@@ -143,7 +157,7 @@ public class ClassMonitor : IClassMonitor
         if (methodInfo is null)
         {
             _logger.LogWarning($"Method not found: {callerMethod}");
-            return MethodCallInfo.CreateNull();
+            return _methodCallInfoPool.GetNull();
         }
 
         return _callStack.CreateMethodCallInfo(this, _classType, new MethodCallContextConfig
@@ -232,8 +246,8 @@ public class ClassMonitor : IClassMonitor
             return false;
         }
 
-        var isEnabled = MonitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
-        _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}. ShouldTrack: {MonitoringController.ShouldTrack(currentVersion)}, Contains: {_trackedMethodNames.Contains(callerMethod)}");
+        var isEnabled = _monitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
+        _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}. ShouldTrack: {_monitoringController.ShouldTrack(currentVersion)}, Contains: {_trackedMethodNames.Contains(callerMethod)}");
         return isEnabled;
     }
 
@@ -258,21 +272,21 @@ public class ClassMonitor : IClassMonitor
     {
         _logger.LogDebug("Returning Dummy context");
         return async
-            ? AsyncMethodCallContext.GetDummyCallContext(() => new AsyncMethodCallContext(MonitoringLoggerFactory.Instance))
-            : MethodCallContext.GetDummyCallContext(() => new MethodCallContext(MonitoringLoggerFactory.Instance));
+            ? _methodCallContextFactory.GetDummyAsyncMethodCallContext()
+            : _methodCallContextFactory.GetDummyMethodCallContext();
     }
 
     private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
     {
         return async
-            ? new AsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds)
-            : new MethodCallContext(this, methodCallInfo, disposables, reporterIds);
+            ? _methodCallContextFactory.CreateAsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds)
+            : _methodCallContextFactory.CreateAsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds);
     }
 
     private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion, IEnumerable<string> reporterIds)
     {
         _logger.LogDebug($"ShouldTrackMethod called for {methodCallInfo.MethodName}");
-        var shouldTrack = MonitoringController.ShouldTrack(operationVersion, reporterIds: reporterIds);
+        var shouldTrack = _monitoringController.ShouldTrack(operationVersion, reporterIds: reporterIds);
 
         if (shouldTrack)
         {
@@ -287,8 +301,8 @@ public class ClassMonitor : IClassMonitor
     public void LogStatus(IMethodLifeCycleItem status)
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
-        var currentVersion = MonitoringController.GetCurrentVersion();
-        if (!MonitoringController.ShouldTrack(currentVersion))
+        var currentVersion = _monitoringController.GetCurrentVersion();
+        if (!_monitoringController.ShouldTrack(currentVersion))
         {
             _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
             return;

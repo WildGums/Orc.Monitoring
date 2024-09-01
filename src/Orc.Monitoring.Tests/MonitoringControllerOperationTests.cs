@@ -5,7 +5,7 @@ using NUnit.Framework;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-
+using Reporters;
 
 [TestFixture]
 public class MonitoringControllerOperationTests
@@ -13,6 +13,7 @@ public class MonitoringControllerOperationTests
     private MockReporter _mockReporter;
     private TestLogger<MonitoringControllerOperationTests> _logger;
     private TestLoggerFactory<MonitoringControllerOperationTests> _loggerFactory;
+    private MonitoringController _monitoringController;
 
     [SetUp]
     public void Setup()
@@ -20,8 +21,9 @@ public class MonitoringControllerOperationTests
         _logger = new TestLogger<MonitoringControllerOperationTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringControllerOperationTests>(_logger);
 
-        MonitoringController.ResetForTesting();
-        MonitoringController.Enable();
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+
+        _monitoringController.Enable();
         
         _mockReporter = new MockReporter(_loggerFactory);
     }
@@ -29,9 +31,9 @@ public class MonitoringControllerOperationTests
     [Test]
     public void BeginOperation_ReturnsCurrentVersion()
     {
-        var currentVersion = MonitoringController.GetCurrentVersion();
+        var currentVersion = _monitoringController.GetCurrentVersion();
 
-        using (MonitoringController.BeginOperation(out var operationVersion))
+        using (_monitoringController.BeginOperation(out var operationVersion))
         {
             Assert.That(operationVersion, Is.EqualTo(currentVersion));
         }
@@ -40,110 +42,109 @@ public class MonitoringControllerOperationTests
     [Test]
     public void BeginOperation_NestedOperations_WorkCorrectly()
     {
-        using (MonitoringController.BeginOperation(out var outerVersion))
+        using (_monitoringController.BeginOperation(out var outerVersion))
         {
-            Assert.That(MonitoringController.IsOperationValid(), Is.True);
+            Assert.That(_monitoringController.IsOperationValid(), Is.True);
 
-            using (MonitoringController.BeginOperation(out var innerVersion))
+            using (_monitoringController.BeginOperation(out var innerVersion))
             {
-                Assert.That(MonitoringController.IsOperationValid(), Is.True);
+                Assert.That(_monitoringController.IsOperationValid(), Is.True);
                 Assert.That(innerVersion, Is.EqualTo(outerVersion));
             }
 
-            Assert.That(MonitoringController.IsOperationValid(), Is.True);
+            Assert.That(_monitoringController.IsOperationValid(), Is.True);
         }
 
-        Assert.That(MonitoringController.IsOperationValid(), Is.False);
+        Assert.That(_monitoringController.IsOperationValid(), Is.False);
     }
 
     [Test]
     public void IsOperationValid_OutsideOperation_ReturnsFalse()
     {
-        Assert.That(MonitoringController.IsOperationValid(), Is.False);
+        Assert.That(_monitoringController.IsOperationValid(), Is.False);
     }
 
     [Test]
     public void IsOperationValid_DuringOperation_ReturnsTrue()
     {
-        using (MonitoringController.BeginOperation(out _))
+        using (_monitoringController.BeginOperation(out _))
         {
-            Assert.That(MonitoringController.IsOperationValid(), Is.True);
+            Assert.That(_monitoringController.IsOperationValid(), Is.True);
         }
     }
 
     [Test]
     public void IsOperationValid_AfterVersionChange_ReturnsFalse()
     {
-        using (MonitoringController.BeginOperation(out _))
+        using (_monitoringController.BeginOperation(out _))
         {
-            Assert.That(MonitoringController.IsOperationValid(), Is.True);
+            Assert.That(_monitoringController.IsOperationValid(), Is.True);
 
-            MonitoringController.EnableReporter(typeof(MockReporter)); // This will update the version
+            _monitoringController.EnableReporter(typeof(MockReporter)); // This will update the version
 
-            Assert.That(MonitoringController.IsOperationValid(), Is.False);
+            Assert.That(_monitoringController.IsOperationValid(), Is.False);
         }
     }
 
     [Test]
     public async Task BeginOperation_AsyncOperation_MaintainsContext()
     {
-        using (MonitoringController.BeginOperation(out var operationVersion))
+        using (_monitoringController.BeginOperation(out var operationVersion))
         {
-            Assert.That(MonitoringController.IsOperationValid(), Is.True);
+            Assert.That(_monitoringController.IsOperationValid(), Is.True);
 
             await Task.Yield(); // Switch to a different context
 
-            Assert.That(MonitoringController.IsOperationValid(), Is.True);
-            Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.True);
+            Assert.That(_monitoringController.IsOperationValid(), Is.True);
+            Assert.That(_monitoringController.ShouldTrack(operationVersion), Is.True);
         }
 
-        Assert.That(MonitoringController.IsOperationValid(), Is.False);
+        Assert.That(_monitoringController.IsOperationValid(), Is.False);
     }
 
     [Test]
     public void ShouldTrack_DuringOperation_UsesOperationVersion()
     {
-        MonitoringController.ResetForTesting();
-        MonitoringController.Enable();
-        Console.WriteLine($"Test start - IsEnabled: {MonitoringController.IsEnabled}");
+        _monitoringController.Enable();
+        Console.WriteLine($"Test start - IsEnabled: {_monitoringController.IsEnabled}");
 
-        var initialVersion = MonitoringController.GetCurrentVersion();
+        var initialVersion = _monitoringController.GetCurrentVersion();
         Console.WriteLine($"Initial version: {initialVersion}");
 
-        using (MonitoringController.BeginOperation(out var operationVersion))
+        using (_monitoringController.BeginOperation(out var operationVersion))
         {
             Console.WriteLine($"Operation version: {operationVersion}");
             Assert.That(operationVersion, Is.EqualTo(initialVersion), "Operation version should initially match the current version");
 
             // ShouldTrack should return true for the operation version initially
-            Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.True, "Should track for operation version initially");
+            Assert.That(_monitoringController.ShouldTrack(operationVersion), Is.True, "Should track for operation version initially");
 
             Thread.Sleep(10); // Ensure a new timestamp for the next version
 
-            Console.WriteLine($"Before enabling reporter - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(typeof(MockReporter))}");
-            MonitoringController.EnableReporter(typeof(MockReporter)); // This should update the version
-            Console.WriteLine($"After enabling reporter - MockReporter enabled: {MonitoringController.IsReporterEnabled(typeof(MockReporter))}");
+            Console.WriteLine($"Before enabling reporter - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
+            _monitoringController.EnableReporter(typeof(MockReporter)); // This should update the version
+            Console.WriteLine($"After enabling reporter - MockReporter enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
 
-            var currentVersion = MonitoringController.GetCurrentVersion();
+            var currentVersion = _monitoringController.GetCurrentVersion();
             Console.WriteLine($"Current version after EnableReporter: {currentVersion}");
 
             Assert.That(currentVersion, Is.GreaterThan(initialVersion), "Version should increment after enabling reporter");
 
             // ShouldTrack should return false for the operation version after global version change
-            Assert.That(MonitoringController.ShouldTrack(operationVersion), Is.False, "Should not track for operation version after global version change");
+            Assert.That(_monitoringController.ShouldTrack(operationVersion), Is.False, "Should not track for operation version after global version change");
 
             // ShouldTrack should return false for the initial version
-            Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.False, "Should not track for initial version");
+            Assert.That(_monitoringController.ShouldTrack(initialVersion), Is.False, "Should not track for initial version");
 
             // ShouldTrack should return true for the current version (which is newer than the operation version)
-            Assert.That(MonitoringController.ShouldTrack(currentVersion), Is.True, "Should track for current version");
+            Assert.That(_monitoringController.ShouldTrack(currentVersion), Is.True, "Should track for current version");
         }
 
         // Outside the operation, ShouldTrack should now return false for the initial version
-        Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.False, "Should not track for initial version outside operation");
+        Assert.That(_monitoringController.ShouldTrack(initialVersion), Is.False, "Should not track for initial version outside operation");
 
         // Outside the operation, ShouldTrack should return true for the current version
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion()), Is.True, "Should track for current version outside operation");
+        Assert.That(_monitoringController.ShouldTrack(_monitoringController.GetCurrentVersion()), Is.True, "Should track for current version outside operation");
 
         Console.WriteLine("Printing version history:");
         var versionHistory = MonitoringDiagnostics.GetVersionHistory();
@@ -156,26 +157,26 @@ public class MonitoringControllerOperationTests
     [Test]
     public async Task BeginOperation_LongRunningOperation_HandlesVersionChangesCorrectly()
     {
-        var initialVersion = MonitoringController.GetCurrentVersion();
+        var initialVersion = _monitoringController.GetCurrentVersion();
 
         var operationTask = Task.Run(async () =>
         {
-            using (MonitoringController.BeginOperation(out var operationVersion))
+            using (_monitoringController.BeginOperation(out var operationVersion))
             {
                 Assert.That(operationVersion, Is.EqualTo(initialVersion));
                 await Task.Delay(1000); // Simulate long-running operation
-                return MonitoringController.ShouldTrack(operationVersion);
+                return _monitoringController.ShouldTrack(operationVersion);
             }
         });
 
         await Task.Delay(100); // Give some time for the operation to start
 
-        MonitoringController.EnableReporter(typeof(MockReporter)); // This will update the version
+        _monitoringController.EnableReporter(typeof(MockReporter)); // This will update the version
 
         var result = await operationTask;
 
         Assert.That(result, Is.False, "ShouldTrack should return false for the operation version after global version change");
-        Assert.That(MonitoringController.ShouldTrack(initialVersion), Is.False, "ShouldTrack should return false for the initial version outside the operation");
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion()), Is.True, "ShouldTrack should return true for the current version");
+        Assert.That(_monitoringController.ShouldTrack(initialVersion), Is.False, "ShouldTrack should return false for the initial version outside the operation");
+        Assert.That(_monitoringController.ShouldTrack(_monitoringController.GetCurrentVersion()), Is.True, "ShouldTrack should return true for the current version");
     }
 }

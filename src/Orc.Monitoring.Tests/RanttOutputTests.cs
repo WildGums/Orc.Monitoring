@@ -21,6 +21,8 @@ public class RanttOutputTests
     private string _testFolderPath;
     private TestLogger<RanttOutputTests> _logger;
     private TestLoggerFactory<RanttOutputTests> _loggerFactory;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
     private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
 
     [SetUp]
@@ -28,6 +30,8 @@ public class RanttOutputTests
     {
         _logger = new TestLogger<RanttOutputTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputTests>(_logger);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
         _mockReporter = new MockReporter(_loggerFactory) { Name = "TestReporter", FullName = "TestReporter" };
@@ -143,8 +147,7 @@ public class RanttOutputTests
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(RanttOutputTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_loggerFactory),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(RanttOutputTests),
             methodInfo,

@@ -5,35 +5,46 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Reporters;
 
 public class MethodCallInfoPool
 {
+    private static readonly MethodCallInfo Null = new() { IsNull = true };
+
+    private readonly IMonitoringController _monitoringController;
     private readonly ILogger<MethodCallInfoPool> _logger;
     private readonly ConcurrentBag<MethodCallInfo> _pool = [];
 
-    public MethodCallInfoPool(IMonitoringLoggerFactory loggerFactory)
+    public MethodCallInfoPool(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory)
     {
+        ArgumentNullException.ThrowIfNull(monitoringController);
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
+        _monitoringController = monitoringController;
         _logger = loggerFactory.CreateLogger<MethodCallInfoPool>();
     }
 
     public MethodCallInfo Rent(IClassMonitor? classMonitor, Type callerType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
-        if (!MonitoringController.IsEnabled)
+        if (!_monitoringController.IsEnabled)
         {
             _logger.LogDebug($"Monitoring is disabled. Returning Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}");
-            return MethodCallInfo.CreateNull();
+            return Null;
         }
 
-        if (_pool.TryTake(out var item))
+        if (!_pool.TryTake(out var item))
         {
-            item.Reset(classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters);
-            return item;
+            item = new MethodCallInfo();
         }
 
-        return MethodCallInfo.Create(this, classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters);
+        item.Reset(_monitoringController, classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters);
+        return item;
+    }
+
+    public MethodCallInfo GetNull()
+    {
+        return Null;
     }
 
     public void Return(MethodCallInfo item)
@@ -43,7 +54,31 @@ public class MethodCallInfoPool
             return;
         }
 
-        item.Clear();
-        _pool.Add(item);
+        item.ReadyToReturn = true;
+
+        if (item.UsageCounter == 0)
+        {
+            item.Clear();
+            _pool.Add(item);
+        }
+    }
+
+    public IAsyncDisposable UseAndReturn(MethodCallInfo item)
+    {
+        if (item.IsNull)
+        {
+            return new AsyncDisposable(async () => { });
+        }
+
+        item.UsageCounter++;
+
+        return new AsyncDisposable(async () =>
+        {
+            item.UsageCounter--;
+            if (item.UsageCounter == 0 && item.ReadyToReturn)
+            {
+                Return(item);
+            }
+        });
     }
 }

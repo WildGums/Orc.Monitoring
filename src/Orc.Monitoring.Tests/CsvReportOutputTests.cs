@@ -21,12 +21,17 @@ public class CsvReportOutputTests
     private Mock<IMethodCallReporter> _mockReporter;
     private string _testFolderPath;
     private string _testFileName;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private IMonitoringController _monitoringController;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<CsvReportOutputTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportOutputTests>(_logger);
+
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testFolderPath);
@@ -77,7 +82,7 @@ public class CsvReportOutputTests
         _csvReportOutput.SetParameters(parameters);
         var disposable = _csvReportOutput.Initialize(_mockReporter.Object);
 
-        var methodCallInfo = MethodCallInfo.Create(new MethodCallInfoPool(_loggerFactory), null, typeof(CsvReportOutputTests),
+        var methodCallInfo = _methodCallInfoPool.Rent(null, typeof(CsvReportOutputTests),
             GetType().GetMethod(nameof(WriteItem_AddsItemToReport)),
             Array.Empty<Type>(), "TestId", new Dictionary<string, string>());
 

@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Orc.Monitoring.MethodLifeCycleItems;
+using Reporters;
 
 [TestFixture]
 public class MissingEndTimeAndEmptyDurationTests
@@ -23,6 +24,8 @@ public class MissingEndTimeAndEmptyDurationTests
     private ReportOutputHelper _reportOutputHelper;
     private List<ICallStackItem> _callStackItems;
     private IDisposable _callStackObserver;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
     public void Setup()
@@ -30,22 +33,23 @@ public class MissingEndTimeAndEmptyDurationTests
         _logger = new TestLogger<MissingEndTimeAndEmptyDurationTests>();
         _loggerFactory = new TestLoggerFactory<MissingEndTimeAndEmptyDurationTests>(_logger);
         _config = new MonitoringConfiguration();
-        var methodCallInfoPool = new MethodCallInfoPool(_loggerFactory);
-        _callStack = new CallStack(_config, methodCallInfoPool, _loggerFactory);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
         _callStackItems = new List<ICallStackItem>();
 
         _callStackObserver = StartObservingCallStack();
 
         _mockClassMonitor = new Mock<IClassMonitor>();
         _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
-        MonitoringController.Enable();
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
         _callStackObserver.Dispose();
-        MonitoringController.Disable();
+        _monitoringController.Disable();
     }
 
     private IDisposable StartObservingCallStack()

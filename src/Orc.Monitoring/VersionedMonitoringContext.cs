@@ -4,16 +4,19 @@ using System;
 
 public abstract class VersionedMonitoringContext
 {
+    private readonly IMonitoringController _monitoringController;
     protected MonitoringVersion ContextVersion { get; private set; }
 
-    protected VersionedMonitoringContext()
+    protected VersionedMonitoringContext(IMonitoringController monitoringController)
     {
-        ContextVersion = MonitoringController.GetCurrentVersion();
-        MonitoringController.RegisterContext(this);
+        _monitoringController = monitoringController;
+
+        ContextVersion = _monitoringController.GetCurrentVersion();
+        _monitoringController.RegisterContext(this);
     }
 
     protected bool IsVersionValid() =>
-        ContextVersion == MonitoringController.GetCurrentVersion();
+        ContextVersion == _monitoringController.GetCurrentVersion();
 
     internal void UpdateVersion(MonitoringVersion newVersion)
     {
@@ -28,7 +31,7 @@ public abstract class VersionedMonitoringContext
 
     protected void EnsureValidVersion()
     {
-        if (!MonitoringController.IsEnabled)
+        if (!_monitoringController.IsEnabled)
         {
             // Do nothing if monitoring is disabled
             return;

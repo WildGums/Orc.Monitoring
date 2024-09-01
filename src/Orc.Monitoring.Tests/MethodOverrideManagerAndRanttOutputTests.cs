@@ -24,6 +24,8 @@ public class MethodOverrideManagerAndRanttOutputTests
     private string _overrideTemplateFilePath;
     private TestLogger<MethodOverrideManagerAndRanttOutputTests> _logger;
     private TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests> _loggerFactory;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
     public void Setup()
@@ -34,6 +36,8 @@ public class MethodOverrideManagerAndRanttOutputTests
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
         _logger = new TestLogger<MethodOverrideManagerAndRanttOutputTests>();
         _loggerFactory = new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
     }
 
     [TearDown]
@@ -176,8 +180,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     private ICallStackItem CreateTestMethodLifeCycleItem(string methodName, DateTime timestamp)
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(MethodOverrideManagerAndRanttOutputTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger)),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,
@@ -223,8 +226,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp, Dictionary<string, string>? parameters = null)
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(MethodOverrideManagerAndRanttOutputTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger)),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(MethodOverrideManagerAndRanttOutputTests),
             methodInfo,

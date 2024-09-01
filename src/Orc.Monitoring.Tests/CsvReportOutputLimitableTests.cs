@@ -18,12 +18,17 @@ public class CsvReportOutputLimitableTests
     private IMonitoringLoggerFactory _loggerFactory;
     private CsvReportOutput _csvReportOutput;
     private string _testOutputPath;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private IMonitoringController _monitoringController;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<CsvReportOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportOutputLimitableTests>(_logger);
+
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
@@ -103,8 +108,7 @@ public class CsvReportOutputLimitableTests
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(CsvReportOutputLimitableTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_loggerFactory),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(CsvReportOutputLimitableTests),
             methodInfo,

@@ -17,6 +17,8 @@ public class RanttOutputLimitableTests
 {
     private TestLogger<RanttOutputLimitableTests> _logger;
     private TestLoggerFactory<RanttOutputLimitableTests> _loggerFactory;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private IMonitoringController _monitoringController;
     private RanttOutput _ranttOutput;
     private string _testOutputPath;
 
@@ -25,6 +27,9 @@ public class RanttOutputLimitableTests
     {
         _logger = new TestLogger<RanttOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputLimitableTests>(_logger);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(_testOutputPath);
         _ranttOutput = new RanttOutput(_loggerFactory, 
@@ -113,8 +118,7 @@ public class RanttOutputLimitableTests
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(RanttOutputLimitableTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_loggerFactory),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(RanttOutputLimitableTests),
             methodInfo,

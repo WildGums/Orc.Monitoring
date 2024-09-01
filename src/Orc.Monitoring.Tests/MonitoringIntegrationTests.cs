@@ -17,14 +17,24 @@ public class MonitoringIntegrationTests
     private MockReporter _mockReporter;
     private TestLogger<MonitoringIntegrationTests> _logger;
     private TestLoggerFactory<MonitoringIntegrationTests> _loggerFactory;
+    private IMonitoringController _monitoringController;
+    private IPerformanceMonitor _performanceMonitor;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private MethodCallContextFactory _methodCallContextFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<MonitoringIntegrationTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringIntegrationTests>(_logger);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
-        MonitoringController.ResetForTesting();
+        _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
+            (config) => new CallStack(_monitoringController, config, _methodCallInfoPool, _loggerFactory),
+            (type, callStack, config) => new ClassMonitor(_monitoringController, type, callStack, config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool),
+            () => new ConfigurationBuilder(_monitoringController));
 
         _mockReporter = new MockReporter(_loggerFactory)
         {
@@ -32,45 +42,45 @@ public class MonitoringIntegrationTests
             FullName = "MockSequenceReporter"
         };
 
-        PerformanceMonitor.Configure(config =>
+        _performanceMonitor.Configure(config =>
         {
             config.AddReporterType(_mockReporter.GetType());
             config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
         });
 
-        MonitoringController.Enable();
-        MonitoringController.EnableReporter(_mockReporter.GetType());
+        _monitoringController.Enable();
+        _monitoringController.EnableReporter(_mockReporter.GetType());
 
         // Force re-initialization of the CallStack
-        MonitoringController.Configuration = new MonitoringConfiguration();
+        _monitoringController.Configuration = new MonitoringConfiguration();
     }
 
     [Test]
     public void PerformanceMonitor_RespectsHierarchicalControl()
     {
-        PerformanceMonitor.Configure(config =>
+        _performanceMonitor.Configure(config =>
         {
             config.AddReporterType<MockReporter>();
         });
 
-        MonitoringController.EnableReporter(typeof(MockReporter));
+        _monitoringController.EnableReporter(typeof(MockReporter));
 
-        var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
+        var monitor = _performanceMonitor.ForClass<MonitoringIntegrationTests>();
 
         using var context = monitor.Start(builder => builder.AddReporter(new MockReporter(_loggerFactory)));
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.True);
+        Assert.That(_monitoringController.ShouldTrack(_monitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.True);
 
-        MonitoringController.Disable();
+        _monitoringController.Disable();
 
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.False);
+        Assert.That(_monitoringController.ShouldTrack(_monitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.False);
     }
 
     [Test]
     public void CallStack_RespectsHierarchicalControl()
     {
-        var methodCallInfoPool = new MethodCallInfoPool(_loggerFactory);
-        var callStack = new CallStack(new MonitoringConfiguration(), methodCallInfoPool, _loggerFactory);
+        var configuration = _performanceMonitor.GetCurrentConfiguration();
+        var callStack = new CallStack(_monitoringController, configuration, _methodCallInfoPool, _loggerFactory);
         var observer = new TestObserver();
 
         using (callStack.Subscribe(observer))
@@ -81,13 +91,13 @@ public class MonitoringIntegrationTests
             callStack.Push(methodCallInfo);
             Assert.That(observer.ReceivedItems, Is.Not.Empty, "Should receive items when monitoring is enabled");
 
-            MonitoringController.Disable();
+            _monitoringController.Disable();
             observer.ReceivedItems.Clear();
 
             callStack.Pop(methodCallInfo);
             Assert.That(observer.ReceivedItems, Is.Empty, "Should not receive items when monitoring is disabled");
 
-            MonitoringController.Enable();
+            _monitoringController.Enable();
             methodCallInfo = callStack.CreateMethodCallInfo(null, GetType(), config);
             callStack.Push(methodCallInfo);
             Assert.That(observer.ReceivedItems, Is.Not.Empty, "Should receive items when monitoring is re-enabled");
@@ -97,7 +107,7 @@ public class MonitoringIntegrationTests
     [Test]
     public async Task RootMethod_SetsRootMethodBeforeStartingReporting_SyncAndAsync()
     {
-        var monitor = PerformanceMonitor.ForClass<MonitoringIntegrationTests>();
+        var monitor = _performanceMonitor.ForClass<MonitoringIntegrationTests>();
         if (monitor is null || _mockReporter is null)
         {
             throw new InvalidOperationException("Monitor or reporter not initialized");
@@ -131,28 +141,27 @@ public class MonitoringIntegrationTests
     [Test, Retry(3)] // Retry up to 3 times
     public void VersionChanges_AreReflectedInMonitoring()
     {
-        MonitoringController.ResetForTesting(); // Ensure a clean state
-        var initialVersion = MonitoringController.GetCurrentVersion();
+        var initialVersion = _monitoringController.GetCurrentVersion();
         Console.WriteLine($"Initial Version: {initialVersion}");
 
-        MonitoringController.EnableReporter(typeof(MockReporter));
+        _monitoringController.EnableReporter(typeof(MockReporter));
         Task.Delay(50).Wait(); // Add a small delay
-        var afterFirstEnableVersion = MonitoringController.GetCurrentVersion();
+        var afterFirstEnableVersion = _monitoringController.GetCurrentVersion();
         Console.WriteLine($"After First Enable Version: {afterFirstEnableVersion}");
 
         Assert.That(afterFirstEnableVersion, Is.GreaterThan(initialVersion), "Version should increase after enabling first reporter");
 
         // Force a version change
-        MonitoringController.Configuration = new MonitoringConfiguration();
+        _monitoringController.Configuration = new MonitoringConfiguration();
         Task.Delay(50).Wait(); // Add a small delay
-        var afterConfigChangeVersion = MonitoringController.GetCurrentVersion();
+        var afterConfigChangeVersion = _monitoringController.GetCurrentVersion();
         Console.WriteLine($"After Config Change Version: {afterConfigChangeVersion}");
 
         Assert.That(afterConfigChangeVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after changing configuration");
 
-        MonitoringController.EnableReporter(typeof(TestWorkflowReporter));
+        _monitoringController.EnableReporter(typeof(TestWorkflowReporter));
         Task.Delay(50).Wait(); // Add a small delay
-        var finalVersion = MonitoringController.GetCurrentVersion();
+        var finalVersion = _monitoringController.GetCurrentVersion();
         Console.WriteLine($"Final Version: {finalVersion}");
 
         Assert.That(finalVersion, Is.GreaterThan(afterConfigChangeVersion), "Version should increase after enabling second reporter");
@@ -180,10 +189,10 @@ public class MonitoringIntegrationTests
         {
             tasks[i] = Task.Run(() =>
             {
-                MonitoringController.EnableReporter(typeof(MockReporter));
-                versions.Add(MonitoringController.GetCurrentVersion());
-                MonitoringController.DisableReporter(typeof(MockReporter));
-                versions.Add(MonitoringController.GetCurrentVersion());
+                _monitoringController.EnableReporter(typeof(MockReporter));
+                versions.Add(_monitoringController.GetCurrentVersion());
+                _monitoringController.DisableReporter(typeof(MockReporter));
+                versions.Add(_monitoringController.GetCurrentVersion());
             });
         }
 
@@ -202,27 +211,27 @@ public class MonitoringIntegrationTests
     [Test]
     public async Task LongRunningOperation_MaintainsConsistentViewAsync()
     {
-        var initialVersion = MonitoringController.GetCurrentVersion();
+        var initialVersion = _monitoringController.GetCurrentVersion();
 
         var operationTask = Task.Run(async () =>
         {
-            using (MonitoringController.BeginOperation(out var operationVersion))
+            using (_monitoringController.BeginOperation(out var operationVersion))
             {
                 Assert.That(operationVersion, Is.EqualTo(initialVersion));
                 await Task.Delay(1000); // Simulate long-running operation
-                return MonitoringController.ShouldTrack(operationVersion, typeof(MockReporter));
+                return _monitoringController.ShouldTrack(operationVersion, typeof(MockReporter));
             }
         });
 
         await Task.Delay(100); // Give some time for the operation to start
 
-        MonitoringController.EnableReporter(typeof(MockReporter));
-        MonitoringController.DisableReporter(typeof(MockReporter));
+        _monitoringController.EnableReporter(typeof(MockReporter));
+        _monitoringController.DisableReporter(typeof(MockReporter));
 
         var result = await operationTask;
 
         Assert.That(result, Is.False);
-        Assert.That(MonitoringController.ShouldTrack(MonitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.False);
+        Assert.That(_monitoringController.ShouldTrack(_monitoringController.GetCurrentVersion(), typeof(MockReporter)), Is.False);
     }
 
     private class TestObserver : IObserver<ICallStackItem>

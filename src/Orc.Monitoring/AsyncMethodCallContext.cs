@@ -10,6 +10,8 @@ using Microsoft.Extensions.Logging;
 
 public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncDisposable
 {
+    private readonly IMonitoringController _monitoringController;
+    private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ILogger<AsyncMethodCallContext> _logger;
 
     private readonly IClassMonitor? _classMonitor;
@@ -17,21 +19,19 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
     private readonly System.Diagnostics.Stopwatch _stopwatch = new();
     private bool _isDisposed;
 
-
-    public static AsyncMethodCallContext? Dummy;
-
     public MethodCallInfo? MethodCallInfo { get; }
 
     public IReadOnlyList<string> ReporterIds { get; }
 
-    private AsyncMethodCallContext()
-    : this(MonitoringLoggerFactory.Instance)
-    {
-    }
-
-    public AsyncMethodCallContext(IMonitoringLoggerFactory loggerFactory)
+    public AsyncMethodCallContext(IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
+    : base(monitoringController)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(monitoringController);
+        ArgumentNullException.ThrowIfNull(methodCallInfoPool);
+
+        _monitoringController = monitoringController;
+        _methodCallInfoPool = methodCallInfoPool;
 
         // Dummy constructor
         _logger = loggerFactory.CreateLogger<AsyncMethodCallContext>();
@@ -39,17 +39,16 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
         ReporterIds = Array.Empty<string>();
     }
 
-    public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
-    : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringLoggerFactory.Instance)
-    {
-    }
-
     public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
-        IMonitoringLoggerFactory loggerFactory)
+        IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
+    : base(monitoringController)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
         _logger = loggerFactory.CreateLogger<AsyncMethodCallContext>();
+        _monitoringController = monitoringController;
+        _methodCallInfoPool = methodCallInfoPool;
+
         _classMonitor = classMonitor;
         _disposables = disposables;
         MethodCallInfo = methodCallInfo;
@@ -63,11 +62,6 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
             var startStatus = new MethodCallStart(methodCallInfo);
             (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
         }
-    }
-
-    public static AsyncMethodCallContext GetDummyCallContext(Func<AsyncMethodCallContext> dummyContextFactory)
-    {
-        return Dummy ??= dummyContextFactory();
     }
 
     public void LogException(Exception exception)
@@ -140,7 +134,7 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
             MethodCallInfo.Elapsed = _stopwatch.Elapsed;
             var endStatus = new MethodCallEnd(MethodCallInfo);
 
-            if (MonitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
+            if (_monitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
             {
                 (_classMonitor as ClassMonitor)?.LogStatus(endStatus);
             }
@@ -149,7 +143,7 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
         {
             // Log that the context was operating under an outdated version
             _logger.LogWarning(
-                $"Async method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, ReporterId: {ReporterIds.FirstOrDefault()}, Context Version: {ContextVersion}, Current Version: {MonitoringController.GetCurrentVersion()}");
+                $"Async method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, ReporterId: {ReporterIds.FirstOrDefault()}, Context Version: {ContextVersion}, Current Version: {_monitoringController.GetCurrentVersion()}");
         }
         finally
         {
@@ -168,7 +162,7 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
                 }
             }
 
-            MethodCallInfo.TryReturnToPool();
+            _methodCallInfoPool.Return(MethodCallInfo);
             _logger.LogInformation($"AsyncMethodCallContext disposed at {DateTime.Now:HH:mm:ss.fff}");
             _isDisposed = true;
         }

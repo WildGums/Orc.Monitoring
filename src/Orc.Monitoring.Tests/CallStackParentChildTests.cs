@@ -10,7 +10,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Moq;
-
+using Reporters;
 
 [TestFixture]
 public class CallStackParentChildTests
@@ -20,6 +20,8 @@ public class CallStackParentChildTests
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;
     private MonitoringConfiguration? _config;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
     public void Setup()
@@ -27,17 +29,19 @@ public class CallStackParentChildTests
         _logger = new TestLogger<CallStackParentChildTests>();
         _loggerFactory = new TestLoggerFactory<CallStackParentChildTests>(_logger);
         _config = new MonitoringConfiguration();
-        var methodCallInfoPool = new MethodCallInfoPool(_loggerFactory);
-        _callStack = new CallStack(_config, methodCallInfoPool, _loggerFactory);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        
+        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
 
-        MonitoringController.Enable();
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
-        MonitoringController.Disable();
+        _monitoringController.Disable();
     }
 
     [Test]
@@ -71,7 +75,7 @@ public class CallStackParentChildTests
 
         Assert.That(level3.Parent, Is.EqualTo(level2), "Level3's parent should be Level2");
         Assert.That(level2.Parent, Is.EqualTo(level1), "Level2's parent should be Level1");
-        Assert.That(level1.Parent, Is.EqualTo(MethodCallInfo.Null), "Level1's parent should be null");
+        Assert.That(level1.Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "Level1's parent should be null");
 
         Assert.That(level3.Level, Is.EqualTo(3), "Level3 should be at level 3");
         Assert.That(level2.Level, Is.EqualTo(2), "Level2 should be at level 2");
@@ -144,7 +148,7 @@ public class CallStackParentChildTests
         var rootInfo = CreateMethodCallInfo("RootMethod");
         _callStack?.Push(rootInfo);
 
-        Assert.That(rootInfo.Parent, Is.EqualTo(MethodCallInfo.Null), "Root method should have no parent");
+        Assert.That(rootInfo.Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "Root method should have no parent");
         Assert.That(rootInfo.ParentThreadId, Is.EqualTo(-1), "Root method should have no parent thread ID");
         Assert.That(rootInfo.Level, Is.EqualTo(1), "Root method should be at level 1");
     }
@@ -190,7 +194,7 @@ public class CallStackParentChildTests
             }
             else
             {
-                Assert.That(methodInfos[i].Parent, Is.EqualTo(MethodCallInfo.Null), "Root method should have Null parent");
+                Assert.That(methodInfos[i].Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "Root method should have Null parent");
             }
         }
 
@@ -322,7 +326,7 @@ public class CallStackParentChildTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(method1.Parent, Is.EqualTo(MethodCallInfo.Null), "MethodCall1 should have no parent");
+            Assert.That(method1.Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "MethodCall1 should have no parent");
             Assert.That(method1.Level, Is.EqualTo(1), "MethodCall1 should be at level 1");
 
             Assert.That(method2.Parent, Is.EqualTo(method1), "MethodCall2's parent should be MethodCall1");

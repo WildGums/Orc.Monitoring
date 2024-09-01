@@ -8,26 +8,29 @@ using Microsoft.Extensions.Logging;
 public class NullClassMonitor : IClassMonitor
 {
     private readonly IMonitoringLoggerFactory _loggerFactory;
+    private readonly MethodCallContextFactory _methodCallContextFactory;
     private readonly ILogger<NullClassMonitor> _logger;
 
-    public NullClassMonitor(IMonitoringLoggerFactory loggerFactory)
+    public NullClassMonitor(IMonitoringLoggerFactory loggerFactory, MethodCallContextFactory methodCallContextFactory)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(methodCallContextFactory);
 
         _loggerFactory = loggerFactory;
+        _methodCallContextFactory = methodCallContextFactory;
         _logger = loggerFactory.CreateLogger<NullClassMonitor>();
     }
 
     public AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
     {
         _logger.LogDebug($"NullClassMonitor.StartAsyncMethod called for {callerMethod}");
-        return AsyncMethodCallContext.GetDummyCallContext(() => new AsyncMethodCallContext(_loggerFactory));
+        return _methodCallContextFactory.GetDummyAsyncMethodCallContext();
     }
 
     public MethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
     {
         _logger.LogDebug($"NullClassMonitor.StartMethod called for {callerMethod}");
-        return MethodCallContext.GetDummyCallContext(() => new MethodCallContext(_loggerFactory));
+        return _methodCallContextFactory.GetDummyMethodCallContext();
     }
 
     public void LogStatus(IMethodLifeCycleItem status)

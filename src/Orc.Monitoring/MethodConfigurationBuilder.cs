@@ -30,13 +30,14 @@ public class MethodConfigurationBuilder
         return this;
     }
 
-    public MethodConfigurationBuilder AddReporter<TReporter>(Action<TReporter>? configAction = null) where TReporter : IMethodCallReporter, new()
+    public MethodConfigurationBuilder AddReporter(IMethodCallReporterFactory reporterFactory, Action<IMethodCallReporter>? configAction = null)
     {
-        var reporter = new TReporter();
+        var reporter = reporterFactory.CreateReporter();
         if (string.IsNullOrEmpty(reporter.Id))
         {
             reporter.Id = Guid.NewGuid().ToString(); // Assign a unique Id only if one doesn't exist
         }
+
         configAction?.Invoke(reporter);
 
         return AddReporter(reporter);
@@ -64,4 +65,10 @@ public class MethodConfigurationBuilder
     }
 
     public MethodConfiguration Build() => _config;
+}
+
+
+public interface IMethodCallReporterFactory
+{
+    IMethodCallReporter CreateReporter();
 }

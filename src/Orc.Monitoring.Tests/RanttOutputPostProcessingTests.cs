@@ -22,6 +22,8 @@ public class RanttOutputPostProcessingTests
     private TestLoggerFactory<RanttOutputPostProcessingTests> _loggerFactory;
     private ReportOutputHelper _reportOutputHelper;
     private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private IMonitoringController _monitoringController;
 
     private const string RelationshipsFileName = "TestReporter_Relationships.csv";
     private const string CsvFileName = "TestReporter.csv";
@@ -34,6 +36,8 @@ public class RanttOutputPostProcessingTests
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _ranttOutput = InitializeRanttOutput();
         _reporterMock.Setup(r => r.FullName).Returns("TestReporter");
     }
@@ -158,8 +162,7 @@ public class RanttOutputPostProcessingTests
     private MethodCallStart CreateMethodCallStart(ReportItem item)
     {
         var methodInfo = new TestMethodInfo(item.MethodName, typeof(RanttOutputPostProcessingTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_loggerFactory),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(RanttOutputPostProcessingTests),
             methodInfo,
@@ -170,12 +173,11 @@ public class RanttOutputPostProcessingTests
 
         if (item.Parent == "ROOT")
         {
-            methodCallInfo.Parent = MethodCallInfo.CreateNull();
+            methodCallInfo.Parent = _methodCallInfoPool.GetNull();
         }
         else if (!string.IsNullOrEmpty(item.Parent))
         {
-            methodCallInfo.Parent = MethodCallInfo.Create(
-                new MethodCallInfoPool(_loggerFactory),
+            methodCallInfo.Parent = _methodCallInfoPool.Rent(
                 null,
                 typeof(RanttOutputPostProcessingTests),
                 new TestMethodInfo("ParentMethod", typeof(RanttOutputPostProcessingTests)),
