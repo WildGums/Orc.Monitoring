@@ -204,7 +204,10 @@ public class RanttOutputPostProcessingTests
             MonitoringLoggerFactory.Instance,
             () => _mockPostProcessor.Object,
             _reportOutputHelper,
-            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory));
+            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory), 
+#pragma warning disable IDISP004
+            new InMemoryFileSystem());
+#pragma warning restore IDISP004
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         output.SetParameters(parameters);
         return output;

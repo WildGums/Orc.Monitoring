@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using MethodLifeCycleItems;
 using Monitoring;
 using Filters;
+using IO;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters;
 
@@ -50,22 +51,25 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
     private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
+    private readonly IFileSystem _fileSystem;
 
     public RanttOutput()
     : this(MonitoringLoggerFactory.Instance,
         () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
         new ReportOutputHelper(MonitoringLoggerFactory.Instance),
-        (outputDirectory) => new MethodOverrideManager(outputDirectory))
+        (outputDirectory) => new MethodOverrideManager(outputDirectory),
+        new FileSystem())
     {
     }
 
     public RanttOutput(IMonitoringLoggerFactory monitoringLoggerFactory, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
-        Func<string, MethodOverrideManager> methodOverrideManagerFactory)
+        Func<string, MethodOverrideManager> methodOverrideManagerFactory, IFileSystem fileSystem)
     {
         _logger = monitoringLoggerFactory.CreateLogger<RanttOutput>();
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
+        _fileSystem = fileSystem;
     }
 
     public static RanttReportParameters CreateParameters(
@@ -152,7 +156,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
         _outputDirectory = Path.Combine(_folderPath, reporter.FullName);
 
-        Directory.CreateDirectory(_outputDirectory);
+        _fileSystem.CreateDirectory(_outputDirectory);
         _logger.LogInformation($"Created output directory: {_outputDirectory}");
 
         if (_overrideManager is null)
@@ -245,7 +249,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
             _logger.LogInformation($"Number of items with overrides: {itemsWithOverrides.Count}");
 
-            await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
+            await using (var writer = _fileSystem.CreateStreamWriter(fullPath, false, Encoding.UTF8))
             {
                 var csvReportWriter = new CsvReportWriter(writer, itemsWithOverrides, _overrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
@@ -253,7 +257,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
             _logger.LogInformation($"CSV report written to {fullPath} with {itemsWithOverrides.Count} items");
 
-            var fileContent = await File.ReadAllTextAsync(fullPath);
+            var fileContent = await _fileSystem.ReadAllTextAsync(fullPath);
             var lineCount = fileContent.Split('\n').Length;
             _logger.LogInformation($"Actual line count in file: {lineCount}");
             _logger.LogDebug($"File content:\n{fileContent}");
@@ -285,7 +289,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
             var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
 
-            await using (var writer = new StreamWriter(fullPath, false, Encoding.UTF8))
+            await using (var writer = _fileSystem.CreateStreamWriter(fullPath, false, Encoding.UTF8))
             {
                 await writer.WriteLineAsync("From,To,RelationType");
                 foreach (var item in processedItems.Where(r => r.Parent is not null))
@@ -332,7 +336,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         try
         {
             _logger.LogInformation($"Writing Rantt project file to {ranttProjectPath}");
-            File.WriteAllText(ranttProjectPath, ranttProjectContents);
+            _fileSystem.WriteAllText(ranttProjectPath, ranttProjectContents);
             _logger.LogInformation("Rantt project file written successfully");
         }
         catch (IOException ex)
@@ -344,7 +348,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
     private async Task CreateTimestampedFolderCopyAsync(string folderPath)
     {
-        if (!Directory.Exists(folderPath))
+        if (!_fileSystem.FileExists(folderPath))
         {
             _logger.LogWarning($"Folder does not exist: {folderPath}");
             return;
@@ -377,12 +381,12 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     }
 
 
-    private static string GetArchiveDirectory(string directory)
+    private string GetArchiveDirectory(string directory)
     {
         var archiveDirectory = Path.Combine(directory, "Archived");
-        if (!Directory.Exists(archiveDirectory))
+        if (!_fileSystem.DirectoryExists(archiveDirectory))
         {
-            Directory.CreateDirectory(archiveDirectory);
+            _fileSystem.CreateDirectory(archiveDirectory);
         }
 
         return archiveDirectory;
@@ -390,21 +394,21 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
     private async Task CopyFolderAsync(string sourcePath, string destinationPath)
     {
-        if (!Directory.Exists(sourcePath))
+        if (!_fileSystem.DirectoryExists(sourcePath))
         {
             return;
         }
 
-        Directory.CreateDirectory(destinationPath);
+        _fileSystem.CreateDirectory(destinationPath);
 
-        foreach (var file in Directory.GetFiles(sourcePath))
+        foreach (var file in _fileSystem.GetFiles(sourcePath))
         {
             var fileName = Path.GetFileName(file);
             var destinationFilePath = Path.Combine(destinationPath, fileName);
             await CopyFileAsync(file, destinationFilePath);
         }
 
-        foreach (var subFolder in Directory.GetDirectories(sourcePath))
+        foreach (var subFolder in _fileSystem.GetDirectories(sourcePath))
         {
             var folderName = Path.GetFileName(subFolder);
             var destinationSubFolderPath = Path.Combine(destinationPath, folderName);
@@ -414,8 +418,8 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
     private async Task CopyFileAsync(string sourcePath, string destinationPath)
     {
-        using var sourceStream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var destinationStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var sourceStream = _fileSystem.CreateFileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var destinationStream = _fileSystem.CreateFileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
         await sourceStream.CopyToAsync(destinationStream);
     }
 

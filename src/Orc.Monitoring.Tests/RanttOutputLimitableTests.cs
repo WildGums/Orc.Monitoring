@@ -35,7 +35,10 @@ public class RanttOutputLimitableTests
         _ranttOutput = new RanttOutput(_loggerFactory, 
             () => new EnhancedDataPostProcessor(_loggerFactory),
             new ReportOutputHelper(_loggerFactory),
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory));
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory), 
+#pragma warning disable IDISP004
+            new InMemoryFileSystem());
+#pragma warning restore IDISP004
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         _ranttOutput.SetParameters(parameters);
     }

@@ -37,7 +37,10 @@ public class CsvReportOutputLimitableTests
         var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
 
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory));
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory),
+#pragma warning disable IDISP004
+            new InMemoryFileSystem());
+#pragma warning restore IDISP004
         var parameters = CsvReportOutput.CreateParameters(_testOutputPath, "TestReport");
         _csvReportOutput.SetParameters(parameters);
     }

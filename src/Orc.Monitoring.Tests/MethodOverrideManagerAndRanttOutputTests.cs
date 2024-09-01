@@ -275,7 +275,10 @@ public class MethodOverrideManagerAndRanttOutputTests
         var ranttOutput = new RanttOutput(MonitoringLoggerFactory.Instance, 
             () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
             new ReportOutputHelper(_loggerFactory),
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory));
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory),
+#pragma warning disable IDISP004
+            new InMemoryFileSystem());
+#pragma warning restore IDISP004
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         ranttOutput.SetParameters(parameters);
         return ranttOutput;

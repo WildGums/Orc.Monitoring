@@ -280,7 +280,7 @@ public class ClassMonitor : IClassMonitor
     {
         return async
             ? _methodCallContextFactory.CreateAsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds)
-            : _methodCallContextFactory.CreateAsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds);
+            : _methodCallContextFactory.CreateMethodCallContext(this, methodCallInfo, disposables, reporterIds);
     }
 
     private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion, IEnumerable<string> reporterIds)

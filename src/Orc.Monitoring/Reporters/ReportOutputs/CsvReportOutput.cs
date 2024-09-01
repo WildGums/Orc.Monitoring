@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using IO;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
@@ -16,6 +17,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     private readonly ILogger<CsvReportOutput> _logger;
     private readonly ReportOutputHelper _helper;
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
+    private readonly IFileSystem _fileSystem;
 
     private string? _fileName;
     private string? _folderPath;
@@ -23,20 +25,24 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public CsvReportOutput()
-    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance), (outputFolder) => new MethodOverrideManager(outputFolder))
+    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance), (outputFolder) => new MethodOverrideManager(outputFolder),
+        new FileSystem())
     {
 
     }
 
-    public CsvReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory)
+    public CsvReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory,
+        IFileSystem fileSystem)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(reportOutputHelper);
         ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
+        ArgumentNullException.ThrowIfNull(fileSystem);
 
         _logger = loggerFactory.CreateLogger<CsvReportOutput>();
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
+        _fileSystem = fileSystem;
 
         _logger.LogDebug($"Created {nameof(CsvReportOutput)}");
     }
@@ -153,7 +159,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
             throw new InvalidOperationException("Method override manager, folder path, or file name is not set");
         }
 
-        Directory.CreateDirectory(_folderPath);
+        _fileSystem.CreateDirectory(_folderPath);
 
         var fullPath = Path.Combine(_folderPath, $"{_fileName}.csv");
 
@@ -172,7 +178,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
                 _logger.LogDebug($"Exporting item {i}: {item.ItemName ?? item.MethodName}, MethodName: {item.MethodName}, StartTime: {item.StartTime}");
             }
 
-            await using (var writer = new StreamWriter(fullPath, false, System.Text.Encoding.UTF8))
+            await using (var writer = _fileSystem.CreateStreamWriter(fullPath, false, System.Text.Encoding.UTF8))
             {
                 var csvReportWriter = new CsvReportWriter(writer, sortedItems, _methodOverrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
@@ -181,7 +187,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"CSV report written to {fullPath} with {sortedItems.Count} items");
 
             // Verify file content
-            var fileContent = await File.ReadAllTextAsync(fullPath);
+            var fileContent = await _fileSystem.ReadAllTextAsync(fullPath);
             var lineCount = fileContent.Split('\n').Length;
             _logger.LogInformation($"Actual line count in file: {lineCount}");
 
