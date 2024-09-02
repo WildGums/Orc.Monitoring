@@ -1,4 +1,5 @@
-﻿namespace Orc.Monitoring.Tests;
+﻿#pragma warning disable CL0002
+namespace Orc.Monitoring.Tests;
 
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
@@ -179,5 +180,103 @@ public class VersionManagerTests
 
         Assert.That(version2, Is.GreaterThan(version1));
         Assert.That(version2.Timestamp, Is.GreaterThanOrEqualTo(version1.Timestamp));
+    }
+
+    [Test]
+    public async Task GetNextVersion_ConcurrentWithVaryingLoad()
+    {
+        const int numThreads = 10;
+        const int maxIterations = 1000;
+        var random = new Random();
+
+        var versions = new ConcurrentBag<MonitoringVersion>();
+        var tasks = new Task[numThreads];
+
+        for (int i = 0; i < numThreads; i++)
+        {
+            tasks[i] = Task.Run(async () =>
+            {
+                for (int j = 0; j < maxIterations; j++)
+                {
+                    versions.Add(_versionManager.GetNextVersion());
+
+                    // Simulate varying load
+                    if (j % 10 == 0)
+                    {
+                        await Task.Delay(random.Next(1, 5));
+                    }
+                }
+            });
+        }
+
+        await Task.WhenAll(tasks);
+
+        var sortedVersions = versions.OrderBy(v => v).ToList();
+        for (int i = 1; i < sortedVersions.Count; i++)
+        {
+            Assert.That(sortedVersions[i], Is.GreaterThan(sortedVersions[i - 1]));
+        }
+
+        _logger.LogInformation($"Total versions generated: {versions.Count}");
+        _logger.LogInformation($"Unique versions: {new HashSet<MonitoringVersion>(versions).Count}");
+    }
+
+    [Test]
+    public async Task GetNextVersion_UnderHighContention()
+    {
+        const int numThreads = 50;
+        const int iterationsPerThread = 1000;
+        var contendedVersionManager = new VersionManager();
+        var versions = new ConcurrentBag<MonitoringVersion>();
+#pragma warning disable IDISP001
+        var barrier = new Barrier(numThreads);
+#pragma warning restore IDISP001
+
+        var tasks = Enumerable.Range(0, numThreads).Select(_ => Task.Run(() =>
+        {
+            barrier.SignalAndWait(); // Ensure all threads start at the same time
+
+            for (int i = 0; i < iterationsPerThread; i++)
+            {
+                versions.Add(contendedVersionManager.GetNextVersion());
+            }
+        })).ToArray();
+
+        await Task.WhenAll(tasks);
+
+        var uniqueVersions = new HashSet<MonitoringVersion>(versions);
+        Assert.That(uniqueVersions.Count, Is.EqualTo(numThreads * iterationsPerThread), "All versions should be unique even under high contention");
+
+        var sortedVersions = versions.OrderBy(v => v).ToList();
+        for (int i = 1; i < sortedVersions.Count; i++)
+        {
+            Assert.That(sortedVersions[i], Is.GreaterThan(sortedVersions[i - 1]), $"Version at index {i} should be greater than the previous version");
+        }
+    }
+
+    [Test]
+    public void GetNextVersion_ConsistencyAcrossLongPeriods()
+    {
+        const int iterations = 1000000;
+        var versions = new List<MonitoringVersion>(iterations);
+
+        for (int i = 0; i < iterations; i++)
+        {
+            versions.Add(_versionManager.GetNextVersion());
+
+            if (i % 100000 == 0)
+            {
+                Thread.Sleep(1); // Simulate passage of time
+            }
+        }
+
+        for (int i = 1; i < versions.Count; i++)
+        {
+            Assert.That(versions[i], Is.GreaterThan(versions[i - 1]));
+        }
+
+        _logger.LogInformation($"First version: {versions.First()}");
+        _logger.LogInformation($"Last version: {versions.Last()}");
+        _logger.LogInformation($"Total time span: {versions.Last().Timestamp - versions.First().Timestamp} ms");
     }
 }
