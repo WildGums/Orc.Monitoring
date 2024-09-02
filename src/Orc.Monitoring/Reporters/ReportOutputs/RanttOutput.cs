@@ -135,13 +135,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 reportItem.MethodName = methodCallStart.MethodCallInfo.MethodName;
                 reportItem.FullName = $"{methodCallStart.MethodCallInfo.ClassType?.Name}.{methodCallStart.MethodCallInfo.MethodName}";
                 reportItem.Parent = methodCallStart.MethodCallInfo.Parent?.Id ?? "ROOT";
-
-                var parameters = new Dictionary<string, string>(reportItem.Parameters);
-                foreach (var param in methodCallStart.MethodCallInfo.Parameters ?? [])
-                {
-                    parameters[param.Key] = param.Value;
-                }
-                reportItem.Parameters = parameters;
             }
             else if (callStackItem is MethodCallEnd methodCallEnd)
             {
@@ -154,7 +147,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogWarning($"ProcessCallStackItem returned null for {callStackItem.GetType().Name}");
         }
     }
-
     public void WriteError(Exception exception)
     {
         _logger.LogError(exception, "Error occurred during Rantt report generation");
@@ -243,7 +235,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             // Ensure there's at least one item if the test added one
             if (itemsToWrite.Count == 0 && _helper.ReportItems.Count > 0)
             {
-                itemsToWrite = (List<ReportItem>)_helper.ReportItems;
+                itemsToWrite = _helper.ReportItems.ToList();
             }
 
             var itemsWithOverrides = itemsToWrite.Select(item =>
