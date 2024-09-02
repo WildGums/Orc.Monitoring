@@ -24,7 +24,9 @@ public class RanttOutputPostProcessingTests
     private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
     private MethodCallInfoPool _methodCallInfoPool;
     private IMonitoringController _monitoringController;
-
+    private InMemoryFileSystem _fileSystem;
+    private CsvUtils _csvUtils;
+    private ReportArchiver _reportArchiver;
     private const string RelationshipsFileName = "TestReporter_Relationships.csv";
     private const string CsvFileName = "TestReporter.csv";
 
@@ -33,6 +35,9 @@ public class RanttOutputPostProcessingTests
     {
         _logger = new TestLogger<RanttOutputPostProcessingTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputPostProcessingTests>(_logger);
+        _fileSystem = new InMemoryFileSystem();
+        _csvUtils = new CsvUtils(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem);
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
@@ -45,11 +50,12 @@ public class RanttOutputPostProcessingTests
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
             try
             {
-                Directory.Delete(_testOutputPath, true);
+                _fileSystem.DeleteDirectory(_testOutputPath, true);
             }
             catch (Exception ex)
             {
@@ -74,9 +80,9 @@ public class RanttOutputPostProcessingTests
         await InitializeAndExportData(reportItems);
 
         var relationshipsFilePath = Path.Combine(_testOutputPath, "TestReporter", RelationshipsFileName);
-        Assert.That(File.Exists(relationshipsFilePath), Is.True, $"Relationships file does not exist: {relationshipsFilePath}");
+        Assert.That(_fileSystem.FileExists(relationshipsFilePath), Is.True, $"Relationships file does not exist: {relationshipsFilePath}");
 
-        var relationshipsContent = await File.ReadAllTextAsync(relationshipsFilePath);
+        var relationshipsContent = await _fileSystem.ReadAllTextAsync(relationshipsFilePath);
         Assert.That(relationshipsContent, Does.Contain("ROOT,1,"), "ROOT to Method1 relationship not found");
         Assert.That(relationshipsContent, Does.Contain("1,2,"), "Method1 to Method2 relationship not found");
 
@@ -107,9 +113,9 @@ public class RanttOutputPostProcessingTests
         await InitializeAndExportData(reportItems);
 
         var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", CsvFileName);
-        Assert.That(File.Exists(csvFilePath), Is.True, $"CSV file does not exist: {csvFilePath}");
+        Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, $"CSV file does not exist: {csvFilePath}");
 
-        var csvContent = await File.ReadAllTextAsync(csvFilePath);
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV content:\n{csvContent}");
         Assert.That(csvContent, Does.Contain("Method1"), "Method1 should be present");
         Assert.That(csvContent, Does.Contain("Method2"), "Method2 should be present");
@@ -193,7 +199,7 @@ public class RanttOutputPostProcessingTests
     private string CreateTestOutputPath()
     {
         var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(path);
+        _fileSystem.CreateDirectory(path);
         return path;
     }
 
@@ -204,10 +210,9 @@ public class RanttOutputPostProcessingTests
             MonitoringLoggerFactory.Instance,
             () => _mockPostProcessor.Object,
             _reportOutputHelper,
-            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory), 
-#pragma warning disable IDISP004
-            new InMemoryFileSystem());
-#pragma warning restore IDISP004
+            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils), 
+            _fileSystem,
+            _reportArchiver);
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         output.SetParameters(parameters);
         return output;

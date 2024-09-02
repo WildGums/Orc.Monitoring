@@ -6,11 +6,11 @@ using NUnit.Framework;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using Orc.Monitoring.Reporters;
-using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 [TestFixture]
 public class TxtReportOutputLimitableTests
@@ -21,31 +21,38 @@ public class TxtReportOutputLimitableTests
     private TestLoggerFactory<TxtReportOutputLimitableTests> _loggerFactory;
     private IMonitoringController _monitoringController;
     private MethodCallInfoPool _methodCallInfoPool;
+    private InMemoryFileSystem _fileSystem;
+    private ReportArchiver _reportArchiver;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<TxtReportOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<TxtReportOutputLimitableTests>(_logger);
+        _fileSystem = new InMemoryFileSystem();
+        _reportArchiver = new ReportArchiver(_fileSystem);
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_testOutputPath);
+        _fileSystem.CreateDirectory(_testOutputPath);
         
         var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
-        _txtReportOutput = new TxtReportOutput(_loggerFactory, reportOutputHelper);
+        _txtReportOutput = new TxtReportOutput(_loggerFactory, reportOutputHelper, _reportArchiver, _fileSystem);
 
         var parameters = TxtReportOutput.CreateParameters(_testOutputPath, "TestDisplay");
         _txtReportOutput.SetParameters(parameters);
+
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
-            Directory.Delete(_testOutputPath, true);
+            _fileSystem.DeleteDirectory(_testOutputPath, true);
         }
     }
 
@@ -83,7 +90,7 @@ public class TxtReportOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
-        var lines = await File.ReadAllLinesAsync(filePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(filePath);
         Assert.That(lines.Length, Is.EqualTo(5), "Should have 5 items");
     }
 
@@ -103,7 +110,7 @@ public class TxtReportOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
-        var lines = await File.ReadAllLinesAsync(filePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(filePath);
         Assert.That(lines.Length, Is.EqualTo(10), "Should have all 10 items");
     }
 

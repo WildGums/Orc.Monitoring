@@ -37,6 +37,8 @@ public class PerformanceMonitorTests
         _performanceMonitor.Reset();
         _mockReporter = new MockReporter(_loggerFactory);
         _logger.LogInformation("Test setup complete");
+
+        _monitoringController.Enable();
     }
 
     [Test]

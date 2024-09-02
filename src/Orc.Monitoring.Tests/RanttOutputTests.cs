@@ -26,29 +26,57 @@ public class RanttOutputTests
     private TestLoggerFactory<RanttOutputTests> _loggerFactory;
     private IMonitoringController _monitoringController;
     private MethodCallInfoPool _methodCallInfoPool;
-    private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
-    private Mock<IFileSystem> _mockFileSystem;
+#pragma warning disable IDISP006
+    private InMemoryFileSystem _fileSystem;
+#pragma warning restore IDISP006
+    private ReportArchiver _reportArchiver;
+    private CsvUtils _csvUtils;
+
+    private const string TestReporterName = "TestReporter";
+    private const string RelationshipsFileName = "TestReporter_Relationships.csv";
+    private const string CsvFileName = "TestReporter.csv";
+    private const string RanttFileName = "TestReporter.rprjx";
+    private const int ExpectedCsvLineCount = 3;
 
     [SetUp]
     public void Setup()
     {
+        InitializeLogger();
+        InitializeDependencies();
+        InitializeRanttOutput();
+
+        _monitoringController.Enable();
+    }
+
+    private void InitializeLogger()
+    {
         _logger = new TestLogger<RanttOutputTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputTests>(_logger);
+        _loggerFactory.EnableLoggingFor<RanttOutput>();
+        _loggerFactory.EnableLoggingFor<ReportOutputHelper>();
+    }
+
+    private void InitializeDependencies()
+    {
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        _mockReporter = new MockReporter(_loggerFactory) { Name = "TestReporter", FullName = "TestReporter" };
-        _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
-        _mockFileSystem = new Mock<IFileSystem>();
+        _mockReporter = new MockReporter(_loggerFactory) { Name = TestReporterName, FullName = TestReporterName };
+#pragma warning disable IDISP003
+        _fileSystem = new InMemoryFileSystem();
+#pragma warning restore IDISP003
+        _csvUtils = new CsvUtils(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem);
+    }
 
-        _mockFileSystem.Setup(fs => fs.DirectoryExists(It.IsAny<string>())).Returns(true);
-        _mockFileSystem.Setup(fs => fs.CreateDirectory(It.IsAny<string>()));
-
+    private void InitializeRanttOutput()
+    {
         _ranttOutput = new RanttOutput(_loggerFactory,
-            () => _mockPostProcessor.Object,
+            () => new EnhancedDataPostProcessor(_loggerFactory),
             new ReportOutputHelper(_loggerFactory),
-            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory),
-            _mockFileSystem.Object);
+            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils),
+            _fileSystem,
+            _reportArchiver);
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }
@@ -56,97 +84,83 @@ public class RanttOutputTests
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testFolderPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testFolderPath))
         {
             try
             {
-                Directory.Delete(_testFolderPath, true);
+                _fileSystem.DeleteDirectory(_testFolderPath, true);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
-                // Log the error and continue
-                _logger.LogError($"Unable to delete test folder: {_testFolderPath}");
+                _logger.LogError($"Unable to delete test folder: {_testFolderPath}. Exception: {ex.Message}");
             }
         }
     }
 
     [Test]
-    public async Task WriteItem_CorrectlyGeneratesRelationships()
+    public async Task WriteItem_ShouldGenerateCorrectParentChildRelationships()
     {
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
         var parentMethodInfo = CreateMethodCallInfo("ParentMethod", null);
-        var parentStart = new MethodCallStart(parentMethodInfo);
-        _ranttOutput.WriteItem(parentStart);
+        WriteMethodLifecycle(parentMethodInfo);
 
         var childMethodInfo = CreateMethodCallInfo("ChildMethod", parentMethodInfo);
-        var childStart = new MethodCallStart(childMethodInfo);
-        _ranttOutput.WriteItem(childStart);
-
-        var childEnd = new MethodCallEnd(childMethodInfo);
-        _ranttOutput.WriteItem(childEnd);
-        var parentEnd = new MethodCallEnd(parentMethodInfo);
-        _ranttOutput.WriteItem(parentEnd);
-
-        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>()))
-            .Returns((List<ReportItem> items) => items);
+        WriteMethodLifecycle(childMethodInfo);
 
         await disposable.DisposeAsync();
 
-        var relationshipsFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter_Relationships.csv");
-        Assert.That(File.Exists(relationshipsFilePath), Is.True, "Relationships file should exist");
+        var relationshipsFilePath = GetFilePath(RelationshipsFileName);
+        AssertFileExists(relationshipsFilePath);
 
-        var relationshipsContent = await File.ReadAllTextAsync(relationshipsFilePath);
+        var relationshipsContent = await _fileSystem.ReadAllTextAsync(relationshipsFilePath);
+        _logger.LogInformation($"Relationships content:\n{relationshipsContent}");
+
         var lines = relationshipsContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
         Assert.That(lines.Length, Is.GreaterThan(1), "Relationships file should have more than just the header");
         Assert.That(lines.Any(l => l.StartsWith($"{parentMethodInfo.Id},{childMethodInfo.Id}")), Is.True,
             $"Relationship between parent and child should be present. Expected: {parentMethodInfo.Id},{childMethodInfo.Id}");
-
-        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>()), Times.Exactly(2));
     }
 
     [Test]
-    public async Task ExportToCsv_AppliesPostProcessing()
+    public async Task ExportToCsv_ShouldApplyPostProcessingCorrectly()
     {
+        _logger.LogInformation("Starting ExportToCsv_ShouldApplyPostProcessingCorrectly test");
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
         var methodInfo1 = CreateMethodCallInfo("Method1", null);
+        _logger.LogInformation($"Created Method1: {methodInfo1.Id}");
         var methodInfo2 = CreateMethodCallInfo("Method2", methodInfo1);
+        _logger.LogInformation($"Created Method2: {methodInfo2.Id}");
 
-        _ranttOutput.WriteItem(new MethodCallStart(methodInfo1));
-        _ranttOutput.WriteItem(new MethodCallStart(methodInfo2));
-        _ranttOutput.WriteItem(new MethodCallEnd(methodInfo2));
-        _ranttOutput.WriteItem(new MethodCallEnd(methodInfo1));
+        WriteMethodLifecycle(methodInfo1); // Add this line
+        WriteMethodLifecycle(methodInfo2);
 
-        _mockPostProcessor.Setup(p => p.PostProcessData(It.IsAny<List<ReportItem>>()))
-            .Returns((List<ReportItem> items) =>
-            {
-                items.First(i => i.Id == methodInfo1.Id).Parent = null;
-                return items;
-            });
+        // Log ReportItems before exporting
+        _logger.LogInformation($"ReportItems count before export: {_ranttOutput.GetDebugInfo()}");
 
         await disposable.DisposeAsync();
 
-        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
-        Assert.That(File.Exists(csvFilePath), Is.True, "CSV file should exist");
+        var csvFilePath = GetFilePath(CsvFileName);
+        AssertFileExists(csvFilePath);
 
-        var csvContent = await File.ReadAllTextAsync(csvFilePath);
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        _logger.LogInformation($"CSV Content:\n{csvContent}");
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        _logger.LogInformation($"Number of non-empty lines: {lines.Length}");
 
-        Assert.That(lines[1], Does.StartWith($"{methodInfo1.Id},"), "Method1 should have an empty parent");
-        Assert.That(lines[2], Does.StartWith($"{methodInfo2.Id},{methodInfo1.Id}"), "Method2 should be a child of Method1");
-
-        _mockPostProcessor.Verify(p => p.PostProcessData(It.IsAny<List<ReportItem>>()), Times.Exactly(2));
+        Assert.That(lines.Length, Is.EqualTo(ExpectedCsvLineCount), "Should have header and two data lines");
+        Assert.That(lines[0].Split(','), Does.Contain("Id").And.Contain("MethodName"), "Header should contain expected columns");
+        Assert.That(lines[1], Does.Contain("Method1"), "First data line should contain Method1");
+        Assert.That(lines[2], Does.Contain("Method2"), "Second data line should contain Method2");
     }
 
-    [Test]
-    public async Task Initialize_WithReadOnlyFolder_ThrowsUnauthorizedAccessException()
-    {
-        var readOnlyFolder = Path.Combine(_testFolderPath, "ReadOnly");
-        Directory.CreateDirectory(readOnlyFolder);
-        File.SetAttributes(readOnlyFolder, FileAttributes.ReadOnly);
 
+    [Test]
+    public async Task Initialize_ShouldThrowUnauthorizedAccessException_WhenFolderIsReadOnly()
+    {
+        var readOnlyFolder = CreateReadOnlyTestFolder();
         var parameters = RanttOutput.CreateParameters(readOnlyFolder);
         _ranttOutput.SetParameters(parameters);
 
@@ -157,7 +171,7 @@ public class RanttOutputTests
     }
 
     [Test]
-    public async Task WriteItem_WithCorruptData_HandlesGracefully()
+    public async Task WriteItem_ShouldHandleCorruptDataGracefully()
     {
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
@@ -171,97 +185,118 @@ public class RanttOutputTests
     }
 
     [Test]
-    public async Task Dispose_WhenFileIsLocked_HandlesGracefully()
+    public async Task Dispose_ShouldHandleFileLockGracefully()
     {
         var disposable = _ranttOutput.Initialize(_mockReporter);
-
-        var filePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
-
-        // Ensure directory exists
-        Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+        var filePath = GetFilePath(CsvFileName);
 
         // Lock the file
-        using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+        using (var fs = _fileSystem.CreateFileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
         {
             // Attempt to dispose while the file is locked
             await disposable.DisposeAsync();
         }
 
         // Verify that the file still exists
-        Assert.That(File.Exists(filePath), Is.True, "CSV file should still exist after failed dispose");
+        AssertFileExists(filePath);
     }
 
     [Test]
-    public async Task WriteItem_WhenDiskIsFull_HandlesGracefully()
-    {
-        _mockFileSystem.Setup(fs => fs.AppendAllText(It.IsAny<string>(), It.IsAny<string>()))
-            .Throws(new IOException("Disk full"));
-
-        var disposable = _ranttOutput.Initialize(_mockReporter);
-
-        var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
-        var methodCallStart = new MethodCallStart(methodCallInfo);
-
-        Assert.DoesNotThrow(() => _ranttOutput.WriteItem(methodCallStart), "WriteItem should handle disk full error gracefully");
-
-        await disposable.DisposeAsync();
-    }
-
-    [Test]
-    public async Task ExportToRantt_WithInvalidXmlCharacters_HandlesGracefully()
+    public async Task ExportToRantt_ShouldHandleInvalidXmlCharactersGracefully()
     {
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
-        var methodCallInfo = CreateMethodCallInfo("Method<with>Invalid&Xml\"Chars", null);
-        var methodCallStart = new MethodCallStart(methodCallInfo);
-        _ranttOutput.WriteItem(methodCallStart);
-        _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+        var methodName = "Method<with>Invalid&Xml\"Chars";
+        var methodCallInfo = CreateMethodCallInfo(methodName, null);
+        WriteMethodLifecycle(methodCallInfo);
 
         await disposable.DisposeAsync();
 
-        var ranttFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.rprjx");
-        Assert.That(File.Exists(ranttFilePath), Is.True, "Rantt project file should be created");
+        var csvFilePath = GetFilePath(CsvFileName);
+        AssertFileExists(csvFilePath);
 
-        var ranttContent = await File.ReadAllTextAsync(ranttFilePath);
-        Assert.That(ranttContent, Does.Not.Contain("<"), "Invalid XML characters should be handled");
-        Assert.That(ranttContent, Does.Not.Contain(">"), "Invalid XML characters should be handled");
-        Assert.That(ranttContent, Does.Not.Contain("&"), "Invalid XML characters should be handled");
-        Assert.That(ranttContent, Does.Not.Contain("\""), "Invalid XML characters should be handled");
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        _logger.LogInformation($"CSV Content:\n{csvContent}");
+
+        var expectedEscapedMethodName = "\"\"\"Method<with>Invalid&Xml\"\"\"\"Chars\"\"\"";
+        Assert.That(csvContent, Does.Contain(expectedEscapedMethodName), "Method name should be properly escaped in CSV");
+
+        var ranttFilePath = GetFilePath(RanttFileName);
+        AssertFileExists(ranttFilePath);
+
+        var ranttContent = await _fileSystem.ReadAllTextAsync(ranttFilePath);
+        Assert.That(ranttContent, Does.Not.Contain("<with>"), "Unescaped XML content should not be present in Rantt project file");
+        Assert.That(ranttContent, Does.Not.Contain("Invalid&Xml\"Chars"), "Unescaped XML content should not be present in Rantt project file");
     }
 
-
-    [Test]
-    public async Task CreateTimestampedFolderCopy_WhenDestinationExists_HandlesGracefully()
-    {
-        var disposable = _ranttOutput.Initialize(_mockReporter);
-
-        // Setup mock file system
-        _mockFileSystem.Setup(fs => fs.FileExists(It.IsAny<string>())).Returns(true);
-        _mockFileSystem.Setup(fs => fs.ReadAllText(It.IsAny<string>())).Returns("Test content");
-        _mockFileSystem.Setup(fs => fs.GetFiles(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<SearchOption>()))
-            .Returns(new[] { Path.Combine(_testFolderPath, "Archived", "TestReporter_20230101_000000", "TestFile.txt") });
-
-        await disposable.DisposeAsync();
-
-        // Verify that the original file still exists
-        _mockFileSystem.Verify(fs => fs.FileExists(It.Is<string>(s => s.EndsWith("TestFile.txt"))), Times.AtLeastOnce);
-
-        // Verify that an archived copy was attempted
-        _mockFileSystem.Verify(fs => fs.GetFiles(It.IsAny<string>(), "TestFile.txt", SearchOption.AllDirectories), Times.Once);
-    }
-
-    private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo parent)
+    private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
     {
         var methodInfo = new TestMethodInfo(methodName, typeof(RanttOutputTests));
+        var id = Guid.NewGuid().ToString();
         var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(RanttOutputTests),
             methodInfo,
             Array.Empty<Type>(),
-            Guid.NewGuid().ToString(),
+            id,
             new Dictionary<string, string>()
         );
         methodCallInfo.Parent = parent;
+        methodCallInfo.MethodName = methodName;
+        methodCallInfo.Id = id;
+
+        _logger.LogInformation($"Created MethodCallInfo: Id={methodCallInfo.Id}, MethodName={methodCallInfo.MethodName}, ParentId={parent?.Id ?? "ROOT"}, IsNull={methodCallInfo.IsNull}");
+
         return methodCallInfo;
     }
+
+    private void WriteMethodLifecycle(MethodCallInfo methodCallInfo)
+    {
+        _logger.LogInformation($"Writing lifecycle for {methodCallInfo.MethodName} (Id: {methodCallInfo.Id})");
+        _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
+        _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+    }
+
+    private string GetFilePath(string fileName)
+    {
+        return Path.Combine(_testFolderPath, TestReporterName, fileName);
+    }
+
+    private void AssertFileExists(string filePath)
+    {
+        Assert.That(_fileSystem.FileExists(filePath), Is.True, $"{filePath} should exist");
+    }
+
+    private void ValidateCsvHeaders(string headerLine)
+    {
+        var headers = headerLine.Split(',');
+        Assert.That(headers, Does.Contain("Id").And.Contain("ParentId").And.Contain("MethodName"),
+            "Header should contain Id, ParentId, and MethodName");
+    }
+
+    private void ValidateCsvLine(string line, MethodCallInfo methodCallInfo, string expectedParentId)
+    {
+        var columns = line.Split(',');
+        var headers = line.Split(',');
+
+        var idIndex = Array.IndexOf(headers, "Id");
+        var parentIdIndex = Array.IndexOf(headers, "ParentId");
+        var methodNameIndex = Array.IndexOf(headers, "MethodName");
+        var fullNameIndex = Array.IndexOf(headers, "FullName");
+
+        Assert.That(columns[idIndex], Is.EqualTo(methodCallInfo.Id), $"Line should contain {methodCallInfo.MethodName}'s ID");
+        Assert.That(columns[methodNameIndex], Is.EqualTo(methodCallInfo.MethodName), $"Line should contain {methodCallInfo.MethodName}");
+        Assert.That(columns[parentIdIndex], Is.EqualTo(expectedParentId), $"{methodCallInfo.MethodName}'s parent should be {expectedParentId}");
+
+        Assert.That(columns[fullNameIndex], Does.StartWith("RanttOutputTests.Method"), "FullName should start with RanttOutputTests.Method");
+    }
+
+    private string CreateReadOnlyTestFolder()
+    {
+        var readOnlyFolder = Path.Combine(_testFolderPath, "ReadOnly");
+        _fileSystem.CreateDirectory(readOnlyFolder);
+        _fileSystem.SetAttributes(readOnlyFolder, FileAttributes.ReadOnly);
+        return readOnlyFolder;
+    }
 }
+

@@ -2,13 +2,23 @@
 
 using System;
 using System.IO;
+using System.Threading.Tasks;
+using IO;
 
-
-public static class ReportArchiver
+public class ReportArchiver
 {
-    public static void CreateTimestampedFileCopy(string filePath)
+    private readonly IFileSystem _fileSystem;
+
+    public ReportArchiver(IFileSystem fileSystem)
     {
-        if (!File.Exists(filePath))
+        ArgumentNullException.ThrowIfNull(fileSystem);
+
+        _fileSystem = fileSystem;
+    }
+
+    public void CreateTimestampedFileCopy(string filePath)
+    {
+        if (!_fileSystem.FileExists(filePath))
         {
             return;
         }
@@ -27,12 +37,12 @@ public static class ReportArchiver
         var archivedFileName = $"{fileName}_{timestamp}{extension}";
         var archivedFilePath = Path.Combine(archiveDirectory, archivedFileName);
 
-        File.Copy(filePath, archivedFilePath, true);
+        _fileSystem.CopyFile(filePath, archivedFilePath, true);
     }
 
-    public static void CreateTimestampedFolderCopy(string folderPath)
+    public void CreateTimestampedFolderCopy(string folderPath)
     {
-        if (!Directory.Exists(folderPath))
+        if (!_fileSystem.DirectoryExists(folderPath))
         {
             return;
         }
@@ -54,41 +64,47 @@ public static class ReportArchiver
         CopyFolder(folderPath, archivedFolderPath);
     }
 
-    private static string GetArchiveDirectory(string directory)
+    public Task CreateTimestampedFolderCopyAsync(string folderPath)
+    {
+        return Task.Run(() => CreateTimestampedFolderCopy(folderPath));
+    }
+
+    private string GetArchiveDirectory(string directory)
     {
         var archiveDirectory = Path.Combine(directory, "Archived");
-        if (!Directory.Exists(archiveDirectory))
+        if (!_fileSystem.DirectoryExists(archiveDirectory))
         {
-            Directory.CreateDirectory(archiveDirectory);
+            _fileSystem.CreateDirectory(archiveDirectory);
         }
 
         return archiveDirectory;
     }
 
-    private static void CopyFolder(string folderPath, string archivedFolderPath)
+    private void CopyFolder(string folderPath, string archivedFolderPath)
     {
-        if (!Directory.Exists(folderPath))
+        if (!_fileSystem.DirectoryExists(folderPath))
         {
             return;
         }
 
-        if (!Directory.Exists(archivedFolderPath))
+        if (!_fileSystem.DirectoryExists(archivedFolderPath))
         {
-            Directory.CreateDirectory(archivedFolderPath);
+            _fileSystem.CreateDirectory(archivedFolderPath);
         }
 
-        foreach (var file in Directory.GetFiles(folderPath))
+        foreach (var file in _fileSystem.GetFiles(folderPath, "*", SearchOption.AllDirectories))
         {
-            var fileName = Path.GetFileName(file);
-            var archivedFilePath = Path.Combine(archivedFolderPath, fileName);
-            File.Copy(file, archivedFilePath, true);
-        }
+            var relativePath = Path.GetRelativePath(folderPath, file);
+            var archivedFilePath = Path.Combine(archivedFolderPath, relativePath);
+            var archivedFileDirectory = Path.GetDirectoryName(archivedFilePath);
 
-        foreach (var subFolder in Directory.GetDirectories(folderPath))
-        {
-            var folderName = Path.GetFileName(subFolder);
-            var archivedSubFolderPath = Path.Combine(archivedFolderPath, folderName);
-            CopyFolder(subFolder, archivedSubFolderPath);
+            if (archivedFileDirectory is not null && !_fileSystem.DirectoryExists(archivedFileDirectory))
+            {
+                _fileSystem.CreateDirectory(archivedFileDirectory);
+            }
+
+            _fileSystem.CopyFile(file, archivedFilePath, true);
         }
     }
+
 }

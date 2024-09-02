@@ -22,7 +22,14 @@ public interface IFileSystem
     void SetAttributes(string path, FileAttributes fileAttributes);
     FileAttributes GetAttributes(string path);
     TextWriter CreateStreamWriter(string fullPath, bool append, Encoding encoding);
+    StreamReader CreateStreamReader(string fullPath);
     Task<string> ReadAllTextAsync(string fullPath);
     string[] GetDirectories(string sourcePath);
+    Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare);
     Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare, int bufferSize, FileOptions fileOptions);
+    void DeleteFile(string path);
+    Task<string[]> ReadAllLinesAsync(string path);
+    Task WriteAllTextAsync(string path, string contents);
+    void CopyFile(string sourceFileName, string destFileName, bool overwrite);
+    string[] ReadAllLines(string path);
 }

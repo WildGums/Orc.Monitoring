@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 public class FileSystem : IFileSystem
 {
+    public static FileSystem Instance { get; } = new FileSystem();
     public bool FileExists(string path) => File.Exists(path);
 
     public void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);
@@ -38,11 +39,17 @@ public class FileSystem : IFileSystem
         => File.SetAttributes(path, fileAttributes);
 
     public FileAttributes GetAttributes(string path) => File.GetAttributes(path);
+
     public TextWriter CreateStreamWriter(string fullPath, bool append, Encoding encoding)
     {
         return new StreamWriter(fullPath, append, encoding);
     }
-
+    
+    public StreamReader CreateStreamReader(string fullPath)
+    {
+        return new StreamReader(fullPath);
+    }
+    
     public Task<string> ReadAllTextAsync(string fullPath)
     {
         return File.ReadAllTextAsync(fullPath);
@@ -53,8 +60,38 @@ public class FileSystem : IFileSystem
         return Directory.GetDirectories(sourcePath);
     }
 
+    public Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare)
+    {
+        return new FileStream(sourcePath, fileMode, fileAccess, fileShare);
+    }
+
     public Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare, int bufferSize, FileOptions fileOptions)
     {
         return new FileStream(sourcePath, fileMode, fileAccess, fileShare, bufferSize, fileOptions);
+    }
+
+    public void DeleteFile(string path)
+    {
+        File.Delete(path);
+    }
+
+    public async Task<string[]> ReadAllLinesAsync(string path)
+    {
+        return await File.ReadAllLinesAsync(path);
+    }
+
+    public async Task WriteAllTextAsync(string path, string contents)
+    {
+        await File.WriteAllTextAsync(path, contents);
+    }
+
+    // ReadAllLines
+    public string[] ReadAllLines(string path)
+    {
+        return File.ReadAllLines(path);
+    }
+    public void CopyFile(string sourceFileName, string destFileName, bool overwrite)
+    {
+        File.Copy(sourceFileName, destFileName, overwrite);
     }
 }

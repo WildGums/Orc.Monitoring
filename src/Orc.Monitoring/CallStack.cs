@@ -15,7 +15,7 @@ using Orc.Monitoring.Reporters;
 
 public class CallStack : IObservable<ICallStackItem>
 {
-    private const int MaxCallStackDepth = 1000;
+    internal const int MaxCallStackDepth = 1000;
     private readonly ILogger<CallStack> _logger;
     private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();

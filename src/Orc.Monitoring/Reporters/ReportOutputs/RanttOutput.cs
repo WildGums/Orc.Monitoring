@@ -12,6 +12,7 @@ using Filters;
 using IO;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters;
+using System.Security;
 
 public sealed class RanttOutput : IReportOutput, ILimitableOutput
 {
@@ -52,24 +53,26 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
     private readonly IFileSystem _fileSystem;
+    private readonly ReportArchiver _reportArchiver;
 
     public RanttOutput()
     : this(MonitoringLoggerFactory.Instance,
         () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
         new ReportOutputHelper(MonitoringLoggerFactory.Instance),
-        (outputDirectory) => new MethodOverrideManager(outputDirectory),
-        new FileSystem())
+        (outputDirectory) => new MethodOverrideManager(outputDirectory, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
+        FileSystem.Instance, new ReportArchiver(FileSystem.Instance))
     {
     }
 
     public RanttOutput(IMonitoringLoggerFactory monitoringLoggerFactory, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
-        Func<string, MethodOverrideManager> methodOverrideManagerFactory, IFileSystem fileSystem)
+        Func<string, MethodOverrideManager> methodOverrideManagerFactory, IFileSystem fileSystem, ReportArchiver reportArchiver)
     {
         _logger = monitoringLoggerFactory.CreateLogger<RanttOutput>();
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
         _fileSystem = fileSystem;
+        _reportArchiver = reportArchiver;
     }
 
     public static RanttReportParameters CreateParameters(
@@ -123,22 +126,33 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
     public void WriteItem(ICallStackItem callStackItem, string? message = null)
     {
+        _logger.LogInformation($"WriteItem called with callStackItem type: {callStackItem.GetType().Name}");
         var reportItem = _helper.ProcessCallStackItem(callStackItem);
         if (reportItem is not null)
         {
             if (callStackItem is MethodCallStart methodCallStart)
             {
-                var parameters = new Dictionary<string, string>(reportItem.Parameters);
-                foreach (var param in methodCallStart?.MethodCallInfo.Parameters ?? [])
-                {
-                    var paramKey = param.Key;
-                    parameters[paramKey] = param.Value;
-                    reportItem.AttributeParameters.Add(paramKey);
-                }
+                _logger.LogInformation($"Processing MethodCallStart: Id={methodCallStart.MethodCallInfo.Id}, MethodName={methodCallStart.MethodCallInfo.MethodName}, Parent={methodCallStart.MethodCallInfo.Parent?.Id ?? "ROOT"}");
+                reportItem.MethodName = methodCallStart.MethodCallInfo.MethodName;
+                reportItem.FullName = $"{methodCallStart.MethodCallInfo.ClassType?.Name}.{methodCallStart.MethodCallInfo.MethodName}";
+                reportItem.Parent = methodCallStart.MethodCallInfo.Parent?.Id ?? "ROOT";
 
+                var parameters = new Dictionary<string, string>(reportItem.Parameters);
+                foreach (var param in methodCallStart.MethodCallInfo.Parameters ?? [])
+                {
+                    parameters[param.Key] = param.Value;
+                }
                 reportItem.Parameters = parameters;
             }
-            _logger.LogDebug($"Processed item: {reportItem.ItemName ?? reportItem.MethodName}");
+            else if (callStackItem is MethodCallEnd methodCallEnd)
+            {
+                _logger.LogInformation($"Processing MethodCallEnd: Id={methodCallEnd.MethodCallInfo.Id}, MethodName={methodCallEnd.MethodCallInfo.MethodName}");
+            }
+            _logger.LogInformation($"Processed item: Id={reportItem.Id}, MethodName={reportItem.MethodName}, FullName={reportItem.FullName}, Parent={reportItem.Parent}");
+        }
+        else
+        {
+            _logger.LogWarning($"ProcessCallStackItem returned null for {callStackItem.GetType().Name}");
         }
     }
 
@@ -184,7 +198,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
             _overrideManager.SaveOverrides(_helper.ReportItems.ToList());
 
-            await CreateTimestampedFolderCopyAsync(_outputDirectory);
+            await _reportArchiver.CreateTimestampedFolderCopyAsync(_outputDirectory);
         }
         catch (Exception ex)
         {
@@ -208,17 +222,27 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Number of report items before processing: {_helper.ReportItems.Count}");
 
             var sortedItems = _helper.ReportItems
-                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .OrderBy(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
                 .ToList();
 
             _logger.LogInformation($"Number of sorted items: {sortedItems.Count}");
+            foreach (var item in sortedItems)
+            {
+                _logger.LogInformation($"Sorted item: Id={item.Id}, MethodName={item.MethodName}");
+            }
 
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
             var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
 
             _logger.LogInformation($"Number of items after post-processing: {processedItems.Count}");
+            foreach (var item in processedItems)
+            {
+                _logger.LogInformation($"Processed item: Id={item.Id}, MethodName={item.MethodName}");
+            }
 
-            var itemsWithOverrides = processedItems.Select(item =>
+            var itemsToWrite = processedItems.Count > 0 ? processedItems : sortedItems;
+
+            var itemsWithOverrides = itemsToWrite.Select(item =>
             {
                 var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
                 var overrides = _overrideManager.GetOverridesForMethod(fullName);
@@ -319,6 +343,11 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         return "Regular";
     }
 
+    private string EscapeXmlContent(string content)
+    {
+        return SecurityElement.Escape(content) ?? string.Empty;
+    }
+
     private void ExportToRantt(IMethodCallReporter reporter, string dataFileName, string relationshipsFileName)
     {
         if (_outputDirectory is null)
@@ -326,11 +355,11 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             throw new InvalidOperationException("Output directory is not set");
         }
 
-        var ranttProjectFileName = $"{reporter.FullName}.rprjx";
+        var ranttProjectFileName = $"{EscapeXmlContent(reporter.FullName)}.rprjx";
         var ranttProjectContents = RanttProjectContents
-            .Replace("%SourceFileName%", dataFileName)
-            .Replace("%RelationshipsFileName%", relationshipsFileName)
-            .Replace("%reportName%", reporter.FullName);
+            .Replace("%SourceFileName%", EscapeXmlContent(dataFileName))
+            .Replace("%RelationshipsFileName%", EscapeXmlContent(relationshipsFileName))
+            .Replace("%reportName%", EscapeXmlContent(reporter.FullName));
         var ranttProjectPath = Path.Combine(_outputDirectory, ranttProjectFileName);
 
         try
@@ -344,83 +373,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogError(ex, $"Error writing Rantt project file: {ex.Message}");
             throw;
         }
-    }
-
-    private async Task CreateTimestampedFolderCopyAsync(string folderPath)
-    {
-        if (!_fileSystem.FileExists(folderPath))
-        {
-            _logger.LogWarning($"Folder does not exist: {folderPath}");
-            return;
-        }
-
-        var directory = Path.GetDirectoryName(folderPath);
-        if (directory is null)
-        {
-            _logger.LogWarning("Unable to get directory name");
-            return;
-        }
-
-        var archiveDirectory = GetArchiveDirectory(directory);
-
-        var folderName = Path.GetFileName(folderPath);
-        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var archivedFolderName = $"{folderName}_{timestamp}";
-        var archivedFolderPath = Path.Combine(archiveDirectory, archivedFolderName);
-
-        try
-        {
-            _logger.LogInformation($"Creating timestamped folder copy: {archivedFolderPath}");
-            await CopyFolderAsync(folderPath, archivedFolderPath);
-            _logger.LogInformation("Timestamped folder copy created successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating timestamped folder copy");
-        }
-    }
-
-
-    private string GetArchiveDirectory(string directory)
-    {
-        var archiveDirectory = Path.Combine(directory, "Archived");
-        if (!_fileSystem.DirectoryExists(archiveDirectory))
-        {
-            _fileSystem.CreateDirectory(archiveDirectory);
-        }
-
-        return archiveDirectory;
-    }
-
-    private async Task CopyFolderAsync(string sourcePath, string destinationPath)
-    {
-        if (!_fileSystem.DirectoryExists(sourcePath))
-        {
-            return;
-        }
-
-        _fileSystem.CreateDirectory(destinationPath);
-
-        foreach (var file in _fileSystem.GetFiles(sourcePath))
-        {
-            var fileName = Path.GetFileName(file);
-            var destinationFilePath = Path.Combine(destinationPath, fileName);
-            await CopyFileAsync(file, destinationFilePath);
-        }
-
-        foreach (var subFolder in _fileSystem.GetDirectories(sourcePath))
-        {
-            var folderName = Path.GetFileName(subFolder);
-            var destinationSubFolderPath = Path.Combine(destinationPath, folderName);
-            await CopyFolderAsync(subFolder, destinationSubFolderPath);
-        }
-    }
-
-    private async Task CopyFileAsync(string sourcePath, string destinationPath)
-    {
-        using var sourceStream = _fileSystem.CreateFileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var destinationStream = _fileSystem.CreateFileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await sourceStream.CopyToAsync(destinationStream);
     }
 
     public void SetLimitOptions(OutputLimitOptions options)

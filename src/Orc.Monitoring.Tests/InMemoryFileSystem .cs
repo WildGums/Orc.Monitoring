@@ -12,6 +12,8 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 {
     private readonly Dictionary<string, InMemoryFile> _files = new Dictionary<string, InMemoryFile>();
     private readonly HashSet<string> _directories = new HashSet<string>();
+    private readonly Dictionary<string, FileAttributes> _directoryAttributes = new Dictionary<string, FileAttributes>();
+
     private bool _disposed;
 
     public InMemoryFileSystem()
@@ -27,7 +29,21 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public void WriteAllText(string path, string contents)
     {
         var normalizedPath = NormalizePath(path);
-        var directoryPath = Path.GetDirectoryName(normalizedPath);
+        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+
+        // Check if the directory is read-only
+        if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
+            (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+        {
+            throw new UnauthorizedAccessException("Access to the path is denied.");
+        }
+
+        // Check if the file is read-only
+        if (_files.TryGetValue(normalizedPath, out var existingFile) &&
+            (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+        {
+            throw new UnauthorizedAccessException("Access to the path is denied.");
+        }
 
         EnsureDirectoryExists(directoryPath);
 
@@ -170,9 +186,18 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         {
             _files[normalizedPath].Attributes = fileAttributes;
         }
+        else if (_directories.Contains(normalizedPath))
+        {
+            // For directories, we'll just store the attributes in a new dictionary
+            if (!_directoryAttributes.ContainsKey(normalizedPath))
+            {
+                _directoryAttributes[normalizedPath] = FileAttributes.Directory;
+            }
+            _directoryAttributes[normalizedPath] = fileAttributes;
+        }
         else
         {
-            throw new FileNotFoundException("File not found", path);
+            throw new FileNotFoundException("Path not found", path);
         }
     }
 
@@ -201,6 +226,18 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         return new StreamWriter(fileStream, encoding);
     }
 
+    public StreamReader CreateStreamReader(string fullPath)
+    {
+        var normalizedPath = NormalizePath(fullPath);
+        if (!_files.ContainsKey(normalizedPath))
+            throw new FileNotFoundException("File not found", fullPath);
+
+#pragma warning disable IDISP001
+        var fileStream = CreateFileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024, FileOptions.None);
+#pragma warning restore IDISP001
+        return new StreamReader(fileStream, Encoding.UTF8, true, 1024, true);
+    }
+
     public async Task<string> ReadAllTextAsync(string fullPath)
     {
         var normalizedPath = NormalizePath(fullPath);
@@ -219,13 +256,48 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public string[] GetDirectories(string sourcePath)
     {
         var normalizedPath = NormalizePath(sourcePath);
-        return _directories.Where(d => Path.GetDirectoryName(d) == normalizedPath).ToArray();
+        var directories = new List<string>();
+
+        foreach (var directory in _directories)
+        {
+            if (directory.StartsWith(normalizedPath) && directory != normalizedPath)
+            {
+                var relativePath = directory.Substring(normalizedPath.Length).TrimStart('/');
+                if (!relativePath.Contains('/'))
+                {
+                    directories.Add(directory);
+                }
+            }
+        }
+
+        return directories.ToArray();
+    }
+
+
+    public Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare)
+    {
+        return CreateFileStream(sourcePath, fileMode, fileAccess, fileShare, 1024, FileOptions.None);
     }
 
     public Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare, int bufferSize, FileOptions fileOptions)
     {
         var normalizedPath = NormalizePath(sourcePath);
-        var directoryPath = Path.GetDirectoryName(normalizedPath);
+        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+
+        // Check if the directory is read-only
+        if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
+            (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+        {
+            throw new UnauthorizedAccessException("Access to the path is denied.");
+        }
+
+        // Check if the file is read-only
+        if (_files.TryGetValue(normalizedPath, out var existingFile) &&
+            (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly &&
+            (fileAccess & FileAccess.Write) == FileAccess.Write)
+        {
+            throw new UnauthorizedAccessException("Access to the path is denied.");
+        }
 
         EnsureDirectoryExists(directoryPath);
 
@@ -233,7 +305,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         if (!_files.TryGetValue(normalizedPath, out var file))
 #pragma warning restore IDISP001
         {
-            if (fileMode == FileMode.Open || fileMode == FileMode.Truncate)
+            if (fileMode == FileMode.Open)
             {
                 throw new FileNotFoundException("File not found", sourcePath);
             }
@@ -245,7 +317,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 Attributes = FileAttributes.Normal
             };
 #pragma warning restore IDISP001
-
             _files[normalizedPath] = file;
         }
 
@@ -253,6 +324,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         switch (fileMode)
         {
             case FileMode.Create:
+            case FileMode.CreateNew:
             case FileMode.Truncate:
                 stream = new MemoryStream();
                 break;
@@ -272,6 +344,19 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
         file.Contents = stream;
         return new NonClosingStreamWrapper(stream);
+    }
+
+    public void DeleteFile(string path)
+    {
+        var normalizedPath = NormalizePath(path);
+        if (_files.ContainsKey(normalizedPath))
+        {
+            _files.Remove(normalizedPath);
+        }
+        else
+        {
+            throw new FileNotFoundException("File not found", path);
+        }
     }
 
     private string NormalizePath(string path)
@@ -367,5 +452,48 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         }
 
         _disposed = true;
+    }
+
+    public async Task<string[]> ReadAllLinesAsync(string path)
+    {
+        var contents = await ReadAllTextAsync(path);
+        return contents.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+    }
+
+    public Task WriteAllTextAsync(string path, string contents)
+    {
+        WriteAllText(path, contents);
+        return Task.CompletedTask;
+    }
+
+    public void CopyFile(string sourceFileName, string destFileName, bool overwrite)
+    {
+        var sourcePath = NormalizePath(sourceFileName);
+        var destPath = NormalizePath(destFileName);
+
+        if (!_files.ContainsKey(sourcePath))
+            throw new FileNotFoundException("File not found", sourceFileName);
+
+        if (_files.ContainsKey(destPath) && !overwrite)
+            throw new IOException("File already exists");
+
+        var sourceFile = _files[sourcePath];
+        var destFile = new InMemoryFile
+        {
+            Contents = new MemoryStream(),
+            Attributes = sourceFile.Attributes
+        };
+
+        sourceFile.Contents.Position = 0;
+        sourceFile.Contents.CopyTo(destFile.Contents);
+        destFile.Contents.Position = 0;
+
+        _files[destPath] = destFile;
+    }
+
+    public string[] ReadAllLines(string path)
+    {
+        var contents = ReadAllText(path);
+        return contents.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
     }
 }

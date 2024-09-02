@@ -3,9 +3,9 @@
 using NUnit.Framework;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using System;
-using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.Extensions.Logging;
 
 [TestFixture]
@@ -16,24 +16,32 @@ public class MethodOverrideManagerTests
     private string _overrideTemplateFilePath;
     private MethodOverrideManager _overrideManager;
     private TestLogger<MethodOverrideManagerTests> _logger;
+    private TestLoggerFactory<MethodOverrideManagerTests> _loggerFactory;
+    private InMemoryFileSystem _fileSystem;
+    private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MethodOverrideManagerTests>();
+        _loggerFactory = new TestLoggerFactory<MethodOverrideManagerTests>(_logger);
+        _fileSystem = new InMemoryFileSystem();
+        _csvUtils = new CsvUtils(_fileSystem);
+
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_testOutputPath);
+        _fileSystem.CreateDirectory(_testOutputPath);
         _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
-        _overrideManager = new MethodOverrideManager(_testOutputPath);
-        _logger = new TestLogger<MethodOverrideManagerTests>();
+        _overrideManager = new MethodOverrideManager(_testOutputPath, _loggerFactory, _fileSystem, _csvUtils);
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
-            Directory.Delete(_testOutputPath, true);
+            _fileSystem.DeleteDirectory(_testOutputPath, true);
         }
     }
 
@@ -45,7 +53,7 @@ public class MethodOverrideManagerTests
 TestNamespace.TestClass.TestMethod,True,False,CustomValue1,CustomValue2
 TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
 
-        File.WriteAllText(_overrideFilePath, csvContent);
+        _fileSystem.WriteAllText(_overrideFilePath, csvContent);
 
         // Act
         _overrideManager.LoadOverrides();
@@ -72,7 +80,7 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     public void LoadOverrides_HandlesEmptyFile()
     {
         // Arrange
-        File.WriteAllText(_overrideFilePath, string.Empty);
+        _fileSystem.WriteAllText(_overrideFilePath, string.Empty);
 
         // Act
         _overrideManager.LoadOverrides();
@@ -117,8 +125,8 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
         _overrideManager.SaveOverrides(reportItems);
 
         // Assert
-        Assert.That(File.Exists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var templateContent = File.ReadAllText(_overrideTemplateFilePath);
+        Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
+        var templateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
         Assert.That(templateContent, Does.Contain("CustomColumn"), "Template should contain the custom column");
         Assert.That(templateContent, Does.Contain("CustomValue"), "Template should contain the custom value");
     }
@@ -128,7 +136,7 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     {
         // Arrange
         var initialCsvContent = "FullName,CustomColumn\nTestMethod,InitialValue";
-        File.WriteAllText(_overrideFilePath, initialCsvContent);
+        _fileSystem.WriteAllText(_overrideFilePath, initialCsvContent);
 
         var reportItems = new List<ReportItem>
         {
@@ -144,7 +152,7 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
         _overrideManager.SaveOverrides(reportItems);
 
         // Assert
-        var csvContent = File.ReadAllText(_overrideFilePath);
+        var csvContent = _fileSystem.ReadAllText(_overrideFilePath);
         Assert.That(csvContent, Is.EqualTo(initialCsvContent), "CSV file should not be modified");
     }
 
@@ -153,7 +161,7 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     {
         // Arrange
         var csvContent = "FullName,CustomColumn\nTestMethod,CustomValue";
-        File.WriteAllText(_overrideFilePath, csvContent);
+        _fileSystem.WriteAllText(_overrideFilePath, csvContent);
         _overrideManager.LoadOverrides();
 
         // Act
@@ -169,7 +177,7 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     {
         // Arrange
         var csvContent = "FullName,CustomColumn1,CustomColumn2\nTestMethod,Value1,Value2";
-        File.WriteAllText(_overrideFilePath, csvContent);
+        _fileSystem.WriteAllText(_overrideFilePath, csvContent);
         _overrideManager.LoadOverrides();
 
         // Act
@@ -183,7 +191,7 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     [Test]
     public void SaveOverrides_MultipleSaves_ShouldNotDuplicateColumnsInTemplate()
     {
-        var manager = new MethodOverrideManager(_testOutputPath);
+        var manager = new MethodOverrideManager(_testOutputPath, _loggerFactory, _fileSystem, _csvUtils);
         var reportItems1 = new List<ReportItem>
     {
         new ReportItem
@@ -204,11 +212,11 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     };
 
         manager.SaveOverrides(reportItems1);
-        var templateContent1 = File.ReadAllText(_overrideTemplateFilePath);
+        var templateContent1 = _fileSystem.ReadAllText(_overrideTemplateFilePath);
         _logger.LogInformation($"Template content after first save: {templateContent1}");
 
         manager.SaveOverrides(reportItems2);
-        var templateContent2 = File.ReadAllText(_overrideTemplateFilePath);
+        var templateContent2 = _fileSystem.ReadAllText(_overrideTemplateFilePath);
         _logger.LogInformation($"Template content after second save: {templateContent2}");
 
         var headers = templateContent2.Split('\n')[0].Split(',').Select(h => h.Trim()).ToArray();
@@ -243,11 +251,11 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
     };
 
         _overrideManager.SaveOverrides(initialReportItems);
-        var initialTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
+        var initialTemplateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
         _logger.LogInformation($"Initial template content: {initialTemplateContent}");
 
         _overrideManager.SaveOverrides(updatedReportItems);
-        var updatedTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
+        var updatedTemplateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
         _logger.LogInformation($"Updated template content: {updatedTemplateContent}");
 
         Assert.That(updatedTemplateContent, Does.Contain("UpdatedColumn"), "Template should contain the updated column");
@@ -257,7 +265,7 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
         Assert.That(updatedTemplateContent, Does.Contain("InitialColumn"), "Template should still contain the initial column");
 
         _overrideManager.CleanupObsoleteColumns();
-        var cleanedTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
+        var cleanedTemplateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
         _logger.LogInformation($"Cleaned template content: {cleanedTemplateContent}");
 
         Assert.That(cleanedTemplateContent, Does.Not.Contain("InitialColumn"), "Template should not contain the initial column after cleanup");

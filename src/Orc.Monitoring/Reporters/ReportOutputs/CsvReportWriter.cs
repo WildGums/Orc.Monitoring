@@ -15,13 +15,14 @@ public class CsvReportWriter
     private readonly MethodOverrideManager _overrideManager;
     private readonly HashSet<string> _customColumns;
     private readonly ILogger<CsvReportWriter> _logger;
+    private readonly CsvUtils _csvUtils;
 
     public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager methodOverrideManager)
-    : this(writer, reportItems, methodOverrideManager, MonitoringLoggerFactory.Instance)
+    : this(writer, reportItems, methodOverrideManager, MonitoringLoggerFactory.Instance, CsvUtils.Instance)
     {
     }
 
-    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager, IMonitoringLoggerFactory loggerFactory)
+    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager, IMonitoringLoggerFactory loggerFactory, CsvUtils csvUtils)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(reportItems);
@@ -33,31 +34,46 @@ public class CsvReportWriter
         _overrideManager = overrideManager;
         _customColumns = new HashSet<string>(overrideManager.GetCustomColumns());
         _logger = loggerFactory.CreateLogger<CsvReportWriter>();
+        _csvUtils = csvUtils;
     }
 
     public void WriteReportItemsCsv()
     {
         var headers = GetReportItemHeaders();
-        CsvUtils.WriteCsvLine(_writer, headers.Cast<string?>().ToArray());
+        _csvUtils.WriteCsvLine(_writer, headers.Cast<string?>().ToArray());
 
         foreach (var item in PrepareReportItems())
         {
             var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
-            CsvUtils.WriteCsvLine(_writer, values);
+            _csvUtils.WriteCsvLine(_writer, values);
         }
 
         _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV");
     }
 
+    private string EscapeCsvContent(string content)
+    {
+        if (string.IsNullOrEmpty(content))
+        {
+            return string.Empty;
+        }
+
+        if (content.Contains(",") || content.Contains("\"") || content.Contains("\n") || content.Contains("<") || content.Contains(">") || content.Contains("&"))
+        {
+            return $"\"{content.Replace("\"", "\"\"")}\"";
+        }
+        return content;
+    }
+
     public async Task WriteReportItemsCsvAsync()
     {
         var headers = GetReportItemHeaders();
-        await CsvUtils.WriteCsvLineAsync(_writer, headers.Cast<string?>().ToArray());
+        await _csvUtils.WriteCsvLineAsync(_writer, headers.Select(EscapeCsvContent).ToArray());
 
         foreach (var item in PrepareReportItems())
         {
-            var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
-            await CsvUtils.WriteCsvLineAsync(_writer, values);
+            var values = headers.Select(h => EscapeCsvContent(item.GetValueOrDefault(h) ?? string.Empty)).ToArray();
+            await _csvUtils.WriteCsvLineAsync(_writer, values);
         }
 
         _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV asynchronously");
@@ -66,7 +82,7 @@ public class CsvReportWriter
     public void WriteRelationshipsCsv()
     {
         var headers = new string?[] { "From", "To", "RelationType" };
-        CsvUtils.WriteCsvLine(_writer, headers);
+        _csvUtils.WriteCsvLine(_writer, headers);
 
         var relationships = _reportItems
             .Where(r => !string.IsNullOrEmpty(r.Parent))
@@ -79,7 +95,7 @@ public class CsvReportWriter
 
         foreach (var relationship in relationships)
         {
-            CsvUtils.WriteCsvLine(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
+            _csvUtils.WriteCsvLine(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
         }
 
         _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV");
@@ -88,7 +104,7 @@ public class CsvReportWriter
     public async Task WriteRelationshipsCsvAsync()
     {
         var headers = new string?[] { "From", "To", "RelationType" };
-        await CsvUtils.WriteCsvLineAsync(_writer, headers);
+        await _csvUtils.WriteCsvLineAsync(_writer, headers);
 
         var relationships = _reportItems
             .Where(r => !string.IsNullOrEmpty(r.Parent))
@@ -101,7 +117,7 @@ public class CsvReportWriter
 
         foreach (var relationship in relationships)
         {
-            await CsvUtils.WriteCsvLineAsync(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
+            await _csvUtils.WriteCsvLineAsync(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
         }
 
         _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV asynchronously");

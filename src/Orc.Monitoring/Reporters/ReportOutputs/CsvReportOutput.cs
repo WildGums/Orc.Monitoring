@@ -18,6 +18,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     private readonly ReportOutputHelper _helper;
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
     private readonly IFileSystem _fileSystem;
+    private readonly ReportArchiver _reportArchiver;
 
     private string? _fileName;
     private string? _folderPath;
@@ -25,24 +26,27 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public CsvReportOutput()
-    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance), (outputFolder) => new MethodOverrideManager(outputFolder),
-        new FileSystem())
+    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance),
+        (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
+        FileSystem.Instance, new ReportArchiver(FileSystem.Instance))
     {
 
     }
 
     public CsvReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory,
-        IFileSystem fileSystem)
+        IFileSystem fileSystem, ReportArchiver reportArchiver)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(reportOutputHelper);
         ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
         ArgumentNullException.ThrowIfNull(fileSystem);
+        ArgumentNullException.ThrowIfNull(reportArchiver);
 
         _logger = loggerFactory.CreateLogger<CsvReportOutput>();
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
         _fileSystem = fileSystem;
+        _reportArchiver = reportArchiver;
 
         _logger.LogDebug($"Created {nameof(CsvReportOutput)}");
     }
@@ -77,6 +81,8 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
         _logger.LogInformation($"Initializing {nameof(CsvReportOutput)}");
         _helper.Initialize(reporter);
 
+        EnsureDirectoryWritable();
+
         return new AsyncDisposable(async () =>
         {
             _logger.LogInformation($"Disposing {nameof(CsvReportOutput)}");
@@ -90,6 +96,25 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
                 throw;
             }
         });
+    }
+
+    private void EnsureDirectoryWritable()
+    {
+        if (_folderPath is null)
+        {
+            throw new InvalidOperationException("Folder path is not set");
+        }
+
+        var testFilePath = Path.Combine(_folderPath, "test_write.tmp");
+        try
+        {
+            _fileSystem.WriteAllText(testFilePath, "Test");
+            _fileSystem.DeleteFile(testFilePath);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw new UnauthorizedAccessException("Access to the path is denied.");
+        }
     }
 
     /// <summary>
@@ -168,20 +193,32 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Starting CSV export to {fullPath}");
             _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
 
-            // Sort items by StartTime in descending order
-            var sortedItems = _helper.ReportItems.OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString())).ToList();
+            var sortedItems = _helper.ReportItems
+                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .Take(_limitOptions.MaxItems ?? int.MaxValue) // Apply the limit here
+                .ToList();
 
-            // Log details of items being exported
             for (int i = 0; i < sortedItems.Count; i++)
             {
                 var item = sortedItems[i];
                 _logger.LogDebug($"Exporting item {i}: {item.ItemName ?? item.MethodName}, MethodName: {item.MethodName}, StartTime: {item.StartTime}");
             }
 
-            await using (var writer = _fileSystem.CreateStreamWriter(fullPath, false, System.Text.Encoding.UTF8))
+            TextWriter? writer = null;
+            try
             {
+                writer = _fileSystem.CreateStreamWriter(fullPath, false, System.Text.Encoding.UTF8);
                 var csvReportWriter = new CsvReportWriter(writer, sortedItems, _methodOverrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, $"Error creating or writing to CSV file: {ex.Message}");
+                throw;
+            }
+            finally
+            {
+                writer?.Dispose();
             }
 
             _logger.LogInformation($"CSV report written to {fullPath} with {sortedItems.Count} items");
@@ -204,7 +241,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
 
         try
         {
-            ReportArchiver.CreateTimestampedFileCopy(fullPath);
+            _reportArchiver.CreateTimestampedFileCopy(fullPath);
             _logger.LogInformation($"Created timestamped copy of {fullPath}");
         }
         catch (Exception ex)

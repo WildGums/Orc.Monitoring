@@ -131,7 +131,7 @@ public class InMemoryFileSystemTests
     [Test]
     public async Task ReadAllTextAsync_ShouldReturnContentsOfFile_WhenFileExists()
     {
-        _fileSystem.WriteAllText("/asyncTest.txt", "Async Hello, World!");
+        await _fileSystem.WriteAllTextAsync("/asyncTest.txt", "Async Hello, World!");
 
         string contents = await _fileSystem.ReadAllTextAsync("/asyncTest.txt");
 

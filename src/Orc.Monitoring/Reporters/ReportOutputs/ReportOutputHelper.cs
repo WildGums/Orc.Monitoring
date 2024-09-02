@@ -7,34 +7,28 @@ using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
 using Microsoft.Extensions.Logging;
 
-/// <summary>
-/// Provides helper functionality for report outputs, including item processing and limit application.
-/// </summary>
 public class ReportOutputHelper
 {
     private readonly ILogger<ReportOutputHelper> _logger;
+    private readonly List<ReportItem> _reportItems = new List<ReportItem>();
+
+    private IMethodCallReporter? _reporter;
+    private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ReportOutputHelper>();
     }
 
-    public IMethodCallReporter? Reporter { get; private set; }
-    private readonly Dictionary<string, ReportItem> _reportItems = new();
-    public IReadOnlyList<ReportItem> ReportItems => _reportItems.Values.ToList().AsReadOnly();
-    public List<ReportItem> Gaps { get; } = new();
-    public HashSet<string> ParameterNames { get; } = new();
+    public List<ReportItem> Gaps { get; } = new List<ReportItem>();
+    public HashSet<string> ParameterNames { get; } = new HashSet<string>();
     public string? LastEndTime { get; private set; }
+    public IReadOnlyCollection<ReportItem> ReportItems => _reportItems;
+    public IMethodCallReporter? Reporter => _reporter;
 
-    private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
-
-    /// <summary>
-    /// Initializes the helper with the specified reporter.
-    /// </summary>
-    /// <param name="reporter">The method call reporter to be used.</param>
     public void Initialize(IMethodCallReporter reporter)
     {
-        Reporter = reporter;
+        _reporter = reporter;
         _reportItems.Clear();
         Gaps.Clear();
         ParameterNames.Clear();
@@ -43,42 +37,59 @@ public class ReportOutputHelper
         _logger.LogInformation($"ReportOutputHelper initialized for reporter: {reporter.GetType().Name}");
     }
 
-    /// <summary>
-    /// Processes a call stack item and returns a corresponding report item.
-    /// </summary>
-    /// <param name="callStackItem">The call stack item to process.</param>
-    /// <returns>A report item based on the processed call stack item, or null if processing failed.</returns>
     public ReportItem? ProcessCallStackItem(ICallStackItem callStackItem)
     {
-        _logger.LogDebug($"Processing CallStackItem: {callStackItem.GetType().Name}");
+        _logger.LogInformation($"ProcessCallStackItem called with {callStackItem.GetType().Name}");
 
         ReportItem? result = null;
         switch (callStackItem)
         {
             case MethodCallStart start:
                 result = ProcessStart(start);
-                _logger.LogDebug($"Processed MethodCallStart: {start.MethodCallInfo.MethodName}, Id: {start.MethodCallInfo.Id}");
+                _logger.LogInformation($"Processed MethodCallStart: {start.MethodCallInfo.MethodName}, Id: {start.MethodCallInfo.Id}, Result: {result?.MethodName}");
                 break;
+
             case MethodCallEnd end:
                 result = ProcessEnd(end);
-                _logger.LogDebug($"Processed MethodCallEnd: {end.MethodCallInfo.MethodName}, Id: {end.MethodCallInfo.Id}");
+                _logger.LogInformation($"Processed MethodCallEnd: {end.MethodCallInfo.MethodName}, Id: {end.MethodCallInfo.Id}, Result: {result?.MethodName}");
                 break;
+
             case CallGap gap:
                 result = ProcessGap(gap);
-                _logger.LogDebug($"Processed CallGap: Duration: {gap.Elapsed}");
+                _logger.LogInformation($"Processed CallGap: Duration: {gap.Elapsed}");
                 break;
         }
 
-        if (result is not null && !string.IsNullOrEmpty(result.Id))
+        if (result is not null)
         {
-            AddReportItem(result);
+            AddOrUpdateReportItem(result);
+            _logger.LogInformation($"Processed {callStackItem.GetType().Name}: {result.MethodName}, Id: {result.Id}");
         }
         else
         {
-            _logger.LogWarning($"No valid ReportItem created for CallStackItem. Result is null: {result is null}, Id is null or empty: {result?.Id is null or $""}");
+            _logger.LogWarning($"Failed to process {callStackItem.GetType().Name}");
         }
 
+        _logger.LogInformation($"Current report items count: {_reportItems.Count}");
         return result;
+    }
+
+    private void AddOrUpdateReportItem(ReportItem item)
+    {
+        var existingItem = _reportItems.FirstOrDefault(r => r.Id == item.Id);
+        if (existingItem is null)
+        {
+            _reportItems.Add(item);
+            _logger.LogInformation($"Added new ReportItem: {item.MethodName}, Id: {item.Id}");
+        }
+        else
+        {
+            // Update existing item
+            existingItem.EndTime = item.EndTime;
+            existingItem.Duration = item.Duration;
+            _logger.LogInformation($"Updated existing ReportItem: {item.MethodName}, Id: {item.Id}");
+        }
+        ApplyLimits();
     }
 
     private ReportItem ProcessStart(MethodCallStart start)
@@ -90,7 +101,7 @@ public class ReportOutputHelper
         {
             Id = id,
             StartTime = methodCallInfo.StartTime.ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            Report = Reporter?.FullName ?? string.Empty,
+            Report = _reporter?.FullName ?? string.Empty,
             ThreadId = methodCallInfo.ThreadId.ToString(),
             Level = methodCallInfo.Level.ToString(),
             ClassName = methodCallInfo.ClassType?.Name ?? string.Empty,
@@ -101,7 +112,8 @@ public class ReportOutputHelper
             ParentThreadId = methodCallInfo.ParentThreadId.ToString()
         };
 
-        _reportItems[id] = reportItem;
+        _logger.LogInformation($"Created new ReportItem: Id={reportItem.Id}, MethodName={reportItem.MethodName}, Parent={reportItem.Parent}");
+
         return reportItem;
     }
 
@@ -116,9 +128,10 @@ public class ReportOutputHelper
             return null;
         }
 
-        if (_reportItems.TryGetValue(id, out var reportItem))
+        var reportItem = _reportItems.FirstOrDefault(item => item.Id == id);
+        if (reportItem is not null)
         {
-            var endTime = end.TimeStamp; // Use the TimeStamp from the MethodCallEnd event
+            var endTime = end.TimeStamp;
             LastEndTime = endTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
             reportItem.EndTime = LastEndTime;
             reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1");
@@ -128,12 +141,13 @@ public class ReportOutputHelper
             ParameterNames.UnionWith(reportItem.Parameters.Keys);
 
             _logger.LogDebug($"Updated report item: {reportItem.MethodName}, StartTime: {reportItem.StartTime}, EndTime: {reportItem.EndTime}, Duration: {reportItem.Duration}ms");
-
-            return reportItem;
+        }
+        else
+        {
+            _logger.LogWarning($"No report item found for method call ID {id}");
         }
 
-        _logger.LogWarning($"No report item found for method call ID {id}");
-        return null;
+        return reportItem;
     }
 
     private ReportItem ProcessGap(CallGap gap)
@@ -144,7 +158,7 @@ public class ReportOutputHelper
             StartTime = gap.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
             EndTime = (gap.TimeStamp + gap.Elapsed).ToString("yyyy-MM-dd HH:mm:ss.fff"),
             Duration = gap.Elapsed.TotalMilliseconds.ToString("N1"),
-            Report = Reporter?.FullName ?? string.Empty,
+            Report = _reporter?.FullName ?? string.Empty,
             ThreadId = string.Empty,
             Level = string.Empty,
             ClassName = MethodCallParameter.Types.Gap,
@@ -161,43 +175,46 @@ public class ReportOutputHelper
 
     public List<ReportItem> GetReportItems()
     {
-        return _reportItems.Values.ToList();
+        return _reportItems;
     }
 
-    /// <summary>
-    /// Adds a report item to the collection and applies limits.
-    /// </summary>
-    /// <param name="item">The report item to add.</param>
     public void AddReportItem(ReportItem item)
     {
-        _reportItems[item.Id ?? string.Empty] = item;
+        var existingItem = _reportItems.FirstOrDefault(r => r.Id == item.Id);
+        if (existingItem is null)
+        {
+            // Add new item
+            _reportItems.Add(item);
+            _logger.LogDebug($"Added new ReportItem: Id={item.Id}, MethodName={item.MethodName}");
+        }
+        else
+        {
+            // Update existing item
+            existingItem.EndTime = item.EndTime;
+            existingItem.Duration = item.Duration;
+            _logger.LogDebug($"Updated existing ReportItem: Id={item.Id}, MethodName={item.MethodName}");
+        }
+
         _logger.LogDebug($"Added report item. Current count: {_reportItems.Count}");
         ApplyLimits();
     }
 
-    /// <summary>
-    /// Applies the current limit options to the report items and gaps.
-    /// </summary>
     private void ApplyLimits()
     {
+        _logger.LogInformation($"Applying limits. Current ReportItems count: {_reportItems.Count}, Gaps count: {Gaps.Count}");
+
         if (_limitOptions.MaxItems.HasValue)
         {
-            int totalItems = _reportItems.Count + Gaps.Count;
-            int itemsToRemove = totalItems - _limitOptions.MaxItems.Value;
-
+            var itemsToRemove = _reportItems.Count - _limitOptions.MaxItems.Value;
             if (itemsToRemove > 0)
             {
-                var allItems = _reportItems.Values.Concat(Gaps).OrderBy(i => i.StartTime).ToList();
-                var itemsToKeep = allItems.Skip(itemsToRemove).ToList();
+                var itemsToKeep = _reportItems
+                    .OrderByDescending(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString()))
+                    .Take(_limitOptions.MaxItems.Value)
+                    .ToList();
 
                 _reportItems.Clear();
-                foreach (var item in itemsToKeep.Where(i => !Gaps.Contains(i)))
-                {
-                    _reportItems[item.Id ?? string.Empty] = item;
-                }
-
-                Gaps.Clear();
-                Gaps.AddRange(itemsToKeep.Where(i => !_reportItems.ContainsKey(i.Id ?? string.Empty)));
+                _reportItems.AddRange(itemsToKeep);
 
                 _logger.LogInformation($"Applied limits. Removed {itemsToRemove} items.");
             }
@@ -206,10 +223,6 @@ public class ReportOutputHelper
         _logger.LogInformation($"After applying limits - ReportItems count: {_reportItems.Count}, Gaps count: {Gaps.Count}");
     }
 
-    /// <summary>
-    /// Sets the limit options for the helper.
-    /// </summary>
-    /// <param name="options">The output limit options to set.</param>
     public void SetLimitOptions(OutputLimitOptions options)
     {
         _limitOptions = options;
@@ -217,20 +230,12 @@ public class ReportOutputHelper
         _logger.LogInformation($"Limit options set: MaxItems = {options.MaxItems}");
     }
 
-    /// <summary>
-    /// Gets the current limit options for the helper.
-    /// </summary>
-    /// <returns>The current output limit options.</returns>
     public OutputLimitOptions GetLimitOptions()
     {
         return _limitOptions;
     }
 
-    /// <summary>
-    /// Gets debug information about the current state of the helper.
-    /// </summary>
-    /// <returns>A string containing debug information.</returns>
-    internal string GetDebugInfo()
+    public string GetDebugInfo()
     {
         return $"ReportItems: {_reportItems.Count}, " +
                $"Gaps: {Gaps.Count}, " +

@@ -16,18 +16,27 @@ public class CsvReportWriterTests
     private StringWriter _stringWriter;
     private MethodOverrideManager _overrideManager;
     private List<ReportItem> _reportItems;
+    private TestLogger<CsvReportWriterTests> _logger;
+    private TestLoggerFactory<CsvReportWriterTests> _loggerFactory;
+    private InMemoryFileSystem _fileSystem;
+    private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<CsvReportWriterTests>();
+        _loggerFactory = new TestLoggerFactory<CsvReportWriterTests>(_logger);
+        _fileSystem = new InMemoryFileSystem();
+        _csvUtils = new CsvUtils(_fileSystem);
         _stringWriter = new StringWriter();
-        _overrideManager = new MethodOverrideManager(Path.GetTempPath());
+        _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = new List<ReportItem>();
     }
 
     [TearDown]
     public void TearDown()
     {
+        _fileSystem.Dispose();
         _stringWriter.Dispose();
     }
 

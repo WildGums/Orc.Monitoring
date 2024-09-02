@@ -11,6 +11,7 @@ using System.Linq;
 using System.Threading;
 using Moq;
 using Orc.Monitoring.Reporters;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class CallStackParentChildTests
@@ -443,26 +444,64 @@ public class CallStackParentChildTests
     public void PushAndPopWithHighConcurrency_MaintainsCorrectState()
     {
         const int operationCount = 10000;
-        var random = new Random();
-        var methodInfos = new ConcurrentBag<MethodCallInfo>();
+        var methodInfos = new ConcurrentDictionary<string, MethodCallInfo>();
+        var unpairedPushCount = 0;
+        var pushCount = 0;
+        var popCount = 0;
 
-        Parallel.For(0, operationCount, i =>
+        Parallel.For(0, operationCount, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
         {
-            if (random.Next(2) == 0)
+            if (i % 2 == 0)
             {
-                var methodInfo = CreateMethodCallInfo($"Method{i}");
-                _callStack.Push(methodInfo);
-                methodInfos.Add(methodInfo);
+                if (Interlocked.Increment(ref pushCount) <= CallStack.MaxCallStackDepth)
+                {
+                    var methodInfo = CreateMethodCallInfo($"Method{i}");
+                    _callStack.Push(methodInfo);
+                    if (methodInfos.TryAdd(methodInfo.Id, methodInfo))
+                    {
+                        Interlocked.Increment(ref unpairedPushCount);
+                    }
+                }
+                else
+                {
+                    Interlocked.Decrement(ref pushCount);
+                }
             }
-            else if (methodInfos.TryTake(out var methodInfo))
+            else
             {
-                _callStack.Pop(methodInfo);
+                if (methodInfos.Count > 0)
+                {
+                    var key = methodInfos.Keys.FirstOrDefault();
+                    if (key is not null && methodInfos.TryRemove(key, out var methodInfo))
+                    {
+                        _callStack.Pop(methodInfo);
+                        Interlocked.Increment(ref popCount);
+                        Interlocked.Decrement(ref unpairedPushCount);
+                    }
+                }
+            }
+
+            if (i % 1000 == 0)
+            {
+                _logger.LogDebug($"Operation {i}: Push Count = {pushCount}, Pop Count = {popCount}, Unpaired Push Count = {unpairedPushCount}, Dictionary Count = {methodInfos.Count}");
             }
         });
 
         var finalStack = GetThreadCallStacks(_callStack);
-        Assert.That(finalStack.Values.Sum(stack => stack.Count), Is.EqualTo(methodInfos.Count),
-            "Final stack count should match the number of unpaired push operations");
+        var finalStackCount = finalStack.Values.Sum(stack => stack.Count);
+
+        _logger.LogInformation($"Total Push operations: {pushCount}");
+        _logger.LogInformation($"Total Pop operations: {popCount}");
+        _logger.LogInformation($"Unpaired Push operations: {unpairedPushCount}");
+        _logger.LogInformation($"Final Stack Count: {finalStackCount}");
+        _logger.LogInformation($"Final Dictionary Count: {methodInfos.Count}");
+
+        Assert.That(finalStackCount, Is.EqualTo(unpairedPushCount),
+            $"Final stack count should match the number of unpaired push operations. Unpaired: {unpairedPushCount}, Stack Count: {finalStackCount}");
+        Assert.That(pushCount - popCount, Is.EqualTo(unpairedPushCount),
+            $"The difference between push and pop operations should equal unpaired push operations. Pushes: {pushCount}, Pops: {popCount}, Unpaired: {unpairedPushCount}");
+        Assert.That(methodInfos.Count, Is.EqualTo(unpairedPushCount),
+            $"The number of items in the dictionary should equal the number of unpaired push operations. Dictionary Count: {methodInfos.Count}, Unpaired: {unpairedPushCount}");
     }
 
     [Test]

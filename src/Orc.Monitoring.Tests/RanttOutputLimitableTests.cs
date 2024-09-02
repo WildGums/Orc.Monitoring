@@ -6,10 +6,10 @@ using NUnit.Framework;
 using MethodLifeCycleItems;
 using Reporters.ReportOutputs;
 using Reporters;
-using System.IO;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 [TestFixture]
@@ -21,34 +21,42 @@ public class RanttOutputLimitableTests
     private IMonitoringController _monitoringController;
     private RanttOutput _ranttOutput;
     private string _testOutputPath;
+    private InMemoryFileSystem _fileSystem;
+    private ReportArchiver _reportArchiver;
+    private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<RanttOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputLimitableTests>(_logger);
+        _fileSystem = new InMemoryFileSystem();
+        _csvUtils = new CsvUtils(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem);
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_testOutputPath);
+        _fileSystem.CreateDirectory(_testOutputPath);
         _ranttOutput = new RanttOutput(_loggerFactory, 
             () => new EnhancedDataPostProcessor(_loggerFactory),
             new ReportOutputHelper(_loggerFactory),
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory), 
-#pragma warning disable IDISP004
-            new InMemoryFileSystem());
-#pragma warning restore IDISP004
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
+            _fileSystem,
+            _reportArchiver);
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         _ranttOutput.SetParameters(parameters);
+
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
-            Directory.Delete(_testOutputPath, true);
+            _fileSystem.DeleteDirectory(_testOutputPath, true);
         }
     }
 
@@ -85,7 +93,7 @@ public class RanttOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
-        var lines = await File.ReadAllLinesAsync(filePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(filePath);
 
         Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
 
@@ -109,7 +117,7 @@ public class RanttOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
-        var lines = await File.ReadAllLinesAsync(filePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(filePath);
 
         Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
 

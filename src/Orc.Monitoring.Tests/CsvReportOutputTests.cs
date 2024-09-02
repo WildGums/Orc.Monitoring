@@ -10,10 +10,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Orc.Monitoring.MethodLifeCycleItems;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using Microsoft.Extensions.Logging;
 using IO;
+using System.Text;
 
 [TestFixture]
 public class CsvReportOutputTests
@@ -26,6 +25,9 @@ public class CsvReportOutputTests
     private string _testFileName;
     private MethodCallInfoPool _methodCallInfoPool;
     private IMonitoringController _monitoringController;
+    private InMemoryFileSystem _fileSystem;
+    private ReportArchiver _reportArchiver;
+    private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
@@ -35,28 +37,33 @@ public class CsvReportOutputTests
 
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        _fileSystem = new InMemoryFileSystem();
+        _csvUtils = new CsvUtils(_fileSystem);
+
+        _reportArchiver = new ReportArchiver(_fileSystem);
 
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_testFolderPath);
+        _fileSystem.CreateDirectory(_testFolderPath);
         _testFileName = "TestReport";
         var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory),
-#pragma warning disable IDISP004
-            new InMemoryFileSystem());
-#pragma warning restore IDISP004
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
+            _fileSystem, _reportArchiver);
         _mockReporter = new Mock<IMethodCallReporter>();
         _mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testFolderPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testFolderPath))
         {
             try
             {
-                Directory.Delete(_testFolderPath, true);
+                _fileSystem.DeleteDirectory(_testFolderPath, true);
             }
             catch (UnauthorizedAccessException)
             {
@@ -73,7 +80,7 @@ public class CsvReportOutputTests
         _csvReportOutput.SetParameters(parameters);
 
         var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
-        Assert.That(File.Exists(filePath), Is.False, "File should not be created yet");
+        Assert.That(_fileSystem.FileExists(filePath), Is.False, "File should not be created yet");
     }
 
     [Test]
@@ -86,7 +93,7 @@ public class CsvReportOutputTests
         await disposable.DisposeAsync();
 
         var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
-        Assert.That(File.Exists(filePath), Is.True, "CSV file should be created after initialization");
+        Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should be created after initialization");
     }
 
     [Test]
@@ -96,22 +103,25 @@ public class CsvReportOutputTests
         _csvReportOutput.SetParameters(parameters);
         var disposable = _csvReportOutput.Initialize(_mockReporter.Object);
 
+        var methodInfo = GetType().GetMethod(nameof(WriteItem_AddsItemToReport));
         var methodCallInfo = _methodCallInfoPool.Rent(null, typeof(CsvReportOutputTests),
-            GetType().GetMethod(nameof(WriteItem_AddsItemToReport)),
+            methodInfo,
             Array.Empty<Type>(), "TestId", new Dictionary<string, string>());
 
         var methodCallStart = new MethodCallStart(methodCallInfo);
         _csvReportOutput.WriteItem(methodCallStart);
 
+        methodCallInfo.Elapsed = TimeSpan.FromSeconds(1);
         var methodCallEnd = new MethodCallEnd(methodCallInfo);
         _csvReportOutput.WriteItem(methodCallEnd);
 
         await disposable.DisposeAsync();
 
         var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
-        Assert.That(File.Exists(filePath), Is.True, "CSV file should be created");
+        Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should be created");
 
-        var fileContent = await File.ReadAllTextAsync(filePath);
+        var fileContent = await _fileSystem.ReadAllTextAsync(filePath);
+        Console.WriteLine($"File content:\n{fileContent}");
         Assert.That(fileContent, Does.Contain("TestId"), "File should contain the TestId");
         Assert.That(fileContent, Does.Contain(nameof(WriteItem_AddsItemToReport)), "File should contain the method name");
     }
@@ -132,16 +142,18 @@ public class CsvReportOutputTests
     public void Initialize_WithReadOnlyFolder_ThrowsUnauthorizedAccessException()
     {
         var readOnlyFolder = Path.Combine(_testFolderPath, "ReadOnly");
-        Directory.CreateDirectory(readOnlyFolder);
-        File.SetAttributes(readOnlyFolder, FileAttributes.ReadOnly);
+        _fileSystem.CreateDirectory(readOnlyFolder);
+        _fileSystem.SetAttributes(readOnlyFolder, FileAttributes.ReadOnly);
 
         var parameters = CsvReportOutput.CreateParameters(readOnlyFolder, _testFileName);
         _csvReportOutput.SetParameters(parameters);
 
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
+        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
         {
             await using var _ = _csvReportOutput.Initialize(_mockReporter.Object);
         });
+
+        Assert.That(exception.Message, Is.EqualTo("Access to the path is denied."));
     }
 
     [Test]
@@ -170,16 +182,19 @@ public class CsvReportOutputTests
 
         var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
 
+        // Ensure the file exists
+        await _fileSystem.WriteAllTextAsync(filePath, "Initial content");
+
         // Lock the file
-        using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        using (var fs = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
             // Attempt to dispose while the file is locked
             await disposable.DisposeAsync();
         }
 
         // Verify that the file still exists and contains data
-        Assert.That(File.Exists(filePath), Is.True, "CSV file should still exist after failed dispose");
-        var fileContent = await File.ReadAllTextAsync(filePath);
+        Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should still exist after failed dispose");
+        var fileContent = await _fileSystem.ReadAllTextAsync(filePath);
         Assert.That(fileContent, Is.Not.Empty, "CSV file should contain data after failed dispose");
     }
 
@@ -187,23 +202,26 @@ public class CsvReportOutputTests
     public async Task WriteItem_WhenDiskIsFull_HandlesGracefully()
     {
         var mockFileSystem = new Mock<IFileSystem>();
-        mockFileSystem.Setup(fs => fs.AppendAllText(It.IsAny<string>(), It.IsAny<string>()))
+        mockFileSystem.Setup(fs => fs.CreateStreamWriter(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<Encoding>()))
             .Throws(new IOException("Disk full"));
 
+        var csvUtils = new CsvUtils(mockFileSystem.Object);
+
         var csvReportOutput = new CsvReportOutput(_loggerFactory, new ReportOutputHelper(_loggerFactory),
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory), mockFileSystem.Object);
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, mockFileSystem.Object, csvUtils), mockFileSystem.Object, _reportArchiver);
 
         var parameters = CsvReportOutput.CreateParameters(_testFolderPath, _testFileName);
         csvReportOutput.SetParameters(parameters);
         var disposable = csvReportOutput.Initialize(_mockReporter.Object);
 
+        var methodInfo = GetType().GetMethod(nameof(WriteItem_WhenDiskIsFull_HandlesGracefully));
         var methodCallInfo = _methodCallInfoPool.Rent(null, typeof(CsvReportOutputTests),
-            GetType().GetMethod(nameof(WriteItem_WhenDiskIsFull_HandlesGracefully)),
+            methodInfo,
             Array.Empty<Type>(), "TestId", new Dictionary<string, string>());
 
         var methodCallStart = new MethodCallStart(methodCallInfo);
         Assert.DoesNotThrow(() => csvReportOutput.WriteItem(methodCallStart), "WriteItem should handle disk full error gracefully");
 
-        await disposable.DisposeAsync();
+        Assert.ThrowsAsync<IOException>(async () => await disposable.DisposeAsync(), "Dispose should throw IOException when disk is full");
     }
 }
