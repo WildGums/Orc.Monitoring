@@ -7,13 +7,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-
 public class CsvReportWriter
 {
     private readonly TextWriter _writer;
     private readonly IEnumerable<ReportItem> _reportItems;
     private readonly MethodOverrideManager _overrideManager;
-    private readonly HashSet<string> _customColumns;
     private readonly ILogger<CsvReportWriter> _logger;
     private readonly CsvUtils _csvUtils;
 
@@ -32,7 +30,6 @@ public class CsvReportWriter
         _writer = writer;
         _reportItems = reportItems;
         _overrideManager = overrideManager;
-        _customColumns = new HashSet<string>(overrideManager.GetCustomColumns());
         _logger = loggerFactory.CreateLogger<CsvReportWriter>();
         _csvUtils = csvUtils;
     }
@@ -51,16 +48,17 @@ public class CsvReportWriter
         _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV");
     }
 
-    private string EscapeCsvContent(string content)
+    private string EscapeCsvContent(string? content)
     {
         if (string.IsNullOrEmpty(content))
         {
             return string.Empty;
         }
 
+        content = content.Replace("\"", "\"\"");
         if (content.Contains(",") || content.Contains("\"") || content.Contains("\n") || content.Contains("<") || content.Contains(">") || content.Contains("&"))
         {
-            return $"\"{content.Replace("\"", "\"\"")}\"";
+            return $"\"{content}\"";
         }
         return content;
     }
@@ -68,11 +66,11 @@ public class CsvReportWriter
     public async Task WriteReportItemsCsvAsync()
     {
         var headers = GetReportItemHeaders();
-        await _csvUtils.WriteCsvLineAsync(_writer, headers.Select(EscapeCsvContent).ToArray());
+        await _csvUtils.WriteCsvLineAsync(_writer, headers.Cast<string?>().Select(EscapeCsvContent).ToArray());
 
         foreach (var item in PrepareReportItems())
         {
-            var values = headers.Select(h => EscapeCsvContent(item.GetValueOrDefault(h) ?? string.Empty)).ToArray();
+            var values = headers.Select(h => EscapeCsvContent(item.TryGetValue(h, out var value) ? value : null)).ToArray();
             await _csvUtils.WriteCsvLineAsync(_writer, values);
         }
 
@@ -183,8 +181,8 @@ public class CsvReportWriter
     private string[] GetReportItemHeaders()
     {
         var baseHeaders = new[] { "Id", "ParentId", "StartTime", "EndTime", "Report", "ClassName", "MethodName", "FullName", "Duration", "ThreadId", "ParentThreadId", "NestingLevel", "IsStatic", "IsGeneric", "IsExtension" };
-        var parameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys).Distinct().Where(k => !_customColumns.Contains(k));
-        return baseHeaders.Concat(_customColumns).Concat(parameterHeaders).ToArray();
+        var parameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys).Distinct();
+        return baseHeaders.Concat(parameterHeaders).ToArray();
     }
 
     private string DetermineRelationType(ReportItem item)

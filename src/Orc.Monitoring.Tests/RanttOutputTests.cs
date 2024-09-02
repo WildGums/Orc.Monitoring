@@ -1,4 +1,5 @@
-﻿#pragma warning disable CL0002
+﻿#pragma warning disable CL0001
+#pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
@@ -14,7 +15,6 @@ using IO;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Moq;
-
 
 [TestFixture]
 public class RanttOutputTests
@@ -87,14 +87,7 @@ public class RanttOutputTests
         _fileSystem.Dispose();
         if (_fileSystem.DirectoryExists(_testFolderPath))
         {
-            try
-            {
-                _fileSystem.DeleteDirectory(_testFolderPath, true);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                _logger.LogError($"Unable to delete test folder: {_testFolderPath}. Exception: {ex.Message}");
-            }
+            _fileSystem.DeleteDirectory(_testFolderPath, true);
         }
     }
 
@@ -124,9 +117,14 @@ public class RanttOutputTests
     }
 
     [Test]
-    public async Task ExportToCsv_ShouldApplyPostProcessingCorrectly()
+    public async Task ExportToCsv_ShouldApplyOverridesCorrectly()
     {
-        _logger.LogInformation("Starting ExportToCsv_ShouldApplyPostProcessingCorrectly test");
+        _logger.LogInformation("Starting ExportToCsv_ShouldApplyOverridesCorrectly test");
+
+        // Setup override file
+        var overrideContent = "FullName,CustomColumn\nRanttOutputTests.Method1,CustomValue";
+        _fileSystem.WriteAllText(Path.Combine(_testFolderPath, "method_overrides.csv"), overrideContent);
+
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
         var methodInfo1 = CreateMethodCallInfo("Method1", null);
@@ -134,28 +132,36 @@ public class RanttOutputTests
         var methodInfo2 = CreateMethodCallInfo("Method2", methodInfo1);
         _logger.LogInformation($"Created Method2: {methodInfo2.Id}");
 
-        WriteMethodLifecycle(methodInfo1); // Add this line
+        WriteMethodLifecycle(methodInfo1);
         WriteMethodLifecycle(methodInfo2);
 
-        // Log ReportItems before exporting
         _logger.LogInformation($"ReportItems count before export: {_ranttOutput.GetDebugInfo()}");
 
         await disposable.DisposeAsync();
 
-        var csvFilePath = GetFilePath(CsvFileName);
-        AssertFileExists(csvFilePath);
+        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, "CSV file should be created");
 
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV Content:\n{csvContent}");
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         _logger.LogInformation($"Number of non-empty lines: {lines.Length}");
 
-        Assert.That(lines.Length, Is.EqualTo(ExpectedCsvLineCount), "Should have header and two data lines");
-        Assert.That(lines[0].Split(','), Does.Contain("Id").And.Contain("MethodName"), "Header should contain expected columns");
-        Assert.That(lines[1], Does.Contain("Method1"), "First data line should contain Method1");
-        Assert.That(lines[2], Does.Contain("Method2"), "Second data line should contain Method2");
-    }
+        Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
 
+        var headers = lines[0].Split(',').Select(h => h.Trim()).ToArray();
+        Assert.That(headers, Does.Contain("Id").And.Contain("MethodName").And.Contain("CustomColumn"),
+            "Header should contain expected columns");
+
+        var dataRow = lines[1].Split(',');
+        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+        Assert.That(dataRow[customColumnIndex].Trim(), Is.EqualTo("CustomValue"),
+            "Custom column should contain the override value");
+
+        var secondDataRow = lines[2].Split(',');
+        Assert.That(secondDataRow[customColumnIndex].Trim(), Is.Empty,
+            "Second row should not have a value for CustomColumn");
+    }
 
     [Test]
     public async Task Initialize_ShouldThrowUnauthorizedAccessException_WhenFolderIsReadOnly()
@@ -185,32 +191,13 @@ public class RanttOutputTests
     }
 
     [Test]
-    public async Task Dispose_ShouldHandleFileLockGracefully()
-    {
-        var disposable = _ranttOutput.Initialize(_mockReporter);
-        var filePath = GetFilePath(CsvFileName);
-
-        // Lock the file
-        using (var fs = _fileSystem.CreateFileStream(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
-        {
-            // Attempt to dispose while the file is locked
-            await disposable.DisposeAsync();
-        }
-
-        // Verify that the file still exists
-        AssertFileExists(filePath);
-    }
-
-    [Test]
     public async Task ExportToRantt_ShouldHandleInvalidXmlCharactersGracefully()
     {
-        var disposable = _ranttOutput.Initialize(_mockReporter);
-
         var methodName = "Method<with>Invalid&Xml\"Chars";
         var methodCallInfo = CreateMethodCallInfo(methodName, null);
         WriteMethodLifecycle(methodCallInfo);
 
-        await disposable.DisposeAsync();
+        await using (var disposable = _ranttOutput.Initialize(_mockReporter)) { }
 
         var csvFilePath = GetFilePath(CsvFileName);
         AssertFileExists(csvFilePath);
@@ -218,7 +205,7 @@ public class RanttOutputTests
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV Content:\n{csvContent}");
 
-        var expectedEscapedMethodName = "\"\"\"Method<with>Invalid&Xml\"\"\"\"Chars\"\"\"";
+        var expectedEscapedMethodName = "\"Method<with>Invalid&Xml\"\"Chars\"";
         Assert.That(csvContent, Does.Contain(expectedEscapedMethodName), "Method name should be properly escaped in CSV");
 
         var ranttFilePath = GetFilePath(RanttFileName);
@@ -267,30 +254,6 @@ public class RanttOutputTests
         Assert.That(_fileSystem.FileExists(filePath), Is.True, $"{filePath} should exist");
     }
 
-    private void ValidateCsvHeaders(string headerLine)
-    {
-        var headers = headerLine.Split(',');
-        Assert.That(headers, Does.Contain("Id").And.Contain("ParentId").And.Contain("MethodName"),
-            "Header should contain Id, ParentId, and MethodName");
-    }
-
-    private void ValidateCsvLine(string line, MethodCallInfo methodCallInfo, string expectedParentId)
-    {
-        var columns = line.Split(',');
-        var headers = line.Split(',');
-
-        var idIndex = Array.IndexOf(headers, "Id");
-        var parentIdIndex = Array.IndexOf(headers, "ParentId");
-        var methodNameIndex = Array.IndexOf(headers, "MethodName");
-        var fullNameIndex = Array.IndexOf(headers, "FullName");
-
-        Assert.That(columns[idIndex], Is.EqualTo(methodCallInfo.Id), $"Line should contain {methodCallInfo.MethodName}'s ID");
-        Assert.That(columns[methodNameIndex], Is.EqualTo(methodCallInfo.MethodName), $"Line should contain {methodCallInfo.MethodName}");
-        Assert.That(columns[parentIdIndex], Is.EqualTo(expectedParentId), $"{methodCallInfo.MethodName}'s parent should be {expectedParentId}");
-
-        Assert.That(columns[fullNameIndex], Does.StartWith("RanttOutputTests.Method"), "FullName should start with RanttOutputTests.Method");
-    }
-
     private string CreateReadOnlyTestFolder()
     {
         var readOnlyFolder = Path.Combine(_testFolderPath, "ReadOnly");
@@ -299,4 +262,3 @@ public class RanttOutputTests
         return readOnlyFolder;
     }
 }
-

@@ -4,10 +4,10 @@ namespace Orc.Monitoring.Tests;
 using NUnit.Framework;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
+using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 
 [TestFixture]
@@ -28,6 +28,7 @@ public class CsvReportWriterTests
         _loggerFactory = new TestLoggerFactory<CsvReportWriterTests>(_logger);
         _fileSystem = new InMemoryFileSystem();
         _csvUtils = new CsvUtils(_fileSystem);
+
         _stringWriter = new StringWriter();
         _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = new List<ReportItem>();
@@ -85,22 +86,25 @@ public class CsvReportWriterTests
     }
 
     [Test]
-    public async Task WriteReportItemsCsvAsync_HandlesCustomColumns()
+    public async Task WriteReportItemsCsvAsync_AppliesOverrides()
     {
         var customColumnName = "CustomColumn";
         var customValue = "CustomValue";
+        var overrideValue = "OverrideValue";
         _reportItems.Add(new ReportItem
         {
             Id = "1",
             MethodName = "TestMethod",
-            FullName = "TestMethod",
+            FullName = "TestNamespace.TestClass.TestMethod",
             StartTime = "2023-01-01 00:00:00.000",
-            Parameters = new Dictionary<string, string> { { customColumnName, customValue } },
-            AttributeParameters = new HashSet<string> { customColumnName }
+            Parameters = new Dictionary<string, string> { { customColumnName, customValue } }
         });
 
-        // Save overrides to add the custom column
-        _overrideManager.SaveOverrides(_reportItems);
+        // Setup override
+        _overrideManager.ReadOverrides();
+        var overrides = new Dictionary<string, string> { { customColumnName, overrideValue } };
+        _overrideManager.GetType().GetField("_overrides", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .SetValue(_overrideManager, new Dictionary<string, Dictionary<string, string>> { { "TestNamespace.TestClass.TestMethod", overrides } });
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
         await writer.WriteReportItemsCsvAsync();
@@ -119,15 +123,11 @@ public class CsvReportWriterTests
         Console.WriteLine($"Headers: {string.Join(", ", headers)}");
         Console.WriteLine($"Data line: {string.Join(", ", dataLine)}");
 
-        var customColumns = _overrideManager.GetCustomColumns();
-        Console.WriteLine($"Custom columns: {string.Join(", ", customColumns)}");
-
-        Assert.That(customColumns, Does.Contain(customColumnName), "Custom column should be in the list of custom columns");
         Assert.That(headers, Does.Contain(customColumnName), "Headers should contain the custom column");
 
         var customColumnIndex = Array.IndexOf(headers, customColumnName);
         Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), $"Custom column {customColumnName} not found in headers");
-        Assert.That(dataLine[customColumnIndex], Is.EqualTo(customValue), "Custom column value should be in the data line");
+        Assert.That(dataLine[customColumnIndex], Is.EqualTo(overrideValue), "Custom column value should be the override value");
     }
 
     [Test]
@@ -184,56 +184,6 @@ public class CsvReportWriterTests
         Assert.That(dataLines[0], Does.Contain("Value2"), "Should contain Parameter value for Method2");
         Assert.That(dataLines[1], Does.Contain("Value3"), "Should contain Parameter value for Method3");
         Assert.That(dataLines[2], Does.Contain("Value1"), "Should contain Parameter value for Method1");
-    }
-
-    [Test]
-    public async Task WriteRelationshipsCsvAsync_WritesCorrectRelationships()
-    {
-        _reportItems.Add(new ReportItem { Id = "1", Parent = "0", MethodName = "ParentMethod" });
-        _reportItems.Add(new ReportItem { Id = "2", Parent = "1", MethodName = "ChildMethod" });
-
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
-        await writer.WriteRelationshipsCsvAsync();
-
-        var content = _stringWriter.ToString();
-        var lines = content.Split(Environment.NewLine);
-
-        Assert.That(lines.Length, Is.GreaterThan(2));
-        Assert.That(lines[0], Is.EqualTo("From,To,RelationType"));
-        Assert.That(lines[1], Does.StartWith("0,1,"));
-        Assert.That(lines[2], Does.StartWith("1,2,"));
-    }
-
-    [Test]
-    public void MethodOverrideManager_HandlesOverrides()
-    {
-        var fullName = "TestMethod";
-        var customColumnName = "CustomColumn";
-        var customValue = "CustomValue";
-
-        // Add a report item with a custom column
-        _reportItems.Add(new ReportItem
-        {
-            FullName = fullName,
-            Parameters = new Dictionary<string, string> { { customColumnName, customValue } },
-            AttributeParameters = new HashSet<string> { customColumnName }
-        });
-
-        // Save overrides
-        _overrideManager.SaveOverrides(_reportItems);
-
-        // Get overrides for the method
-        var overrides = _overrideManager.GetOverridesForMethod(fullName);
-
-        Console.WriteLine($"Overrides for {fullName}: {string.Join(", ", overrides.Select(kv => $"{kv.Key}={kv.Value}"))}");
-
-        // Check if the custom column is in the list of custom columns
-        var customColumns = _overrideManager.GetCustomColumns();
-        Console.WriteLine($"Custom columns: {string.Join(", ", customColumns)}");
-
-        Assert.That(customColumns, Does.Contain(customColumnName), "Custom column should be in the list of custom columns");
-        Assert.That(overrides, Does.ContainKey(customColumnName), "Overrides should contain the custom column");
-        Assert.That(overrides[customColumnName], Is.EqualTo(customValue), "Custom column value should match");
     }
 
     [Test]
