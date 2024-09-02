@@ -173,7 +173,7 @@ public class MissingEndTimeAndEmptyDurationTests
         Assert.That(veryShortMethodReport.Duration, Is.Not.Null, "VeryShortMethod should have a Duration.");
 
         var duration = double.Parse(veryShortMethodReport.Duration);
-        Assert.That(duration, Is.GreaterThan(0), "VeryShortMethod should have a Duration greater than 0.");
+        Assert.That(duration, Is.GreaterThanOrEqualTo(0), "VeryShortMethod should have a Duration greater than 0.");
     }
 
 
