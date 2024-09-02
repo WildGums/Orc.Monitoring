@@ -19,6 +19,7 @@ public class PerformanceMonitorTests
     private TestLoggerFactory<PerformanceMonitorTests> _loggerFactory;
     private IMonitoringController _monitoringController;
     private IPerformanceMonitor _performanceMonitor;
+    private IClassMonitorFactory _classMonitorFactory;
 
     [SetUp]
     public void Setup()
@@ -29,9 +30,11 @@ public class PerformanceMonitorTests
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         var methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         var methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, methodCallInfoPool);
+        _classMonitorFactory = new ClassMonitorFactory(_monitoringController, _loggerFactory, methodCallContextFactory, methodCallInfoPool);
+
         _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
             (config) => new CallStack(_monitoringController, config, methodCallInfoPool, _loggerFactory),
-            (type, callStack, config) => new ClassMonitor(_monitoringController, type, callStack, config, _loggerFactory, methodCallContextFactory, methodCallInfoPool),
+            _classMonitorFactory,
             () => new ConfigurationBuilder(_monitoringController));
 
         _performanceMonitor.Reset();

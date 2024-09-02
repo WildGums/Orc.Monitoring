@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class CsvReportWriterSpecialCharactersTests
@@ -70,7 +71,7 @@ public class CsvReportWriterSpecialCharactersTests
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
 
         var dataLine = lines[1];
-        Console.WriteLine($"Data line: {dataLine}");
+        _logger.LogInformation($"Data line: {dataLine}");
 
         Assert.That(dataLine, Does.Contain("\"Method,With,Commas\""), "Method name with commas should be quoted");
         Assert.That(dataLine, Does.Contain("\"Class.Method,With,Commas\""), "Full name with commas should be quoted");

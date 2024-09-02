@@ -16,7 +16,7 @@ public class PerformanceMonitor : IPerformanceMonitor
     private readonly IMonitoringController _monitoringController;
     private readonly IMonitoringLoggerFactory _loggerFactory;
     private readonly Func<MonitoringConfiguration, CallStack> _callStackFactory;
-    private readonly Func<Type, CallStack, MonitoringConfiguration, ClassMonitor> _classMonitorFactory;
+    private readonly IClassMonitorFactory _classMonitorFactory;
     private readonly Func<ConfigurationBuilder> _configurationBuilderFactory;
     private readonly object _configLock = new object();
     private CallStack? _callStack;
@@ -24,7 +24,9 @@ public class PerformanceMonitor : IPerformanceMonitor
     private readonly ILogger _logger;
 
     public PerformanceMonitor(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory,
-        Func<MonitoringConfiguration, CallStack> callStackFactory, Func<Type, CallStack, MonitoringConfiguration, ClassMonitor> classMonitorFactory, Func<ConfigurationBuilder> configurationBuilderFactory)
+        Func<MonitoringConfiguration, CallStack> callStackFactory,
+        IClassMonitorFactory classMonitorFactory,
+        Func<ConfigurationBuilder> configurationBuilderFactory)
     {
         ArgumentNullException.ThrowIfNull(monitoringController);
         ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -143,6 +145,10 @@ public class PerformanceMonitor : IPerformanceMonitor
     private IClassMonitor CreateClassMonitor(Type? callingType)
     {
         ArgumentNullException.ThrowIfNull(callingType);
+        if (_configuration is null)
+        {
+            return _classMonitorFactory.CreateNullClassMonitor();
+        }
 
         if (_configuration is null || _callStack is null)
         {
@@ -153,7 +159,7 @@ public class PerformanceMonitor : IPerformanceMonitor
         _logger.LogDebug($"CreateClassMonitor called for {callingType.Name}");
 
         _logger.LogDebug($"Creating ClassMonitor for {callingType.Name}");
-        return _classMonitorFactory(callingType, _callStack, _configuration);
+        return _classMonitorFactory.CreateClassMonitor(callingType, _callStack, _configuration);
     }
 
     private Type? GetCallingType()

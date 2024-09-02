@@ -16,7 +16,7 @@ public class ClassMonitor : IClassMonitor
     private readonly Type _classType;
     private readonly CallStack _callStack;
     private readonly MonitoringConfiguration _monitoringConfig;
-    private readonly MethodCallContextFactory _methodCallContextFactory;
+    private readonly IMethodCallContextFactory _methodCallContextFactory;
     private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ILogger<ClassMonitor> _logger;
 
@@ -27,7 +27,7 @@ public class ClassMonitor : IClassMonitor
         CallStack? callStack, 
         MonitoringConfiguration monitoringConfig,
         IMonitoringLoggerFactory loggerFactory,
-        MethodCallContextFactory methodCallContextFactory,
+        IMethodCallContextFactory methodCallContextFactory,
         MethodCallInfoPool methodCallInfoPool)
     {
         ArgumentNullException.ThrowIfNull(monitoringController);

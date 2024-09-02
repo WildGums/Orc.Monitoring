@@ -9,7 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class MonitoringIntegrationTests
@@ -21,6 +21,7 @@ public class MonitoringIntegrationTests
     private IPerformanceMonitor _performanceMonitor;
     private MethodCallInfoPool _methodCallInfoPool;
     private MethodCallContextFactory _methodCallContextFactory;
+    private IClassMonitorFactory _classMonitorFactory;
 
     [SetUp]
     public void Setup()
@@ -31,9 +32,11 @@ public class MonitoringIntegrationTests
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
+        _classMonitorFactory = new ClassMonitorFactory(_monitoringController, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
+
         _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
             (config) => new CallStack(_monitoringController, config, _methodCallInfoPool, _loggerFactory),
-            (type, callStack, config) => new ClassMonitor(_monitoringController, type, callStack, config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool),
+            _classMonitorFactory,
             () => new ConfigurationBuilder(_monitoringController));
 
         _mockReporter = new MockReporter(_loggerFactory)
@@ -142,12 +145,12 @@ public class MonitoringIntegrationTests
     public void VersionChanges_AreReflectedInMonitoring()
     {
         var initialVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"Initial Version: {initialVersion}");
+        _logger.LogInformation($"Initial Version: {initialVersion}");
 
         _monitoringController.EnableReporter(typeof(MockReporter));
         Task.Delay(50).Wait(); // Add a small delay
         var afterFirstEnableVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"After First Enable Version: {afterFirstEnableVersion}");
+        _logger.LogInformation($"After First Enable Version: {afterFirstEnableVersion}");
 
         Assert.That(afterFirstEnableVersion, Is.GreaterThan(initialVersion), "Version should increase after enabling first reporter");
 
@@ -155,22 +158,22 @@ public class MonitoringIntegrationTests
         _monitoringController.Configuration = new MonitoringConfiguration();
         Task.Delay(50).Wait(); // Add a small delay
         var afterConfigChangeVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"After Config Change Version: {afterConfigChangeVersion}");
+        _logger.LogInformation($"After Config Change Version: {afterConfigChangeVersion}");
 
         Assert.That(afterConfigChangeVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after changing configuration");
 
         _monitoringController.EnableReporter(typeof(TestWorkflowReporter));
         Task.Delay(50).Wait(); // Add a small delay
         var finalVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"Final Version: {finalVersion}");
+        _logger.LogInformation($"Final Version: {finalVersion}");
 
         Assert.That(finalVersion, Is.GreaterThan(afterConfigChangeVersion), "Version should increase after enabling second reporter");
 
         var versionHistory = MonitoringDiagnostics.GetVersionHistory();
-        Console.WriteLine("Version History:");
+        _logger.LogInformation("Version History:");
         foreach (var change in versionHistory)
         {
-            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+            _logger.LogInformation($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
         }
 
         Assert.That(versionHistory, Has.Count.GreaterThanOrEqualTo(3), "Should have at least 3 version changes");

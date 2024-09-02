@@ -3,11 +3,13 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Reporters;
 using Reporters.ReportOutputs;
 
 public class ComplexWorkflowSimulation
 {
+    private readonly ILogger<ComplexWorkflowSimulation> _logger;
     private readonly IClassMonitor _monitor;
     private readonly Random _random = new Random();
     private readonly string _outputFolder;
@@ -31,6 +33,7 @@ public class ComplexWorkflowSimulation
         _monitoringController = monitoringController;
         _methodCallInfoPool = methodCallInfoPool;
         _loggerFactory = loggerFactory;
+        _logger = loggerFactory.CreateLogger<ComplexWorkflowSimulation>();
 
         _monitor = _performanceMonitor.ForClass<ComplexWorkflowSimulation>();
         _reporterFactory = new TestWorkflowReporterFactory(_monitoringController, _methodCallInfoPool, _loggerFactory);
@@ -61,7 +64,7 @@ public class ComplexWorkflowSimulation
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error during workflow execution: {ex}");
+            _logger.LogError($"Error during workflow execution: {ex}");
             context.LogException(ex);
         }
         finally
@@ -81,7 +84,7 @@ public class ComplexWorkflowSimulation
 
                 await Task.Delay(_random.Next(100, 500));
                 SubProcessCount++;
-                Console.WriteLine($"SubProcess_{i} completed");
+                _logger.LogInformation($"SubProcess_{i} completed");
             }
         }
     }

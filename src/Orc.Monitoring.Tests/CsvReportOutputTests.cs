@@ -121,7 +121,7 @@ public class CsvReportOutputTests
         Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should be created");
 
         var fileContent = await _fileSystem.ReadAllTextAsync(filePath);
-        Console.WriteLine($"File content:\n{fileContent}");
+        _logger.LogInformation($"File content:\n{fileContent}");
         Assert.That(fileContent, Does.Contain("TestId"), "File should contain the TestId");
         Assert.That(fileContent, Does.Contain(nameof(WriteItem_AddsItemToReport)), "File should contain the method name");
     }

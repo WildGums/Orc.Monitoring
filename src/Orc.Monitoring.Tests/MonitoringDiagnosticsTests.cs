@@ -4,14 +4,18 @@ using NUnit.Framework;
 using System;
 using System.Linq;
 using System.Threading;
-
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class MonitoringDiagnosticsTests
 {
+    private ILogger<MonitoringDiagnosticsTests> _logger;
+
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MonitoringDiagnosticsTests>();
+
         MonitoringDiagnostics.ClearVersionHistory();
     }
 
@@ -100,19 +104,19 @@ public class MonitoringDiagnosticsTests
         var time3 = DateTime.UtcNow;
 
         var history = MonitoringDiagnostics.GetVersionHistory().ToList();
-        Console.WriteLine($"Version History:");
+        _logger.LogInformation($"Version History:");
         foreach (var record in history)
         {
-            Console.WriteLine($"  {record.Timestamp}: {record.OldVersion} -> {record.NewVersion}");
+            _logger.LogInformation($"  {record.Timestamp}: {record.OldVersion} -> {record.NewVersion}");
         }
 
         var foundVersion1 = MonitoringDiagnostics.FindVersionAtTime(time1);
         var foundVersion2 = MonitoringDiagnostics.FindVersionAtTime(time2);
         var foundVersion3 = MonitoringDiagnostics.FindVersionAtTime(time3);
 
-        Console.WriteLine($"Time1: {time1}, FoundVersion1: {foundVersion1?.NewVersion}");
-        Console.WriteLine($"Time2: {time2}, FoundVersion2: {foundVersion2?.NewVersion}");
-        Console.WriteLine($"Time3: {time3}, FoundVersion3: {foundVersion3?.NewVersion}");
+        _logger.LogInformation($"Time1: {time1}, FoundVersion1: {foundVersion1?.NewVersion}");
+        _logger.LogInformation($"Time2: {time2}, FoundVersion2: {foundVersion2?.NewVersion}");
+        _logger.LogInformation($"Time3: {time3}, FoundVersion3: {foundVersion3?.NewVersion}");
 
         // time1 might be before the first version change, so it could be null
         Assert.That(foundVersion1?.NewVersion, Is.Null.Or.EqualTo(version2), "First version should be null or version2");

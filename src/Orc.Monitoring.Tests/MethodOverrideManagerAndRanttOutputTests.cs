@@ -9,9 +9,7 @@ using Moq;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
-using System.Reflection;
 using Microsoft.Extensions.Logging;
 
 [TestFixture]
@@ -24,25 +22,19 @@ public class MethodOverrideManagerAndRanttOutputTests
     private TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests> _loggerFactory;
     private IMonitoringController _monitoringController;
     private MethodCallInfoPool _methodCallInfoPool;
+#pragma warning disable IDISP006
     private InMemoryFileSystem _fileSystem;
+#pragma warning restore IDISP006
     private ReportArchiver _reportArchiver;
     private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
     {
-        _fileSystem = new InMemoryFileSystem();
-        _csvUtils = new CsvUtils(_fileSystem);
-        _reportArchiver = new ReportArchiver(_fileSystem);
-        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        _fileSystem.CreateDirectory(_testOutputPath);
-
-        _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
-        _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
-        _logger = new TestLogger<MethodOverrideManagerAndRanttOutputTests>();
-        _loggerFactory = new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
-        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        InitializeFileSystem();
+        InitializeLogger();
+        InitializeMonitoringController();
+        InitializePaths();
 
         _monitoringController.Enable();
     }
@@ -61,7 +53,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     public async Task RanttOutput_WithOverrides_ShouldUseOverridesFromCsvFile()
     {
         // Arrange
-        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.Test.Method,OverrideValue";
+        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.Test.Method(),OverrideValue";
         await _fileSystem.WriteAllTextAsync(_overrideFilePath, csvContent);
         _logger.LogInformation($"Override file content: {csvContent}");
 
@@ -113,6 +105,35 @@ public class MethodOverrideManagerAndRanttOutputTests
         Assert.That(templateContent, Does.Contain("FullName,IsStatic,IsExtension"), "Template should contain only standard columns");
         Assert.That(templateContent, Does.Not.Contain("CustomColumn"), "Template should not contain custom columns");
         Assert.That(templateContent, Does.Not.Contain("CustomValue"), "Template should not contain custom values");
+    }
+
+    private void InitializeFileSystem()
+    {
+#pragma warning disable IDISP003
+        _fileSystem = new InMemoryFileSystem();
+#pragma warning restore IDISP003
+        _csvUtils = new CsvUtils(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem);
+    }
+
+    private void InitializeLogger()
+    {
+        _logger = new TestLogger<MethodOverrideManagerAndRanttOutputTests>();
+        _loggerFactory = new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger);
+    }
+
+    private void InitializeMonitoringController()
+    {
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+    }
+
+    private void InitializePaths()
+    {
+        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _fileSystem.CreateDirectory(_testOutputPath);
+        _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
+        _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
     }
 
     private RanttOutput CreateRanttOutput()

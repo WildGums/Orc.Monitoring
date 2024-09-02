@@ -457,7 +457,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public async Task<string[]> ReadAllLinesAsync(string path)
     {
         var contents = await ReadAllTextAsync(path);
-        return contents.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+        return contents.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
     }
 
     public Task WriteAllTextAsync(string path, string contents)

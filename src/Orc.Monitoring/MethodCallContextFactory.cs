@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 
-public class MethodCallContextFactory
+public class MethodCallContextFactory : IMethodCallContextFactory
 {
     private readonly IMonitoringController _monitoringController;
     private readonly IMonitoringLoggerFactory _loggerFactory;
@@ -20,6 +20,8 @@ public class MethodCallContextFactory
         _loggerFactory = loggerFactory;
         _methodCallInfoPool = methodCallInfoPool;
     }
+
+    internal static MethodCallContextFactory Instance { get; } = new MethodCallContextFactory(MonitoringController.Instance, MonitoringLoggerFactory.Instance, MethodCallInfoPool.Instance);
 
     public MethodCallContext GetDummyMethodCallContext()
     {

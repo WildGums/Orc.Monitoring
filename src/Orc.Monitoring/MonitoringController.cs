@@ -47,6 +47,8 @@ public class MonitoringController : IMonitoringController
         _logger = loggerFactory.CreateLogger(typeof(MonitoringController));
     }
 
+    public static IMonitoringController Instance { get; } = new MonitoringController(MonitoringLoggerFactory.Instance, () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance));
+
     public MonitoringConfiguration Configuration
     {
         get => _configuration;

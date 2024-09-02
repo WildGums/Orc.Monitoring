@@ -10,7 +10,7 @@ public sealed class MonitoringLoggerFactory : IMonitoringLoggerFactory, IDisposa
 
     private readonly Dictionary<Type, ILogger> _loggers = new();
 
-    public static MonitoringLoggerFactory Instance { get; } = new MonitoringLoggerFactory();
+    internal static MonitoringLoggerFactory Instance { get; } = new MonitoringLoggerFactory();
 
     public MonitoringLoggerFactory()
     {

@@ -110,18 +110,18 @@ public class CsvReportWriterTests
         await writer.WriteReportItemsCsvAsync();
 
         var content = _stringWriter.ToString();
-        Console.WriteLine($"CSV Content:\n{content}");
+        _logger.LogInformation($"CSV Content:\n{content}");
 
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        Console.WriteLine($"Number of lines: {lines.Length}");
+        _logger.LogInformation($"Number of lines: {lines.Length}");
 
         Assert.That(lines.Length, Is.GreaterThanOrEqualTo(2), "CSV content should contain at least header and data line");
 
         var headers = lines[0].Split(',');
         var dataLine = lines[1].Split(',');
 
-        Console.WriteLine($"Headers: {string.Join(", ", headers)}");
-        Console.WriteLine($"Data line: {string.Join(", ", dataLine)}");
+        _logger.LogInformation($"Headers: {string.Join(", ", headers)}");
+        _logger.LogInformation($"Data line: {string.Join(", ", dataLine)}");
 
         Assert.That(headers, Does.Contain(customColumnName), "Headers should contain the custom column");
 
@@ -171,7 +171,7 @@ public class CsvReportWriterTests
         await writer.WriteReportItemsCsvAsync();
 
         var content = _stringWriter.ToString();
-        Console.WriteLine($"CSV Content:\n{content}");
+        _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(4), "Should have header and 3 data lines");
@@ -205,7 +205,7 @@ public class CsvReportWriterTests
         await writer.WriteReportItemsCsvAsync();
 
         var content = _stringWriter.ToString();
-        Console.WriteLine($"CSV Content:\n{content}");
+        _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");

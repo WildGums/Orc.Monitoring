@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class RanttOutputLimitableTests
@@ -95,7 +96,7 @@ public class RanttOutputLimitableTests
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         var lines = await _fileSystem.ReadAllLinesAsync(filePath);
 
-        Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
+        _logger.LogInformation($"File content:\n{string.Join("\n", lines)}");
 
         Assert.That(lines.Length, Is.EqualTo(6), "Expected 6 lines (header + 5 items)");
         Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
@@ -119,7 +120,7 @@ public class RanttOutputLimitableTests
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         var lines = await _fileSystem.ReadAllLinesAsync(filePath);
 
-        Console.WriteLine($"File content:\n{string.Join("\n", lines)}");
+        _logger.LogInformation($"File content:\n{string.Join("\n", lines)}");
 
         Assert.That(lines.Length, Is.EqualTo(11), "Expected 11 lines (header + 10 items)");
         Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");

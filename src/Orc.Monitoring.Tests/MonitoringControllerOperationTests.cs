@@ -5,6 +5,7 @@ using NUnit.Framework;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Reporters;
 
 [TestFixture]
@@ -106,14 +107,14 @@ public class MonitoringControllerOperationTests
     public void ShouldTrack_DuringOperation_UsesOperationVersion()
     {
         _monitoringController.Enable();
-        Console.WriteLine($"Test start - IsEnabled: {_monitoringController.IsEnabled}");
+        _logger.LogInformation($"Test start - IsEnabled: {_monitoringController.IsEnabled}");
 
         var initialVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"Initial version: {initialVersion}");
+        _logger.LogInformation($"Initial version: {initialVersion}");
 
         using (_monitoringController.BeginOperation(out var operationVersion))
         {
-            Console.WriteLine($"Operation version: {operationVersion}");
+            _logger.LogInformation($"Operation version: {operationVersion}");
             Assert.That(operationVersion, Is.EqualTo(initialVersion), "Operation version should initially match the current version");
 
             // ShouldTrack should return true for the operation version initially
@@ -121,12 +122,12 @@ public class MonitoringControllerOperationTests
 
             Thread.Sleep(10); // Ensure a new timestamp for the next version
 
-            Console.WriteLine($"Before enabling reporter - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
+            _logger.LogInformation($"Before enabling reporter - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
             _monitoringController.EnableReporter(typeof(MockReporter)); // This should update the version
-            Console.WriteLine($"After enabling reporter - MockReporter enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
+            _logger.LogInformation($"After enabling reporter - MockReporter enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
 
             var currentVersion = _monitoringController.GetCurrentVersion();
-            Console.WriteLine($"Current version after EnableReporter: {currentVersion}");
+            _logger.LogInformation($"Current version after EnableReporter: {currentVersion}");
 
             Assert.That(currentVersion, Is.GreaterThan(initialVersion), "Version should increment after enabling reporter");
 
@@ -146,11 +147,11 @@ public class MonitoringControllerOperationTests
         // Outside the operation, ShouldTrack should return true for the current version
         Assert.That(_monitoringController.ShouldTrack(_monitoringController.GetCurrentVersion()), Is.True, "Should track for current version outside operation");
 
-        Console.WriteLine("Printing version history:");
+        _logger.LogInformation("Printing version history:");
         var versionHistory = MonitoringDiagnostics.GetVersionHistory();
         foreach (var change in versionHistory)
         {
-            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+            _logger.LogInformation($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
         }
     }
 

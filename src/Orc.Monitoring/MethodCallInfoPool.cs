@@ -24,6 +24,8 @@ public class MethodCallInfoPool
         _logger = loggerFactory.CreateLogger<MethodCallInfoPool>();
     }
 
+    internal static MethodCallInfoPool Instance { get; } = new MethodCallInfoPool(MonitoringController.Instance, MonitoringLoggerFactory.Instance);
+
     public MethodCallInfo Rent(IClassMonitor? classMonitor, Type callerType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {

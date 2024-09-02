@@ -4,6 +4,7 @@ using NUnit.Framework;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Reporters;
 
 [TestFixture]
@@ -47,14 +48,14 @@ public class MonitoringControllerShouldTrackTests
     {
         _monitoringController.Enable();
         var oldVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"Old version: {oldVersion}");
+        _logger.LogInformation($"Old version: {oldVersion}");
 
         // Add a small delay to ensure version change
         Thread.Sleep(10);
 
         _monitoringController.EnableReporter(typeof(MockReporter)); // This will update the version
         var newVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"New version: {newVersion}");
+        _logger.LogInformation($"New version: {newVersion}");
 
         Assert.That(oldVersion, Is.LessThan(newVersion), "New version should be greater than old version");
         Assert.That(_monitoringController.ShouldTrack(oldVersion), Is.False, "Should not track older version");
@@ -117,36 +118,36 @@ public class MonitoringControllerShouldTrackTests
     {
         _monitoringController.Enable(); // Ensure monitoring is enabled
         var version = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"Initial version: {version}");
+        _logger.LogInformation($"Initial version: {version}");
 
         var result1 = _monitoringController.ShouldTrack(version);
-        Console.WriteLine($"First ShouldTrack result: {result1}");
+        _logger.LogInformation($"First ShouldTrack result: {result1}");
 
         Assert.That(result1, Is.True, "Initial ShouldTrack should return true");
 
         _monitoringController.EnableReporter(typeof(MockReporter)); // This should update the version
         var newVersion = _monitoringController.GetCurrentVersion();
-        Console.WriteLine($"New version after enabling reporter: {newVersion}");
+        _logger.LogInformation($"New version after enabling reporter: {newVersion}");
 
         var result2 = _monitoringController.ShouldTrack(version);
-        Console.WriteLine($"Second ShouldTrack result (with old version): {result2}");
+        _logger.LogInformation($"Second ShouldTrack result (with old version): {result2}");
 
         Assert.That(result2, Is.False, "ShouldTrack should return false for the old version after a version change");
 
         var result3 = _monitoringController.ShouldTrack(newVersion);
-        Console.WriteLine($"Third ShouldTrack result (with new version): {result3}");
+        _logger.LogInformation($"Third ShouldTrack result (with new version): {result3}");
 
         Assert.That(result3, Is.True, "ShouldTrack should return true for the new version");
 
         var versionHistory = MonitoringDiagnostics.GetVersionHistory();
-        Console.WriteLine("Version History:");
+        _logger.LogInformation("Version History:");
         foreach (var change in versionHistory)
         {
-            Console.WriteLine($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
+            _logger.LogInformation($"  {change.Timestamp}: {change.OldVersion} -> {change.NewVersion}");
         }
 
-        Console.WriteLine($"Is Monitoring Enabled: {_monitoringController.IsEnabled}");
-        Console.WriteLine($"Is MockReporter Enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
+        _logger.LogInformation($"Is Monitoring Enabled: {_monitoringController.IsEnabled}");
+        _logger.LogInformation($"Is MockReporter Enabled: {_monitoringController.IsReporterEnabled(typeof(MockReporter))}");
     }
 
     [Test]

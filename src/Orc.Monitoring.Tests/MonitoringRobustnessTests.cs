@@ -17,6 +17,7 @@ public class MonitoringRobustnessTests
     private IPerformanceMonitor _performanceMonitor;
     private MethodCallInfoPool _methodCallInfoPool;
     private MethodCallContextFactory _methodCallContextFactory;
+    private IClassMonitorFactory _classMonitorFactory;
 
     [SetUp]
     public void Setup()
@@ -26,10 +27,11 @@ public class MonitoringRobustnessTests
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
+        _classMonitorFactory = new ClassMonitorFactory(_monitoringController, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
         _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
             (config) => new CallStack(_monitoringController, config, _methodCallInfoPool, _loggerFactory),
-            (type, callStack, config) => new ClassMonitor(_monitoringController, type, callStack, config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool),
+            _classMonitorFactory,
             () => new ConfigurationBuilder(_monitoringController));
 
         // Ensure monitoring is not configured
