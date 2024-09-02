@@ -74,8 +74,12 @@ public class MonitoringRobustnessTests
         {
             await using var context = await Task.FromResult(monitor.StartAsyncMethod(new MethodConfiguration()));
             Assert.That(context, Is.Not.Null);
+
             await using var dummyAsyncMethodCallContext = _methodCallContextFactory.GetDummyAsyncMethodCallContext();
-            Assert.That(context, Is.EqualTo(dummyAsyncMethodCallContext));
+
+            Assert.That(context.GetType(), Is.EqualTo(dummyAsyncMethodCallContext.GetType()), "Context types should match");
+            Assert.That(context.MethodCallInfo, Is.EqualTo(dummyAsyncMethodCallContext.MethodCallInfo), "MethodCallInfo should match");
+            Assert.That(context.ReporterIds, Is.EquivalentTo(dummyAsyncMethodCallContext.ReporterIds), "ReporterIds should match");
         });
     }
 

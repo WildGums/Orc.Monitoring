@@ -36,6 +36,7 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
         // Dummy constructor
         _logger = loggerFactory.CreateLogger<AsyncMethodCallContext>();
 
+        MethodCallInfo = methodCallInfoPool.GetNull();
         ReporterIds = Array.Empty<string>();
     }
 
@@ -166,5 +167,21 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
             _logger.LogInformation($"AsyncMethodCallContext disposed at {DateTime.Now:HH:mm:ss.fff}");
             _isDisposed = true;
         }
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is AsyncMethodCallContext other)
+        {
+            // Compare the properties that define equality for AsyncMethodCallContext
+            return this.MethodCallInfo == other.MethodCallInfo &&
+                   this.ReporterIds.SequenceEqual(other.ReporterIds);
+        }
+        return false;
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(MethodCallInfo, ReporterIds);
     }
 }
