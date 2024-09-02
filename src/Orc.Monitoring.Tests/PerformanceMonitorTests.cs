@@ -20,20 +20,26 @@ public class PerformanceMonitorTests
     private IMonitoringController _monitoringController;
     private IPerformanceMonitor _performanceMonitor;
     private IClassMonitorFactory _classMonitorFactory;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private MethodCallContextFactory _methodCallContextFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<PerformanceMonitorTests>();
         _loggerFactory = new TestLoggerFactory<PerformanceMonitorTests>(_logger);
-
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
-        var methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
-        var methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, methodCallInfoPool);
-        _classMonitorFactory = new ClassMonitorFactory(_monitoringController, _loggerFactory, methodCallContextFactory, methodCallInfoPool);
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
-        _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
-            (config) => new CallStack(_monitoringController, config, methodCallInfoPool, _loggerFactory),
+        _classMonitorFactory = new ClassMonitorFactory(_monitoringController, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
+
+        var callStackFactory = new CallStackFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
+
+        _performanceMonitor = new PerformanceMonitor(
+            _monitoringController,
+            _loggerFactory,
+            callStackFactory,
             _classMonitorFactory,
             () => new ConfigurationBuilder(_monitoringController));
 
@@ -266,9 +272,9 @@ public class PerformanceMonitorTests
 
     private CallStack? GetCallStackInstance()
     {
-        var field = typeof(PerformanceMonitor).GetField("_callStack", BindingFlags.NonPublic | BindingFlags.Static);
-        var callStack = field?.GetValue(null) as CallStack;
-        _logger.LogDebug($"GetCallStackInstance returned: {callStack}");
+        var field = typeof(PerformanceMonitor).GetField("_callStack", BindingFlags.NonPublic | BindingFlags.Instance);
+        var callStack = field?.GetValue(_performanceMonitor) as CallStack;
+        _logger.LogDebug($"GetCallStackInstance returned: {callStack?.GetType().Name ?? "null"}");
         return callStack;
     }
 }

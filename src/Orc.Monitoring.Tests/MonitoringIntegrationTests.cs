@@ -22,6 +22,7 @@ public class MonitoringIntegrationTests
     private MethodCallInfoPool _methodCallInfoPool;
     private MethodCallContextFactory _methodCallContextFactory;
     private IClassMonitorFactory _classMonitorFactory;
+    private ICallStackFactory _callStackFactory;
 
     [SetUp]
     public void Setup()
@@ -33,9 +34,10 @@ public class MonitoringIntegrationTests
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
         _classMonitorFactory = new ClassMonitorFactory(_monitoringController, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
+        _callStackFactory = new CallStackFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
         _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
-            (config) => new CallStack(_monitoringController, config, _methodCallInfoPool, _loggerFactory),
+            _callStackFactory,
             _classMonitorFactory,
             () => new ConfigurationBuilder(_monitoringController));
 

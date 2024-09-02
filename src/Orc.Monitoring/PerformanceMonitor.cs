@@ -15,7 +15,7 @@ public class PerformanceMonitor : IPerformanceMonitor
 {
     private readonly IMonitoringController _monitoringController;
     private readonly IMonitoringLoggerFactory _loggerFactory;
-    private readonly Func<MonitoringConfiguration, CallStack> _callStackFactory;
+    private readonly ICallStackFactory _callStackFactory;
     private readonly IClassMonitorFactory _classMonitorFactory;
     private readonly Func<ConfigurationBuilder> _configurationBuilderFactory;
     private readonly object _configLock = new object();
@@ -23,17 +23,13 @@ public class PerformanceMonitor : IPerformanceMonitor
     private MonitoringConfiguration? _configuration;
     private readonly ILogger _logger;
 
-    public PerformanceMonitor(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory,
-        Func<MonitoringConfiguration, CallStack> callStackFactory,
+    public PerformanceMonitor(
+        IMonitoringController monitoringController,
+        IMonitoringLoggerFactory loggerFactory,
+        ICallStackFactory callStackFactory,
         IClassMonitorFactory classMonitorFactory,
         Func<ConfigurationBuilder> configurationBuilderFactory)
     {
-        ArgumentNullException.ThrowIfNull(monitoringController);
-        ArgumentNullException.ThrowIfNull(loggerFactory);
-        ArgumentNullException.ThrowIfNull(callStackFactory);
-        ArgumentNullException.ThrowIfNull(classMonitorFactory);
-        ArgumentNullException.ThrowIfNull(configurationBuilderFactory);
-
         _monitoringController = monitoringController;
         _loggerFactory = loggerFactory;
         _callStackFactory = callStackFactory;
@@ -73,7 +69,7 @@ public class PerformanceMonitor : IPerformanceMonitor
 
                 _logger.LogDebug("Creating CallStack instance");
 
-                _callStack = _callStackFactory(_configuration);
+                _callStack = _callStackFactory.CreateCallStack(_configuration);
 
                 _logger.LogInformation($"CallStack instance created: {_callStack is not null}");
 
@@ -91,48 +87,6 @@ public class PerformanceMonitor : IPerformanceMonitor
         }
     }
 
-    public void LogCurrentConfiguration()
-    {
-        var config = GetCurrentConfiguration();
-        if (config is not null)
-        {
-            _logger.LogInformation($"Current configuration: Reporters: {string.Join(", ", config.ReporterTypes.Select(r => r.Name))}, " +
-                                  $"Filters: {string.Join(", ", config.Filters.Select(f => f.GetType().Name))}, " +
-                                  $"TrackedAssemblies: {string.Join(", ", config.TrackedAssemblies.Select(a => a.GetName().Name))}");
-        }
-        else
-        {
-            _logger.LogWarning("Current configuration is null");
-        }
-    }
-
-    private void EnableDefaultOutputTypes(ConfigurationBuilder builder)
-    {
-        var outputTypes = new[]
-        {
-            typeof(RanttOutput),
-            typeof(TxtReportOutput),
-        };
-
-        foreach (var outputType in outputTypes)
-        {
-            try
-            {
-                builder.SetOutputTypeState(outputType, true);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error enabling output type {outputType.Name}");
-            }
-        }
-    }
-
-    public IClassMonitor ForCurrentClass()
-    {
-        var callingType = GetCallingType();
-        return CreateClassMonitor(callingType);
-    }
-
     public IClassMonitor ForClass<T>()
     {
         _logger.LogDebug($"PerformanceMonitor.ForClass<{typeof(T).Name}> called");
@@ -142,18 +96,19 @@ public class PerformanceMonitor : IPerformanceMonitor
         return monitor;
     }
 
+    public IClassMonitor ForCurrentClass()
+    {
+        var callingType = GetCallingType();
+        return CreateClassMonitor(callingType);
+    }
+
     private IClassMonitor CreateClassMonitor(Type? callingType)
     {
         ArgumentNullException.ThrowIfNull(callingType);
-        if (_configuration is null)
-        {
-            return _classMonitorFactory.CreateNullClassMonitor();
-        }
-
         if (_configuration is null || _callStack is null)
         {
             _logger.LogWarning("MonitoringConfiguration or CallStack is null.");
-            throw new InvalidOperationException("MonitoringConfiguration or CallStack is null.");
+            return _classMonitorFactory.CreateNullClassMonitor();
         }
 
         _logger.LogDebug($"CreateClassMonitor called for {callingType.Name}");
@@ -168,7 +123,44 @@ public class PerformanceMonitor : IPerformanceMonitor
         return frame.GetMethod()?.DeclaringType;
     }
 
-    // Method to reset the configuration and CallStack if needed
+    public void LogCurrentConfiguration()
+    {
+        lock (_configLock)
+        {
+            if (_configuration is null)
+            {
+                _logger.LogWarning("Configuration is null");
+                return;
+            }
+
+            _logger.LogInformation("Current configuration:");
+            _logger.LogInformation($"IsGloballyEnabled: {_configuration.IsGloballyEnabled}");
+            _logger.LogInformation("Tracked Assemblies:");
+            foreach (var assembly in _configuration.TrackedAssemblies)
+            {
+                _logger.LogInformation(assembly.FullName);
+            }
+
+            _logger.LogInformation("OutputTypeStates:");
+            foreach (var (key, value) in _configuration.OutputTypeStates)
+            {
+                _logger.LogInformation($"{key.Name}: {value}");
+            }
+
+            _logger.LogInformation("Filters:");
+            foreach (var filter in _configuration.Filters)
+            {
+                _logger.LogInformation(filter.GetType().Name);
+            }
+
+            _logger.LogInformation("ReporterTypes:");
+            foreach (var reporterType in _configuration.ReporterTypes)
+            {
+                _logger.LogInformation(reporterType.Name);
+            }
+        }
+    }
+
     public void Reset()
     {
         lock (_configLock)
@@ -181,7 +173,6 @@ public class PerformanceMonitor : IPerformanceMonitor
         }
     }
 
-    // Method to check if PerformanceMonitor is configured
     public bool IsConfigured
     {
         get
@@ -192,6 +183,5 @@ public class PerformanceMonitor : IPerformanceMonitor
         }
     }
 
-    // Method to get the current configuration (if needed)
     public MonitoringConfiguration? GetCurrentConfiguration() => _configuration;
 }
