@@ -29,6 +29,10 @@ public class MonitoringIntegrationTests
     {
         _logger = new TestLogger<MonitoringIntegrationTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringIntegrationTests>(_logger);
+        _loggerFactory.EnableLoggingFor<VersionManager>();
+        _loggerFactory.EnableLoggingFor<MockReporter>();
+        _loggerFactory.EnableLoggingFor<TestWorkflowReporter>();
+        _loggerFactory.EnableLoggingFor<MonitoringController>();
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
@@ -143,9 +147,12 @@ public class MonitoringIntegrationTests
     }
 
 
-    [Test, Retry(3)] // Retry up to 3 times
+    [Test, Repeat(3)]
     public void VersionChanges_AreReflectedInMonitoring()
     {
+        // Clear the version history before starting the test
+        MonitoringDiagnostics.ClearVersionHistory();
+
         var initialVersion = _monitoringController.GetCurrentVersion();
         _logger.LogInformation($"Initial Version: {initialVersion}");
 
