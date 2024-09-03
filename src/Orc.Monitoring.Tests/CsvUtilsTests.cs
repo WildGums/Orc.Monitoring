@@ -19,7 +19,8 @@ public class CsvUtilsTests
     public void Setup()
     {
         _logger = new TestLogger<CsvUtilsTests>();
-        _fileSystem = new InMemoryFileSystem();
+        var loggerFactoty = new TestLoggerFactory<CsvUtilsTests>(_logger);
+        _fileSystem = new InMemoryFileSystem(loggerFactoty);
         _csvUtils = new CsvUtils(_fileSystem);
         _testFilePath = Path.GetTempFileName();
     }

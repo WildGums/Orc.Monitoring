@@ -1,23 +1,32 @@
-﻿namespace Orc.Monitoring.Tests;
-
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring;
 using Orc.Monitoring.IO;
+#pragma warning disable IDISP007
+#pragma warning disable CL0001
+#pragma warning disable IDISP001
 
 public class InMemoryFileSystem : IFileSystem, IDisposable
 {
-    private readonly Dictionary<string, InMemoryFile> _files = new Dictionary<string, InMemoryFile>();
+    private readonly ILogger<InMemoryFileSystem> _logger;
+    private readonly ConcurrentDictionary<string, InMemoryFile> _files = new ConcurrentDictionary<string, InMemoryFile>();
     private readonly HashSet<string> _directories = new HashSet<string>();
     private readonly Dictionary<string, FileAttributes> _directoryAttributes = new Dictionary<string, FileAttributes>();
+    private readonly ConcurrentDictionary<string, object> _fileLocks = new ConcurrentDictionary<string, object>();
+    private readonly object _fileLock = new object();
 
     private bool _disposed;
 
-    public InMemoryFileSystem()
+    public InMemoryFileSystem(IMonitoringLoggerFactory loggerFactory)
     {
+        _logger = loggerFactory.CreateLogger<InMemoryFileSystem>();
+
         _directories.Add("/");
     }
 
@@ -31,80 +40,119 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         var normalizedPath = NormalizePath(path);
         var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
 
-        // Check if the directory is read-only
-        if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
-            (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+        _logger.LogInformation("Writing text to file at path: {Path}", path);
+
+        lock (_fileLock)
         {
-            throw new UnauthorizedAccessException("Access to the path is denied.");
-        }
-
-        // Check if the file is read-only
-        if (_files.TryGetValue(normalizedPath, out var existingFile) &&
-            (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-        {
-            throw new UnauthorizedAccessException("Access to the path is denied.");
-        }
-
-        EnsureDirectoryExists(directoryPath);
-
-        using (var stream = new MemoryStream())
-        using (var writer = new StreamWriter(stream, Encoding.UTF8, 1024, true))
-        {
-            writer.Write(contents);
-            writer.Flush();
-            stream.Position = 0;
-
-            _files[normalizedPath] = new InMemoryFile
+            if (_fileLocks.ContainsKey(normalizedPath))
             {
-                Contents = new MemoryStream(stream.ToArray()),
-                Attributes = FileAttributes.Normal
-            };
+                _logger.LogError("File is being used by another process: {Path}", path);
+                throw new IOException("The process cannot access the file because it is being used by another process.");
+            }
+
+            // Check if the directory is read-only
+            if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
+                (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                _logger.LogError("Access to the path is denied (directory is read-only): {Path}", path);
+                throw new UnauthorizedAccessException("Access to the path is denied.");
+            }
+
+            // Check if the file is read-only
+            if (_files.TryGetValue(normalizedPath, out var existingFile) &&
+                (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                _logger.LogError("Access to the path is denied (file is read-only): {Path}", path);
+                throw new UnauthorizedAccessException("Access to the path is denied.");
+            }
+
+            EnsureDirectoryExists(directoryPath);
+
+            _fileLocks[normalizedPath] = new object();
+
+            try
+            {
+                // Convert to bytes to preserve original line endings
+                byte[] contentBytes = Encoding.UTF8.GetBytes(contents);
+
+                _files[normalizedPath] = new InMemoryFile
+                {
+                    Contents = new MemoryStream(contentBytes),
+                    Attributes = FileAttributes.Normal
+                };
+
+                _logger.LogInformation("Successfully wrote text to file at path: {Path}", path);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to write text to file at path: {Path}", path);
+                throw;
+            }
+            finally
+            {
+                lock (_fileLock)
+                {
+                    _fileLocks.TryRemove(normalizedPath, out _);
+                }
+            }
         }
     }
 
     public string ReadAllText(string path)
     {
         var normalizedPath = NormalizePath(path);
-        if (!_files.ContainsKey(normalizedPath))
-            throw new FileNotFoundException("File not found", path);
 
-        var file = _files[normalizedPath];
-        file.Contents.Position = 0;
-#pragma warning disable IDISP004
-        using (var reader = new StreamReader(new NonClosingStreamWrapper(file.Contents), Encoding.UTF8, true, 1024, true))
-#pragma warning restore IDISP004
+        _logger.LogInformation("Reading text from file at path: {Path}", path);
+
+        lock (_fileLock)
         {
-            return reader.ReadToEnd();
+            if (!_files.TryGetValue(normalizedPath, out var file))
+            {
+                _logger.LogError("File not found: {Path}", path);
+                throw new FileNotFoundException("File not found", path);
+            }
+
+            file.Contents.Position = 0;
+            using (var reader = new StreamReader(file.Contents, Encoding.UTF8, true, 1024, true))
+            {
+                var content = reader.ReadToEnd();
+                file.Contents.Position = 0; // Reset the position after reading
+                _logger.LogInformation("Successfully read text from file at path: {Path}", path);
+                return content;
+            }
         }
     }
+
 
     public void AppendAllText(string path, string contents)
     {
         var normalizedPath = NormalizePath(path);
         var directoryPath = Path.GetDirectoryName(normalizedPath);
 
-        EnsureDirectoryExists(directoryPath);
-
-        if (!_files.ContainsKey(normalizedPath))
+        lock (_fileLock)
         {
-            WriteAllText(normalizedPath, contents);
-        }
-        else
-        {
-            var existingFile = _files[normalizedPath];
-            var newContents = new MemoryStream();
-            existingFile.Contents.Position = 0;
-            existingFile.Contents.CopyTo(newContents);
-            newContents.Position = newContents.Length;
+            EnsureDirectoryExists(directoryPath);
 
-            using (var writer = new StreamWriter(newContents, Encoding.UTF8, 1024, true))
+            if (!_files.TryGetValue(normalizedPath, out var existingFile))
             {
-                writer.Write(contents);
-                writer.Flush();
+                WriteAllText(normalizedPath, contents);
             }
+            else
+            {
+                var newContents = new MemoryStream();
+                existingFile.Contents.Position = 0;
+                existingFile.Contents.CopyTo(newContents);
+                newContents.Position = newContents.Length;
 
-            existingFile.Contents.Dispose();
-            existingFile.Contents = newContents;
+                using (var writer = new StreamWriter(newContents, Encoding.UTF8, 1024, true))
+                {
+                    writer.Write(contents);
+                    writer.Flush();
+                }
+
+                existingFile.Contents.Dispose();
+                existingFile.Contents = newContents;
+            }
         }
     }
 
@@ -133,13 +181,13 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
             foreach (var file in filesToDelete)
             {
-                _files[file].Dispose();
-                _files.Remove(file);
+                _files.TryRemove(file, out var removedFile);
+                removedFile?.Dispose();
             }
         }
         else
         {
-            if (_directories.Any(d => d.StartsWith(normalizedPath + "/")) || _files.Any(f => f.Key.StartsWith(normalizedPath + "/")))
+            if (_directories.Any(d => d.StartsWith(normalizedPath + "/")) || _files.Keys.Any(f => f.StartsWith(normalizedPath + "/")))
                 throw new IOException("The directory is not empty");
 
             _directories.Remove(normalizedPath);
@@ -182,17 +230,12 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public void SetAttributes(string path, FileAttributes fileAttributes)
     {
         var normalizedPath = NormalizePath(path);
-        if (_files.ContainsKey(normalizedPath))
+        if (_files.TryGetValue(normalizedPath, out var file))
         {
-            _files[normalizedPath].Attributes = fileAttributes;
+            file.Attributes = fileAttributes;
         }
         else if (_directories.Contains(normalizedPath))
         {
-            // For directories, we'll just store the attributes in a new dictionary
-            if (!_directoryAttributes.ContainsKey(normalizedPath))
-            {
-                _directoryAttributes[normalizedPath] = FileAttributes.Directory;
-            }
             _directoryAttributes[normalizedPath] = fileAttributes;
         }
         else
@@ -204,13 +247,13 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public FileAttributes GetAttributes(string path)
     {
         var normalizedPath = NormalizePath(path);
-        if (_files.ContainsKey(normalizedPath))
+        if (_files.TryGetValue(normalizedPath, out var file))
         {
-            return _files[normalizedPath].Attributes;
+            return file.Attributes;
         }
         else if (_directories.Contains(normalizedPath))
         {
-            return FileAttributes.Directory;
+            return _directoryAttributes.TryGetValue(normalizedPath, out var attributes) ? attributes : FileAttributes.Directory;
         }
         else
         {
@@ -232,24 +275,23 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         if (!_files.ContainsKey(normalizedPath))
             throw new FileNotFoundException("File not found", fullPath);
 
-#pragma warning disable IDISP001
         var fileStream = CreateFileStream(normalizedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024, FileOptions.None);
-#pragma warning restore IDISP001
         return new StreamReader(fileStream, Encoding.UTF8, true, 1024, true);
     }
 
     public async Task<string> ReadAllTextAsync(string fullPath)
     {
         var normalizedPath = NormalizePath(fullPath);
-        if (!_files.ContainsKey(normalizedPath))
+        if (!_files.TryGetValue(normalizedPath, out var file))
             throw new FileNotFoundException("File not found", fullPath);
 
-#pragma warning disable IDISP004
-        using (var reader = new StreamReader(new NonClosingStreamWrapper(_files[normalizedPath].Contents), Encoding.UTF8, true, 1024, true))
-#pragma warning restore IDISP004
+        lock (_fileLock)
         {
-            _files[normalizedPath].Contents.Position = 0;
-            return await reader.ReadToEndAsync();
+            file.Contents.Position = 0;
+            using (var reader = new StreamReader(file.Contents, Encoding.UTF8, true, 1024, true))
+            {
+                return reader.ReadToEnd();
+            }
         }
     }
 
@@ -273,7 +315,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         return directories.ToArray();
     }
 
-
     public Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare)
     {
         return CreateFileStream(sourcePath, fileMode, fileAccess, fileShare, 1024, FileOptions.None);
@@ -284,74 +325,103 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         var normalizedPath = NormalizePath(sourcePath);
         var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
 
-        // Check if the directory is read-only
-        if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
-            (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-        {
-            throw new UnauthorizedAccessException("Access to the path is denied.");
-        }
+        _logger.LogInformation("Creating file stream for path: {Path}, FileMode: {FileMode}, FileAccess: {FileAccess}, FileShare: {FileShare}", sourcePath, fileMode, fileAccess, fileShare);
 
-        // Check if the file is read-only
-        if (_files.TryGetValue(normalizedPath, out var existingFile) &&
-            (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly &&
-            (fileAccess & FileAccess.Write) == FileAccess.Write)
+        lock (_fileLock)
         {
-            throw new UnauthorizedAccessException("Access to the path is denied.");
-        }
-
-        EnsureDirectoryExists(directoryPath);
-
-#pragma warning disable IDISP001
-        if (!_files.TryGetValue(normalizedPath, out var file))
-#pragma warning restore IDISP001
-        {
-            if (fileMode == FileMode.Open)
+            if (_fileLocks.ContainsKey(normalizedPath))
             {
-                throw new FileNotFoundException("File not found", sourcePath);
+                if (fileShare == FileShare.None || (fileAccess & FileAccess.Write) == FileAccess.Write)
+                {
+                    _logger.LogError("File is being used by another process: {Path}", sourcePath);
+                    throw new IOException("The process cannot access the file because it is being used by another process.");
+                }
             }
 
-#pragma warning disable IDISP001
-            file = new InMemoryFile
+            // Check if the directory is read-only
+            if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
+                (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
             {
-                Contents = new MemoryStream(),
-                Attributes = FileAttributes.Normal
-            };
-#pragma warning restore IDISP001
-            _files[normalizedPath] = file;
-        }
+                _logger.LogError("Access to the path is denied (directory is read-only): {Path}", sourcePath);
+                throw new UnauthorizedAccessException("Access to the path is denied.");
+            }
 
-        MemoryStream stream;
-        switch (fileMode)
-        {
-            case FileMode.Create:
-            case FileMode.CreateNew:
-            case FileMode.Truncate:
-                stream = new MemoryStream();
-                break;
-            case FileMode.Append:
-                stream = new MemoryStream();
-                file.Contents.Position = 0;
-                file.Contents.CopyTo(stream);
-                stream.Position = stream.Length;
-                break;
-            default:
-                stream = new MemoryStream();
-                file.Contents.Position = 0;
-                file.Contents.CopyTo(stream);
-                stream.Position = 0;
-                break;
-        }
+            // Check if the file is read-only
+            if (_files.TryGetValue(normalizedPath, out var existingFile) &&
+                (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly &&
+                (fileAccess & FileAccess.Write) == FileAccess.Write)
+            {
+                _logger.LogError("Access to the path is denied (file is read-only): {Path}", sourcePath);
+                throw new UnauthorizedAccessException("Access to the path is denied.");
+            }
 
-        file.Contents = stream;
-        return new NonClosingStreamWrapper(stream);
+            EnsureDirectoryExists(directoryPath);
+
+            if (!_files.TryGetValue(normalizedPath, out var file))
+            {
+                if (fileMode == FileMode.Open)
+                {
+                    _logger.LogError("File not found: {Path}", sourcePath);
+                    throw new FileNotFoundException("File not found", sourcePath);
+                }
+
+                file = new InMemoryFile
+                {
+                    Contents = new MemoryStream(),
+                    Attributes = FileAttributes.Normal
+                };
+                _files[normalizedPath] = file;
+            }
+
+            MemoryStream stream;
+            switch (fileMode)
+            {
+                case FileMode.Create:
+                case FileMode.CreateNew:
+                case FileMode.Truncate:
+                    stream = new MemoryStream();
+                    break;
+                case FileMode.Append:
+                    stream = new MemoryStream();
+                    file.Contents.Position = 0;
+                    file.Contents.CopyTo(stream);
+                    stream.Position = stream.Length;
+                    break;
+                default:
+                    // Create a new MemoryStream with the exact content of the file
+                    stream = new MemoryStream();
+                    file.Contents.Position = 0;
+                    file.Contents.CopyTo(stream);
+                    stream.Position = 0;
+                    break;
+            }
+
+            file.Contents = stream;
+
+            if (fileAccess != FileAccess.Read)
+            {
+                _fileLocks[normalizedPath] = new object();
+            }
+
+            _logger.LogInformation("File stream created successfully for path: {Path}", sourcePath);
+
+            return new NonClosingStreamWrapper(stream, () =>
+            {
+                lock (_fileLock)
+                {
+                    _logger.LogInformation("Disposing file stream for path: {Path}", sourcePath);
+                    _fileLocks.TryRemove(normalizedPath, out _);
+                }
+            });
+        }
     }
 
     public void DeleteFile(string path)
     {
         var normalizedPath = NormalizePath(path);
-        if (_files.ContainsKey(normalizedPath))
+        if (_files.TryRemove(normalizedPath, out var file))
         {
-            _files.Remove(normalizedPath);
+            file.Dispose();
         }
         else
         {
@@ -359,9 +429,84 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         }
     }
 
+    public async Task<string[]> ReadAllLinesAsync(string path)
+    {
+        var contents = await ReadAllTextAsync(path);
+        return contents.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+    }
+
+    public Task WriteAllTextAsync(string path, string contents)
+    {
+        WriteAllText(path, contents);
+        return Task.CompletedTask;
+    }
+
+    public void CopyFile(string sourceFileName, string destFileName, bool overwrite)
+    {
+        var sourcePath = NormalizePath(sourceFileName);
+        var destPath = NormalizePath(destFileName);
+
+        lock (_fileLock)
+        {
+            if (!_files.TryGetValue(sourcePath, out var sourceFile))
+                throw new FileNotFoundException("File not found", sourceFileName);
+
+            if (_files.ContainsKey(destPath) && !overwrite)
+                throw new IOException("File already exists");
+
+            var destFile = new InMemoryFile
+            {
+                Contents = new MemoryStream(),
+                Attributes = sourceFile.Attributes
+            };
+
+            sourceFile.Contents.Position = 0;
+            sourceFile.Contents.CopyTo(destFile.Contents);
+            destFile.Contents.Position = 0;
+
+            _files[destPath] = destFile;
+        }
+    }
+
+    public void MoveFile(string sourceFileName, string destFileName)
+    {
+        var sourcePath = NormalizePath(sourceFileName);
+        var destPath = NormalizePath(destFileName);
+
+        lock (_fileLock)
+        {
+            if (!_files.TryRemove(sourcePath, out var sourceFile))
+                throw new FileNotFoundException("File not found", sourceFileName);
+
+            if (_files.ContainsKey(destPath))
+                throw new IOException("File already exists");
+
+            _files[destPath] = sourceFile;
+        }
+    }
+
+    public string[] ReadAllLines(string path)
+    {
+        var contents = ReadAllText(path);
+        return contents.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+    }
+
     private string NormalizePath(string path)
     {
-        return path.Replace("\\", "/").TrimEnd('/');
+        path = path.Replace('\\', '/').TrimEnd('/');
+        var parts = path.Split('/');
+        var normalizedParts = new List<string>();
+
+        foreach (var part in parts)
+        {
+            if (part == "." || string.IsNullOrEmpty(part))
+                continue;
+            if (part == ".." && normalizedParts.Count > 0)
+                normalizedParts.RemoveAt(normalizedParts.Count - 1);
+            else if (part != "..")
+                normalizedParts.Add(part);
+        }
+        return "/" + string.Join("/", normalizedParts);
     }
 
     private void EnsureDirectoryExists(string path)
@@ -384,6 +529,32 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         }
     }
 
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+
+        if (disposing)
+        {
+            foreach (var file in _files.Values)
+            {
+                file.Dispose();
+            }
+            _files.Clear();
+            _directories.Clear();
+            _directoryAttributes.Clear();
+            _fileLocks.Clear();
+        }
+
+        _disposed = true;
+    }
+
     private sealed class InMemoryFile : IDisposable
     {
         public MemoryStream Contents { get; set; }
@@ -391,19 +562,19 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
         public void Dispose()
         {
-#pragma warning disable IDISP007
             Contents?.Dispose();
-#pragma warning restore IDISP007
         }
     }
 
     private class NonClosingStreamWrapper : Stream
     {
         private readonly Stream _baseStream;
+        private readonly Action _onDispose;
 
-        public NonClosingStreamWrapper(Stream baseStream)
+        public NonClosingStreamWrapper(Stream baseStream, Action onDispose)
         {
             _baseStream = baseStream;
+            _onDispose = onDispose;
         }
 
         public override bool CanRead => _baseStream.CanRead;
@@ -425,75 +596,11 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
         protected override void Dispose(bool disposing)
         {
-            // Do not dispose the base stream
+            if (disposing)
+            {
+                _onDispose?.Invoke();
+            }
             base.Dispose(disposing);
         }
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-        if (_disposed)
-            return;
-
-        if (disposing)
-        {
-            foreach (var file in _files.Values)
-            {
-                file.Dispose();
-            }
-            _files.Clear();
-            _directories.Clear();
-        }
-
-        _disposed = true;
-    }
-
-    public async Task<string[]> ReadAllLinesAsync(string path)
-    {
-        var contents = await ReadAllTextAsync(path);
-        return contents.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries);
-    }
-
-    public Task WriteAllTextAsync(string path, string contents)
-    {
-        WriteAllText(path, contents);
-        return Task.CompletedTask;
-    }
-
-    public void CopyFile(string sourceFileName, string destFileName, bool overwrite)
-    {
-        var sourcePath = NormalizePath(sourceFileName);
-        var destPath = NormalizePath(destFileName);
-
-        if (!_files.ContainsKey(sourcePath))
-            throw new FileNotFoundException("File not found", sourceFileName);
-
-        if (_files.ContainsKey(destPath) && !overwrite)
-            throw new IOException("File already exists");
-
-        var sourceFile = _files[sourcePath];
-        var destFile = new InMemoryFile
-        {
-            Contents = new MemoryStream(),
-            Attributes = sourceFile.Attributes
-        };
-
-        sourceFile.Contents.Position = 0;
-        sourceFile.Contents.CopyTo(destFile.Contents);
-        destFile.Contents.Position = 0;
-
-        _files[destPath] = destFile;
-    }
-
-    public string[] ReadAllLines(string path)
-    {
-        var contents = ReadAllText(path);
-        return contents.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
     }
 }

@@ -26,7 +26,7 @@ public class CsvReportWriterTests
     {
         _logger = new TestLogger<CsvReportWriterTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportWriterTests>(_logger);
-        _fileSystem = new InMemoryFileSystem();
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
 
         _stringWriter = new StringWriter();

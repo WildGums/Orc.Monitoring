@@ -63,7 +63,7 @@ public class RanttOutputTests
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         _mockReporter = new MockReporter(_loggerFactory) { Name = TestReporterName, FullName = TestReporterName };
 #pragma warning disable IDISP003
-        _fileSystem = new InMemoryFileSystem();
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
 #pragma warning restore IDISP003
         _csvUtils = new CsvUtils(_fileSystem);
         _reportArchiver = new ReportArchiver(_fileSystem);

@@ -35,7 +35,7 @@ public class RanttOutputPostProcessingTests
     {
         _logger = new TestLogger<RanttOutputPostProcessingTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputPostProcessingTests>(_logger);
-        _fileSystem = new InMemoryFileSystem();
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
         _reportArchiver = new ReportArchiver(_fileSystem);
         _testOutputPath = CreateTestOutputPath();

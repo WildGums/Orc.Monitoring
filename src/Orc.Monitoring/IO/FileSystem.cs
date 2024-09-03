@@ -94,4 +94,9 @@ public class FileSystem : IFileSystem
     {
         File.Copy(sourceFileName, destFileName, overwrite);
     }
+
+    public void MoveFile(string sourceFileName, string destFileName)
+    {
+        File.Move(sourceFileName, destFileName);
+    }
 }

@@ -32,4 +32,6 @@ public interface IFileSystem
     Task WriteAllTextAsync(string path, string contents);
     void CopyFile(string sourceFileName, string destFileName, bool overwrite);
     string[] ReadAllLines(string path);
+
+    void MoveFile(string sourceFileName, string destFileName);
 }

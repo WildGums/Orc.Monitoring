@@ -23,7 +23,7 @@ public class MethodOverrideManagerTests
     {
         _logger = new TestLogger<MethodOverrideManagerTests>();
         _loggerFactory = new TestLoggerFactory<MethodOverrideManagerTests>(_logger);
-        _fileSystem = new InMemoryFileSystem();
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

@@ -25,7 +25,7 @@ public class ReportArchiverTests
     {
         _logger = new TestLogger<ReportArchiverTests>();
         _loggerFactory = new TestLoggerFactory<ReportArchiverTests>(_logger);
-        _fileSystem = new InMemoryFileSystem();
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _reportArchiver = new ReportArchiver(_fileSystem);
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         _fileSystem.CreateDirectory(_testFolderPath);

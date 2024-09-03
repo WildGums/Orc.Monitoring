@@ -29,7 +29,7 @@ public class TxtReportOutputLimitableTests
     {
         _logger = new TestLogger<TxtReportOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<TxtReportOutputLimitableTests>(_logger);
-        _fileSystem = new InMemoryFileSystem();
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _reportArchiver = new ReportArchiver(_fileSystem);
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);

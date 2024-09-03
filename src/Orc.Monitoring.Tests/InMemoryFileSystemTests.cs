@@ -6,16 +6,21 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class InMemoryFileSystemTests
 {
     private InMemoryFileSystem _fileSystem;
+    private TestLogger<InMemoryFileSystemTests> _logger;
 
     [SetUp]
     public void SetUp()
     {
-        _fileSystem = new InMemoryFileSystem();
+        _logger = new TestLogger<InMemoryFileSystemTests>();
+        var loggerFactory = new TestLoggerFactory<InMemoryFileSystemTests>(_logger);
+        loggerFactory.EnableLoggingFor<InMemoryFileSystem>();
+        _fileSystem = new InMemoryFileSystem(loggerFactory);
     }
 
     [TearDown]
@@ -204,6 +209,182 @@ public class InMemoryFileSystemTests
         var files = _fileSystem.GetFiles("/myDir", "*.log");
 
         Assert.That(files.Length, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void LargeFile_ReadWrite_ShouldWork()
+    {
+        var filePath = "/largefile.txt";
+        var largeContent = new string('a', 10_000_000); // 10 MB string
+
+        _fileSystem.WriteAllText(filePath, largeContent);
+        var readContent = _fileSystem.ReadAllText(filePath);
+
+        Assert.That(readContent.Length, Is.EqualTo(largeContent.Length));
+        Assert.That(readContent, Is.EqualTo(largeContent));
+    }
+
+    [Test]
+    public void FileLocking_ShouldPreventConcurrentWrites()
+    {
+        var filePath = "/locked.txt";
+        _fileSystem.WriteAllText(filePath, "Initial content");
+
+        Exception caughtException = null;
+        using (var stream = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.Write, FileShare.Read))
+        {
+            try
+            {
+                _fileSystem.WriteAllText(filePath, "New content");
+            }
+            catch (Exception ex)
+            {
+                caughtException = ex;
+            }
+        }
+
+        Assert.That(caughtException, Is.TypeOf<IOException>());
+        Assert.That(_fileSystem.ReadAllText(filePath), Is.EqualTo("Initial content"));
+    }
+
+    [Test]
+    public void PathNormalization_ShouldHandleDifferentFormats()
+    {
+        _fileSystem.WriteAllText("/folder/file.txt", "content");
+
+        Assert.That(_fileSystem.FileExists("/folder/file.txt"), Is.True);
+        Assert.That(_fileSystem.FileExists("\\folder\\file.txt"), Is.True);
+        Assert.That(_fileSystem.FileExists("/folder/../folder/./file.txt"), Is.True);
+    }
+
+    [Test]
+    public void ReadNonExistentFile_ShouldThrowFileNotFoundException()
+    {
+        Assert.Throws<FileNotFoundException>(() => _fileSystem.ReadAllText("/nonexistent.txt"));
+    }
+
+    [Test]
+    public void WriteToReadOnlyFile_ShouldThrowUnauthorizedAccessException()
+    {
+        var filePath = "/readonly.txt";
+        _fileSystem.WriteAllText(filePath, "Initial content");
+        _fileSystem.SetAttributes(filePath, FileAttributes.ReadOnly);
+
+        Assert.Throws<UnauthorizedAccessException>(() => _fileSystem.WriteAllText(filePath, "New content"));
+    }
+
+    [Test]
+    public void MoveFile_ShouldWork()
+    {
+        var sourcePath = "/source.txt";
+        var destPath = "/dest.txt";
+        _fileSystem.WriteAllText(sourcePath, "content");
+
+        _fileSystem.MoveFile(sourcePath, destPath);
+
+        Assert.That(_fileSystem.FileExists(sourcePath), Is.False);
+        Assert.That(_fileSystem.FileExists(destPath), Is.True);
+        Assert.That(_fileSystem.ReadAllText(destPath), Is.EqualTo("content"));
+    }
+
+    [Test]
+    public void FileStream_PartialReadWrite_ShouldWork()
+    {
+        var filePath = "/stream.txt";
+        var content = "Hello, World!";
+
+        using (var stream = _fileSystem.CreateFileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            var bytes = Encoding.UTF8.GetBytes(content);
+            stream.Write(bytes, 0, bytes.Length);
+        }
+
+        using (var stream = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var buffer = new byte[5];
+            var bytesRead = stream.Read(buffer, 0, 5);
+            Assert.That(bytesRead, Is.EqualTo(5));
+            Assert.That(Encoding.UTF8.GetString(buffer), Is.EqualTo("Hello"));
+        }
+    }
+
+    [Test]
+    public void EmptyFile_ShouldBeHandledCorrectly()
+    {
+        var filePath = "/empty.txt";
+        _fileSystem.WriteAllText(filePath, string.Empty);
+
+        Assert.That(_fileSystem.FileExists(filePath), Is.True);
+        Assert.That(_fileSystem.ReadAllText(filePath), Is.Empty);
+    }
+
+    [Test]
+    public void VeryLongFileName_ShouldBeHandled()
+    {
+        var longFileName = new string('a', 255) + ".txt";
+        var filePath = "/" + longFileName;
+
+        Assert.DoesNotThrow(() => _fileSystem.WriteAllText(filePath, "content"));
+        Assert.That(_fileSystem.FileExists(filePath), Is.True);
+    }
+
+    [Test]
+    public void WriteAndReadFile_ShouldReturnSameContent()
+    {
+        // Arrange
+        var filePath = "/testfile.txt";
+        var content = "Hello, this is a test content!";
+
+        // Act
+        _fileSystem.WriteAllText(filePath, content);
+        var readContent = _fileSystem.ReadAllText(filePath);
+
+        // Assert
+        Assert.That(readContent, Is.EqualTo(content), "The content read from the file should match the content written to it.");
+
+        // Additional Checks
+        Assert.That(_fileSystem.FileExists(filePath), Is.True, "The file should exist after writing.");
+
+        // Check file contents using a stream
+        using (var stream = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            Assert.That(stream.Length, Is.EqualTo(content.Length), "The file length should match the content length.");
+
+            var buffer = new byte[content.Length];
+            var bytesRead = stream.Read(buffer, 0, buffer.Length);
+            Assert.That(bytesRead, Is.EqualTo(content.Length), "The number of bytes read should match the content length.");
+
+            var streamContent = Encoding.UTF8.GetString(buffer);
+            Assert.That(streamContent, Is.EqualTo(content), "The content read from the stream should match the original content.");
+        }
+
+        _logger.LogInformation($"Successfully wrote and read file: {filePath}");
+        _logger.LogInformation($"Content length: {content.Length}");
+    }
+
+    [Test]
+    public void WriteAndReadFile_WithVariousContentTypes_ShouldWork()
+    {
+        var testCases = new[]
+        {
+            ("Empty string", string.Empty),
+            ("Empty string multiline", "\n\n\n"),
+            ("Short string", "Hello"),
+            ("Long string", new string('a', 1000000)),
+            ("String with special characters", "Line 1\nLine 2\rTab\tQuote\"Backslash\\"),
+            ("Unicode characters", "こんにちは世界"),
+        };
+
+        foreach (var (description, content) in testCases)
+        {
+            var filePath = $"/test_{description.Replace(" ", "_")}.txt";
+
+            _fileSystem.WriteAllText(filePath, content);
+            var readContent = _fileSystem.ReadAllText(filePath);
+
+            Assert.That(readContent, Is.EqualTo(content), $"Failed for case: {description}");
+            _logger.LogInformation($"Passed: {description}, Length: {content.Length}");
+        }
     }
 }
 
