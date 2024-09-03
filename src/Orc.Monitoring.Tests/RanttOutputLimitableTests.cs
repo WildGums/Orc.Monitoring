@@ -31,6 +31,8 @@ public class RanttOutputLimitableTests
     {
         _logger = new TestLogger<RanttOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputLimitableTests>(_logger);
+        _loggerFactory.EnableLoggingFor<ReportOutputHelper>();
+        _loggerFactory.EnableLoggingFor<RanttOutput>();
         _fileSystem = new InMemoryFileSystem();
         _csvUtils = new CsvUtils(_fileSystem);
         _reportArchiver = new ReportArchiver(_fileSystem);
@@ -94,13 +96,23 @@ public class RanttOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
-        var lines = await _fileSystem.ReadAllLinesAsync(filePath);
+        Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should be created");
 
-        _logger.LogInformation($"File content:\n{string.Join("\n", lines)}");
+        var fileContent = await _fileSystem.ReadAllTextAsync(filePath);
+        _logger.LogInformation($"File content:\n{fileContent}");
+        var lines = fileContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        _logger.LogInformation($"Number of non-empty lines: {lines.Length}");
 
-        Assert.That(lines.Length, Is.EqualTo(6), "Expected 6 lines (header + 5 items)");
+        Assert.That(lines.Length, Is.EqualTo(6), "Should have header and five data lines");
+
+        // Log each line for debugging
+        for (int i = 0; i < lines.Length; i++)
+        {
+            _logger.LogInformation($"Line {i}: {lines[i]}");
+        }
+
         Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
-        Assert.That(lines.Skip(1).Count(), Is.EqualTo(5), "Should have 5 items");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(5), "Should have 5 data lines");
     }
 
     [Test]

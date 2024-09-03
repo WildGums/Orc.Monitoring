@@ -87,9 +87,10 @@ public class ReportOutputHelper
             // Update existing item
             existingItem.EndTime = item.EndTime;
             existingItem.Duration = item.Duration;
+            existingItem.Parameters = item.Parameters;
+            existingItem.AttributeParameters = item.AttributeParameters;
             _logger.LogInformation($"Updated existing ReportItem: {item.MethodName}, Id: {item.Id}");
         }
-        ApplyLimits();
     }
 
     private ReportItem ProcessStart(MethodCallStart start)
@@ -124,28 +125,43 @@ public class ReportOutputHelper
 
         if (string.IsNullOrEmpty(id))
         {
-            _logger.LogWarning("Method call ID is null or empty");
-            return null;
+            _logger.LogWarning("Method call ID is null or empty. Attempting to find matching item by method name.");
+            var matchingItem = _reportItems.FirstOrDefault(item => item.MethodName == methodCallInfo.MethodName);
+            if (matchingItem is not null)
+            {
+                id = matchingItem.Id;
+                _logger.LogInformation($"Found matching item with Id: {id}");
+            }
+            else
+            {
+                _logger.LogWarning("No matching item found. Creating a new item.");
+                id = Guid.NewGuid().ToString();
+            }
         }
 
         var reportItem = _reportItems.FirstOrDefault(item => item.Id == id);
-        if (reportItem is not null)
+        if (reportItem is null)
         {
-            var endTime = end.TimeStamp;
-            LastEndTime = endTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
-            reportItem.EndTime = LastEndTime;
-            reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1");
-            reportItem.Parameters = methodCallInfo.Parameters ?? new Dictionary<string, string>();
-            reportItem.AttributeParameters = methodCallInfo.AttributeParameters ?? new HashSet<string>();
-
-            ParameterNames.UnionWith(reportItem.Parameters.Keys);
-
-            _logger.LogDebug($"Updated report item: {reportItem.MethodName}, StartTime: {reportItem.StartTime}, EndTime: {reportItem.EndTime}, Duration: {reportItem.Duration}ms");
+            _logger.LogInformation($"Creating new report item for method call ID {id}.");
+            reportItem = new ReportItem
+            {
+                Id = id,
+                MethodName = methodCallInfo.MethodName,
+                StartTime = methodCallInfo.StartTime.ToString("yyyy-MM-dd HH:mm:ss.fff")
+            };
+            _reportItems.Add(reportItem);
         }
-        else
-        {
-            _logger.LogWarning($"No report item found for method call ID {id}");
-        }
+
+        var endTime = end.TimeStamp;
+        LastEndTime = endTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
+        reportItem.EndTime = LastEndTime;
+        reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1");
+        reportItem.Parameters = methodCallInfo.Parameters ?? new Dictionary<string, string>();
+        reportItem.AttributeParameters = methodCallInfo.AttributeParameters ?? new HashSet<string>();
+
+        ParameterNames.UnionWith(reportItem.Parameters.Keys);
+
+        _logger.LogDebug($"Updated report item: {reportItem.MethodName}, Id: {reportItem.Id}, StartTime: {reportItem.StartTime}, EndTime: {reportItem.EndTime}, Duration: {reportItem.Duration}ms");
 
         return reportItem;
     }
@@ -169,6 +185,8 @@ public class ReportOutputHelper
 
         ParameterNames.UnionWith(reportItem.Parameters.Keys);
         Gaps.Add(reportItem);
+
+        _logger.LogInformation($"Processed gap: Duration: {reportItem.Duration}ms");
 
         return reportItem;
     }

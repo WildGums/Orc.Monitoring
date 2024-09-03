@@ -232,10 +232,12 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             }
 
             var itemsToWrite = processedItems.Count > 0 ? processedItems : sortedItems;
-            // Ensure there's at least one item if the test added one
-            if (itemsToWrite.Count == 0 && _helper.ReportItems.Count > 0)
+
+            // Apply the item limit here
+            if (_limitOptions.MaxItems.HasValue)
             {
-                itemsToWrite = _helper.ReportItems.ToList();
+                itemsToWrite = itemsToWrite.Take(_limitOptions.MaxItems.Value).ToList();
+                _logger.LogInformation($"Applied limit: Writing {itemsToWrite.Count} items");
             }
 
             var itemsWithOverrides = itemsToWrite.Select(item =>
