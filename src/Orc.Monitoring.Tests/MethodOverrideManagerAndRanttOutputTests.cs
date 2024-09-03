@@ -31,8 +31,8 @@ public class MethodOverrideManagerAndRanttOutputTests
     [SetUp]
     public void Setup()
     {
-        InitializeFileSystem();
         InitializeLogger();
+        InitializeFileSystem();
         InitializeMonitoringController();
         InitializePaths();
 
@@ -120,6 +120,11 @@ public class MethodOverrideManagerAndRanttOutputTests
     {
         _logger = new TestLogger<MethodOverrideManagerAndRanttOutputTests>();
         _loggerFactory = new TestLoggerFactory<MethodOverrideManagerAndRanttOutputTests>(_logger);
+
+        _loggerFactory.EnableLoggingFor<RanttOutput>();
+        _loggerFactory.EnableLoggingFor<ReportOutputHelper>();
+        _loggerFactory.EnableLoggingFor<MethodOverrideManager>();
+        _loggerFactory.EnableLoggingFor<InMemoryFileSystem>();
     }
 
     private void InitializeMonitoringController()
@@ -141,7 +146,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         var ranttOutput = new RanttOutput(_loggerFactory,
             () => new EnhancedDataPostProcessor(_loggerFactory),
             new ReportOutputHelper(_loggerFactory),
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
+            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils),
             _fileSystem,
             _reportArchiver);
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
