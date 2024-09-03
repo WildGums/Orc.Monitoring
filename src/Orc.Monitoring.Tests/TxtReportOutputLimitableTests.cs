@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class TxtReportOutputLimitableTests
@@ -29,6 +30,7 @@ public class TxtReportOutputLimitableTests
     {
         _logger = new TestLogger<TxtReportOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<TxtReportOutputLimitableTests>(_logger);
+        _loggerFactory.EnableLoggingFor<TxtReportOutput>();
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
@@ -112,6 +114,34 @@ public class TxtReportOutputLimitableTests
         var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
         var lines = await _fileSystem.ReadAllLinesAsync(filePath);
         Assert.That(lines.Length, Is.EqualTo(10), "Should have all 10 items");
+    }
+
+    [Test]
+    public async Task WriteItem_DoesNotAddEmptyLineAtEnd()
+    {
+        var mockReporter = new Mock<IMethodCallReporter>();
+        mockReporter.Setup(r => r.Name).Returns("TestReporter");
+        mockReporter.Setup(r => r.RootMethod).Returns((MethodInfo)null);
+        await using (var disposable = _txtReportOutput.Initialize(mockReporter.Object))
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var item = CreateTestMethodLifeCycleItem($"Item{i}", DateTime.Now.AddMinutes(-i));
+                _txtReportOutput.WriteItem(item);
+            }
+        }
+
+        var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
+        var content = await _fileSystem.ReadAllTextAsync(filePath);
+
+        _logger.LogInformation($"File content:\n{content}");
+
+        Assert.That(content, Is.Not.Empty, "TXT file should not be empty");
+        Assert.That(content, Does.Not.EndWith("\n"), "TXT file should not end with an empty line");
+
+        var lines = content.Split('\n');
+        Assert.That(lines.Length, Is.EqualTo(3), "Should have exactly 3 lines");
+        Assert.That(lines[2], Does.Not.EndWith("\n"), "Last line should not end with a newline");
     }
 
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)

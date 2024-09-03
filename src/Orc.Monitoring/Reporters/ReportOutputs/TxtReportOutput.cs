@@ -241,10 +241,20 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Writing {limitedEntries.Count} entries to file:");
             await using (var writer = _fileSystem.CreateStreamWriter(_fileName, false, Encoding.UTF8))
             {
-                foreach (var entry in limitedEntries)
+                for (int i = 0; i < limitedEntries.Count; i++)
                 {
+                    var entry = limitedEntries[i];
                     var line = $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Category}] {entry.Message}";
-                    await writer.WriteLineAsync(line);
+
+                    if (i == limitedEntries.Count - 1)
+                    {
+                        // For the last entry, write without a newline
+                        await writer.WriteAsync(line);
+                    }
+                    else
+                    {
+                        await writer.WriteLineAsync(line);
+                    }
                     _logger.LogInformation($"Writing entry: {line}");
                 }
             }
