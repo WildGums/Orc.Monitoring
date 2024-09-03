@@ -1,23 +1,24 @@
-﻿using System;
+﻿#pragma warning disable IDISP007
+#pragma warning disable CL0001
+#pragma warning disable IDISP001
+namespace Orc.Monitoring.Tests;
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using IO;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring;
-using Orc.Monitoring.IO;
-#pragma warning disable IDISP007
-#pragma warning disable CL0001
-#pragma warning disable IDISP001
 
 public class InMemoryFileSystem : IFileSystem, IDisposable
 {
     private readonly ILogger<InMemoryFileSystem> _logger;
-    private readonly ConcurrentDictionary<string, InMemoryFile> _files = new ConcurrentDictionary<string, InMemoryFile>();
-    private readonly HashSet<string> _directories = new HashSet<string>();
-    private readonly Dictionary<string, FileAttributes> _directoryAttributes = new Dictionary<string, FileAttributes>();
+    private readonly ConcurrentDictionary<string, InMemoryFile> _files = new ConcurrentDictionary<string, InMemoryFile>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, FileAttributes> _directoryAttributes = new Dictionary<string, FileAttributes>(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, object> _fileLocks = new ConcurrentDictionary<string, object>();
     private readonly object _fileLock = new object();
 
@@ -26,7 +27,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public InMemoryFileSystem(IMonitoringLoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<InMemoryFileSystem>();
-
         _directories.Add("/");
     }
 
@@ -50,7 +50,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 throw new IOException("The process cannot access the file because it is being used by another process.");
             }
 
-            // Check if the directory is read-only
             if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
                 (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
             {
@@ -58,7 +57,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 throw new UnauthorizedAccessException("Access to the path is denied.");
             }
 
-            // Check if the file is read-only
             if (_files.TryGetValue(normalizedPath, out var existingFile) &&
                 (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
             {
@@ -72,7 +70,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
             try
             {
-                // Convert to bytes to preserve original line endings
                 byte[] contentBytes = Encoding.UTF8.GetBytes(contents);
 
                 _files[normalizedPath] = new InMemoryFile
@@ -90,10 +87,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
             }
             finally
             {
-                lock (_fileLock)
-                {
-                    _fileLocks.TryRemove(normalizedPath, out _);
-                }
+                _fileLocks.TryRemove(normalizedPath, out _);
             }
         }
     }
@@ -116,13 +110,12 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
             using (var reader = new StreamReader(file.Contents, Encoding.UTF8, true, 1024, true))
             {
                 var content = reader.ReadToEnd();
-                file.Contents.Position = 0; // Reset the position after reading
+                file.Contents.Position = 0;
                 _logger.LogInformation("Successfully read text from file at path: {Path}", path);
                 return content;
             }
         }
     }
-
 
     public void AppendAllText(string path, string contents)
     {
@@ -204,7 +197,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         return GetFiles(path, searchPattern, SearchOption.TopDirectoryOnly);
     }
 
-    public string[] GetFiles(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly)
+    public string[] GetFiles(string path, string searchPattern, SearchOption searchOption)
     {
         var normalizedPath = NormalizePath(path);
         if (!_directories.Contains(normalizedPath))
@@ -338,7 +331,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 }
             }
 
-            // Check if the directory is read-only
             if (_directoryAttributes.TryGetValue(directoryPath, out var dirAttributes) &&
                 (dirAttributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
             {
@@ -346,7 +338,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 throw new UnauthorizedAccessException("Access to the path is denied.");
             }
 
-            // Check if the file is read-only
             if (_files.TryGetValue(normalizedPath, out var existingFile) &&
                 (existingFile.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly &&
                 (fileAccess & FileAccess.Write) == FileAccess.Write)
@@ -388,7 +379,6 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                     stream.Position = stream.Length;
                     break;
                 default:
-                    // Create a new MemoryStream with the exact content of the file
                     stream = new MemoryStream();
                     file.Contents.Position = 0;
                     file.Contents.CopyTo(stream);
@@ -494,6 +484,10 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     private string NormalizePath(string path)
     {
         path = path.Replace('\\', '/').TrimEnd('/');
+        if (!path.StartsWith("/"))
+        {
+            path = "/" + path;
+        }
         var parts = path.Split('/');
         var normalizedParts = new List<string>();
 

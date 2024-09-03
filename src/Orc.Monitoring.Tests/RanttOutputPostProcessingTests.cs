@@ -37,7 +37,7 @@ public class RanttOutputPostProcessingTests
         _loggerFactory = new TestLoggerFactory<RanttOutputPostProcessingTests>(_logger);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
-        _reportArchiver = new ReportArchiver(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();

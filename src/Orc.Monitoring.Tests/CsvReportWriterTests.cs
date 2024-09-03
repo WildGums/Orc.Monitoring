@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
+using Moq;
 
 [TestFixture]
 public class CsvReportWriterTests
@@ -223,5 +224,33 @@ public class CsvReportWriterTests
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(1), "Should only have header line");
+    }
+
+    [Test]
+    public async Task WriteReportItemsCsvAsync_DoesNotAddEmptyLineAtEnd()
+    {
+        // Arrange
+#pragma warning disable IDISP001
+        var stringWriter = new StringWriter();
+#pragma warning restore IDISP001
+        var reportItems = new List<ReportItem>
+        {
+            new ReportItem { Id = "1", MethodName = "Method1", StartTime = "2023-01-01 00:00:00" },
+            new ReportItem { Id = "2", MethodName = "Method2", StartTime = "2023-01-01 00:00:01" }
+        };
+        var overrideManager = new Mock<MethodOverrideManager>(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils).Object;
+        var writer = new CsvReportWriter(stringWriter, reportItems, overrideManager, _loggerFactory, _csvUtils);
+
+        // Act
+        await writer.WriteReportItemsCsvAsync();
+
+        // Assert
+        var content = stringWriter.ToString();
+        _logger.LogInformation($"CSV Content:\n{content}");
+
+        var lines = content.Split('\n');
+        Assert.That(lines.Length, Is.EqualTo(3), "Should have exactly 3 lines (header + 2 data lines)");
+        Assert.That(lines[2], Does.Not.EndWith("\n"), "Last line should not end with a newline");
+        Assert.That(content, Does.Not.EndWith("\n"), "CSV content should not end with a newline");
     }
 }

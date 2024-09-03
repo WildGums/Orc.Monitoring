@@ -54,6 +54,8 @@ public class RanttOutputTests
         _loggerFactory = new TestLoggerFactory<RanttOutputTests>(_logger);
         _loggerFactory.EnableLoggingFor<RanttOutput>();
         _loggerFactory.EnableLoggingFor<ReportOutputHelper>();
+        _loggerFactory.EnableLoggingFor<InMemoryFileSystem>();
+        _loggerFactory.EnableLoggingFor<CsvReportOutput>();
     }
 
     private void InitializeDependencies()
@@ -66,7 +68,7 @@ public class RanttOutputTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
 #pragma warning restore IDISP003
         _csvUtils = new CsvUtils(_fileSystem);
-        _reportArchiver = new ReportArchiver(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
     }
 
     private void InitializeRanttOutput()
@@ -203,24 +205,34 @@ public class RanttOutputTests
         }
 
         var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
-        AssertFileExists(csvFilePath);
+        Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, "CSV file should be created");
 
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV Content:\n{csvContent}");
 
-        var expectedEscapedMethodName = "\"\"\"Method<with>Invalid&Xml\"\"\"\"Chars\"\"\"";
-        Assert.That(csvContent, Does.Contain(expectedEscapedMethodName), "Method name should be properly escaped in CSV");
+        // Check for the correct escaping in the MethodName column
+        Assert.That(csvContent, Does.Contain("\"Method<with>Invalid&Xml\"\"Chars\""),
+            "Method name should be properly escaped in CSV");
 
         // Add a more flexible check
         Assert.That(csvContent, Does.Contain("Method<with>Invalid&Xml").And.Contain("Chars"),
             "CSV should contain the method name, regardless of exact escaping");
 
+        // Check the FullName column
+        Assert.That(csvContent, Does.Contain("\"RanttOutputTests.Method<with>Invalid&Xml\"\"Chars\""),
+            "Full name should be properly escaped in CSV");
+
+        var csvLines = await _fileSystem.ReadAllLinesAsync(csvFilePath);
+        Assert.That(csvLines.Length, Is.EqualTo(2), "CSV should contain header and one data line");
+
         var ranttFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.rprjx");
-        AssertFileExists(ranttFilePath);
+        Assert.That(_fileSystem.FileExists(ranttFilePath), Is.True, "Rantt project file should be created");
 
         var ranttContent = await _fileSystem.ReadAllTextAsync(ranttFilePath);
-        Assert.That(ranttContent, Does.Not.Contain("<with>"), "Unescaped XML content should not be present in Rantt project file");
-        Assert.That(ranttContent, Does.Not.Contain("Invalid&Xml\"Chars"), "Unescaped XML content should not be present in Rantt project file");
+        Assert.That(ranttContent, Does.Not.Contain("<with>"),
+            "Unescaped XML content should not be present in Rantt project file");
+        Assert.That(ranttContent, Does.Not.Contain("Invalid&Xml\"Chars"),
+            "Unescaped XML content should not be present in Rantt project file");
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)

@@ -68,13 +68,24 @@ public class CsvReportWriter
         var headers = GetReportItemHeaders();
         await _csvUtils.WriteCsvLineAsync(_writer, headers.Cast<string?>().Select(EscapeCsvContent).ToArray());
 
-        foreach (var item in PrepareReportItems())
+        var items = PrepareReportItems().ToList();
+        for (int i = 0; i < items.Count; i++)
         {
+            var item = items[i];
             var values = headers.Select(h => EscapeCsvContent(item.TryGetValue(h, out var value) ? value : null)).ToArray();
-            await _csvUtils.WriteCsvLineAsync(_writer, values);
+
+            if (i == items.Count - 1)
+            {
+                // For the last item, write without a newline
+                await _writer.WriteAsync(string.Join(",", values));
+            }
+            else
+            {
+                await _csvUtils.WriteCsvLineAsync(_writer, values);
+            }
         }
 
-        _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV asynchronously");
+        _logger.LogInformation($"Wrote {items.Count} report items to CSV asynchronously");
     }
 
     public void WriteRelationshipsCsv()

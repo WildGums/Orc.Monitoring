@@ -57,7 +57,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     public RanttOutput()
     : this(MonitoringLoggerFactory.Instance, () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
             new ReportOutputHelper(MonitoringLoggerFactory.Instance), (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
-            FileSystem.Instance, new ReportArchiver(FileSystem.Instance))
+            FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance))
     {
 
     }

@@ -37,7 +37,7 @@ public class CsvReportOutputLimitableTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
 
-        _reportArchiver = new ReportArchiver(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 

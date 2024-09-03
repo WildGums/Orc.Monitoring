@@ -18,7 +18,7 @@ using System.Text;
 public class CsvReportOutputTests
 {
     private TestLogger<CsvReportOutputTests> _logger;
-    private IMonitoringLoggerFactory _loggerFactory;
+    private TestLoggerFactory<CsvReportOutputTests> _loggerFactory;
     private CsvReportOutput _csvReportOutput;
     private Mock<IMethodCallReporter> _mockReporter;
     private string _testFolderPath;
@@ -34,13 +34,15 @@ public class CsvReportOutputTests
     {
         _logger = new TestLogger<CsvReportOutputTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportOutputTests>(_logger);
+        _loggerFactory.EnableLoggingFor<CsvReportOutput>();
+        _loggerFactory.EnableLoggingFor<InMemoryFileSystem>();
 
         _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
 
-        _reportArchiver = new ReportArchiver(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
 
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         _fileSystem.CreateDirectory(_testFolderPath);
@@ -176,11 +178,13 @@ public class CsvReportOutputTests
     [Test]
     public async Task Dispose_WhenFileIsLocked_HandlesGracefully()
     {
-        var parameters = CsvReportOutput.CreateParameters(_testFolderPath, _testFileName);
+        var parameters = CsvReportOutput.CreateParameters(_testFolderPath, "TestReport");
         _csvReportOutput.SetParameters(parameters);
-        var disposable = _csvReportOutput.Initialize(_mockReporter.Object);
 
-        var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
+        var mockReporter = new Mock<IMethodCallReporter>();
+        mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+
+        var filePath = Path.Combine(_testFolderPath, "TestReporter", "TestReport.csv");
 
         // Ensure the file exists
         await _fileSystem.WriteAllTextAsync(filePath, "Initial content");
@@ -189,6 +193,7 @@ public class CsvReportOutputTests
         using (var fs = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
             // Attempt to dispose while the file is locked
+            var disposable = _csvReportOutput.Initialize(mockReporter.Object);
             await disposable.DisposeAsync();
         }
 
@@ -223,5 +228,60 @@ public class CsvReportOutputTests
         Assert.DoesNotThrow(() => csvReportOutput.WriteItem(methodCallStart), "WriteItem should handle disk full error gracefully");
 
         Assert.ThrowsAsync<IOException>(async () => await disposable.DisposeAsync(), "Dispose should throw IOException when disk is full");
+    }
+
+    [Test]
+    public async Task ExportToCsv_DoesNotAddEmptyLineAtEnd()
+    {
+        // Arrange
+        var parameters = CsvReportOutput.CreateParameters(_testFolderPath, "TestReport");
+        _csvReportOutput.SetParameters(parameters);
+
+        var mockReporter = new Mock<IMethodCallReporter>();
+        mockReporter.Setup(r => r.Name).Returns("TestReporter");
+        mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+
+        // Act
+        await using (var disposable = _csvReportOutput.Initialize(mockReporter.Object))
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var methodInfo = new TestMethodInfo($"Item{i}", typeof(CsvReportOutputTests));
+                var methodCallInfo = _methodCallInfoPool.Rent(
+                    null,
+                    typeof(CsvReportOutputTests),
+                    methodInfo,
+                    Array.Empty<Type>(),
+                    Guid.NewGuid().ToString(),
+                    new Dictionary<string, string>()
+                );
+                methodCallInfo.StartTime = DateTime.Now.AddMinutes(-i);
+
+                var mockMethodLifeCycleItem = new Mock<MethodCallStart>(methodCallInfo);
+                _csvReportOutput.WriteItem(mockMethodLifeCycleItem.Object);
+            }
+        }
+
+        // The file should be created after the disposable is disposed
+
+        var filePath = Path.Combine(_testFolderPath, "TestReport.csv");
+        _logger.LogInformation($"Checking for file existence at path: {filePath}");
+
+        // List all files in the directory
+        var files = _fileSystem.GetFiles(_testFolderPath);
+        _logger.LogInformation($"Files in directory: {string.Join(", ", files)}");
+
+        // Assert
+        Assert.That(_fileSystem.FileExists(filePath), Is.True, $"CSV file should have been created at {filePath}");
+
+        var content = await _fileSystem.ReadAllTextAsync(filePath);
+
+        _logger.LogInformation($"CSV Content:\n{content}");
+        Assert.That(content, Is.Not.Empty, "CSV file should not be empty");
+        Assert.That(content, Does.Not.EndWith("\n"), "CSV file should not end with an empty line");
+
+        var lines = content.Split('\n');
+        Assert.That(lines.Length, Is.EqualTo(4), "Should have exactly 4 lines (header + 3 data lines)");
+        Assert.That(lines[3], Does.Not.EndWith("\n"), "Last line should not end with a newline");
     }
 }

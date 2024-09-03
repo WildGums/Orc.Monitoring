@@ -113,7 +113,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
 #pragma warning restore IDISP003
         _csvUtils = new CsvUtils(_fileSystem);
-        _reportArchiver = new ReportArchiver(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
     }
 
     private void InitializeLogger()

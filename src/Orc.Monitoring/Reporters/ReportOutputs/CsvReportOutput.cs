@@ -25,7 +25,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     public CsvReportOutput()
     : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance),
         (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
-        FileSystem.Instance, new ReportArchiver(FileSystem.Instance))
+        FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance))
     {
 
     }
@@ -172,21 +172,10 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
                 _logger.LogDebug($"Exporting item {i}: {item.ItemName ?? item.MethodName}, MethodName: {item.MethodName}, StartTime: {item.StartTime}");
             }
 
-            TextWriter? writer = null;
-            try
+            await using (var writer = _fileSystem.CreateStreamWriter(fullPath, false, System.Text.Encoding.UTF8))
             {
-                writer = _fileSystem.CreateStreamWriter(fullPath, false, System.Text.Encoding.UTF8);
                 var csvReportWriter = new CsvReportWriter(writer, sortedItems, _methodOverrideManager);
                 await csvReportWriter.WriteReportItemsCsvAsync();
-            }
-            catch (IOException ex)
-            {
-                _logger.LogError(ex, $"Error creating or writing to CSV file: {ex.Message}");
-                throw;
-            }
-            finally
-            {
-                writer?.Dispose();
             }
 
             _logger.LogInformation($"CSV report written to {fullPath} with {sortedItems.Count} items");
