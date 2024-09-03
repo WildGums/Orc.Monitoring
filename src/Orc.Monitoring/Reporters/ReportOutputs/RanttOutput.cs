@@ -113,8 +113,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
         SetLimitOptions(parameters.LimitOptions);
 
-        _overrideManager = _methodOverrideManagerFactory(_folderPath);
-
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
     }
 

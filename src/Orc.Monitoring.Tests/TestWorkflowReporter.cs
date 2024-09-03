@@ -41,6 +41,12 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
     private bool _disposing;
     private List<IAsyncDisposable>? _disposables;
 
+    public TestWorkflowReporter()
+    : this(MonitoringController.Instance, MethodCallInfoPool.Instance, MonitoringLoggerFactory.Instance)
+    {
+        
+    }
+
     public TestWorkflowReporter(IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory monitoringLoggerFactory)
     {
         _monitoringController = monitoringController;

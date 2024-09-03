@@ -18,7 +18,6 @@ public class ComplexWorkflowSimulation
     private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly IMonitoringLoggerFactory _loggerFactory;
 
-    private readonly TestWorkflowReporterFactory _reporterFactory;
 
     public TimeSpan MainProcessDuration { get; private set; }
     public int SubProcessCount { get; private set; }
@@ -36,14 +35,13 @@ public class ComplexWorkflowSimulation
         _logger = loggerFactory.CreateLogger<ComplexWorkflowSimulation>();
 
         _monitor = _performanceMonitor.ForClass<ComplexWorkflowSimulation>();
-        _reporterFactory = new TestWorkflowReporterFactory(_monitoringController, _methodCallInfoPool, _loggerFactory);
     }
 
     public async Task RunWorkflowAsync()
     {
         await using var context = _monitor.AsyncStart(builder =>
         {
-            builder.AddReporter(_reporterFactory, reporter =>
+            builder.AddReporter<TestWorkflowReporter>(reporter =>
             {
                 reporter.AddOutput<RanttOutput>(RanttOutput.CreateParameters(_outputFolder));
                 reporter.AddOutput<CsvReportOutput>(CsvReportOutput.CreateParameters(_outputFolder, "WorkflowReport"));
@@ -77,7 +75,7 @@ public class ComplexWorkflowSimulation
     {
         for (int i = 0; i < 5; i++)
         {
-            using (var context = _monitor.Start(builder => builder.AddReporter(_reporterFactory)))
+            using (var context = _monitor.Start(builder => builder.AddReporter<TestWorkflowReporter>()))
             {
                 context.SetParameter(MethodCallParameter.WorkflowItemName, $"SubProcess_{i}");
                 context.SetParameter(MethodCallParameter.WorkflowItemType, MethodCallParameter.Types.DataProcess);
@@ -95,7 +93,7 @@ public class ComplexWorkflowSimulation
         {
             await using (var context = _monitor.StartAsyncMethod(new MethodConfiguration
             {
-                Reporters = new List<IMethodCallReporter> { _reporterFactory.CreateReporter() }
+                Reporters = new List<IMethodCallReporter> { new TestWorkflowReporter() }
             }))
             {
                 context.SetParameter(MethodCallParameter.WorkflowItemName, $"AsyncOperation_{i}");
@@ -111,7 +109,7 @@ public class ComplexWorkflowSimulation
     {
         for (int i = 0; i < 2; i++)
         {
-            using (var context = _monitor.Start(builder => builder.AddReporter(_reporterFactory)))
+            using (var context = _monitor.Start(builder => builder.AddReporter<TestWorkflowReporter>()))
             {
                 context.SetParameter(MethodCallParameter.WorkflowItemName, $"ExceptionSimulation_{i}");
                 context.SetParameter(MethodCallParameter.WorkflowItemType, MethodCallParameter.Types.DataProcess);
@@ -131,21 +129,3 @@ public class ComplexWorkflowSimulation
     }
 }
 
-
-public class TestWorkflowReporterFactory : IMethodCallReporterFactory
-{
-    private readonly IMonitoringController _monitoringController;
-    private readonly MethodCallInfoPool _methodCallInfoPool;
-    private readonly IMonitoringLoggerFactory _loggerFactory;
-
-    public TestWorkflowReporterFactory(IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
-    {
-        _monitoringController = monitoringController;
-        _methodCallInfoPool = methodCallInfoPool;
-        _loggerFactory = loggerFactory;
-    }
-    public IMethodCallReporter CreateReporter()
-    {
-        return new TestWorkflowReporter(_monitoringController, _methodCallInfoPool, _loggerFactory);
-    }
-}
