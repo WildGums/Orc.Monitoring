@@ -30,9 +30,10 @@ public class MethodConfigurationBuilder
         return this;
     }
 
-    public MethodConfigurationBuilder AddReporter(IMethodCallReporterFactory reporterFactory, Action<IMethodCallReporter>? configAction = null)
+    public MethodConfigurationBuilder AddReporter<TReporter>(Action<IMethodCallReporter>? configAction = null) where TReporter : IMethodCallReporter, new()
     {
-        var reporter = reporterFactory.CreateReporter();
+        // TODO: we need to resolve reporter factory based on the type of reporter and then create the reporter
+        var reporter = new TReporter();
         if (string.IsNullOrEmpty(reporter.Id))
         {
             reporter.Id = Guid.NewGuid().ToString(); // Assign a unique Id only if one doesn't exist
@@ -42,7 +43,6 @@ public class MethodConfigurationBuilder
 
         return AddReporter(reporter);
     }
-
     public MethodConfigurationBuilder WithArguments(params object[] parameters)
     {
         _config.ParameterTypes.AddRange(parameters.Select(p => p.GetType()));
@@ -65,10 +65,4 @@ public class MethodConfigurationBuilder
     }
 
     public MethodConfiguration Build() => _config;
-}
-
-
-public interface IMethodCallReporterFactory
-{
-    IMethodCallReporter CreateReporter();
 }

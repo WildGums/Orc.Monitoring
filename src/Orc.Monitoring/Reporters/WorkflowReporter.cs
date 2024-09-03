@@ -42,6 +42,12 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private List<IAsyncDisposable>? _disposables;
 #pragma warning restore IDISP006
 
+
+    public WorkflowReporter()
+    : this(MonitoringLoggerFactory.Instance, MonitoringController.Instance, MethodCallInfoPool.Instance)
+    { }
+
+
     public WorkflowReporter(IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
