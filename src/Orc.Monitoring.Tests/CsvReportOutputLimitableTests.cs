@@ -6,10 +6,12 @@ using NUnit.Framework;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using Orc.Monitoring.Reporters;
-using System.IO;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Microsoft.Extensions.Logging;
+using System.Linq;
 
 [TestFixture]
 public class CsvReportOutputLimitableTests
@@ -18,6 +20,11 @@ public class CsvReportOutputLimitableTests
     private IMonitoringLoggerFactory _loggerFactory;
     private CsvReportOutput _csvReportOutput;
     private string _testOutputPath;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private IMonitoringController _monitoringController;
+    private InMemoryFileSystem _fileSystem;
+    private ReportArchiver _reportArchiver;
+    private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
@@ -25,14 +32,22 @@ public class CsvReportOutputLimitableTests
         _logger = new TestLogger<CsvReportOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportOutputLimitableTests>(_logger);
 
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
+        _csvUtils = new CsvUtils(_fileSystem);
+
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
+
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
-        Directory.CreateDirectory(_testOutputPath);
+        _fileSystem.CreateDirectory(_testOutputPath);
 
-        var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
 
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
-            (outputDirectory) => new MethodOverrideManager(outputDirectory, _logger.CreateLogger<MethodOverrideManager>()));
+            (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
+            _fileSystem, _reportArchiver);
         var parameters = CsvReportOutput.CreateParameters(_testOutputPath, "TestReport");
         _csvReportOutput.SetParameters(parameters);
     }
@@ -40,9 +55,10 @@ public class CsvReportOutputLimitableTests
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
-            Directory.Delete(_testOutputPath, true);
+            _fileSystem.DeleteDirectory(_testOutputPath, true);
         }
     }
 
@@ -78,8 +94,18 @@ public class CsvReportOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReport.csv");
-        var lines = await File.ReadAllLinesAsync(filePath);
-        Assert.That(lines.Length, Is.EqualTo(6)); // Header + 5 items
+        var lines = (await _fileSystem.ReadAllTextAsync(filePath))
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+
+        _logger.LogInformation($"CSV file contents ({lines.Length} lines):");
+        foreach (var line in lines)
+        {
+            _logger.LogInformation(line);
+        }
+
+        Assert.That(lines.Length, Is.EqualTo(6), $"Expected 6 lines (header + 5 items), but got {lines.Length} lines");
+        Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(5), "Should have 5 data lines");
     }
 
     [Test]
@@ -96,15 +122,15 @@ public class CsvReportOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReport.csv");
-        var lines = await File.ReadAllLinesAsync(filePath);
+        var lines = (await _fileSystem.ReadAllTextAsync(filePath))
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
         Assert.That(lines.Length, Is.EqualTo(11)); // Header + 10 items
     }
 
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(CsvReportOutputLimitableTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(CsvReportOutputLimitableTests),
             methodInfo,

@@ -11,83 +11,91 @@ public class MonitoringControllerBenchmarks
 {
     private static readonly Type ReporterType = typeof(WorkflowReporter);
     private static readonly Type FilterType = typeof(WorkflowItemFilter);
+    private static readonly MonitoringLoggerFactory LoggerFactory = MonitoringLoggerFactory.Instance;
     private MonitoringVersion _testVersion;
+    private MonitoringController? _monitoringController;
 
     [GlobalSetup]
     public void Setup()
     {
-        MonitoringController.Enable();
-        MonitoringController.EnableReporter(ReporterType);
-        MonitoringController.EnableFilter(FilterType);
-        _testVersion = MonitoringController.GetCurrentVersion();
+        _monitoringController = new MonitoringController(LoggerFactory, EnhancedDataPostProcessorFactory);
+        _monitoringController.Enable();
+        _monitoringController.EnableReporter(ReporterType);
+        _monitoringController.EnableFilter(FilterType);
+        _testVersion = _monitoringController.GetCurrentVersion();
+    }
+
+    private EnhancedDataPostProcessor EnhancedDataPostProcessorFactory()
+    {
+        throw new NotImplementedException();
     }
 
     [Benchmark]
     public bool ShouldTrackBenchmark()
     {
-        return MonitoringController.ShouldTrack(_testVersion, ReporterType, FilterType);
+        return _monitoringController!.ShouldTrack(_testVersion, ReporterType, FilterType);
     }
 
     [Benchmark]
     public void EnableReporterBenchmark()
     {
-        MonitoringController.EnableReporter(ReporterType);
+        _monitoringController!.EnableReporter(ReporterType);
     }
 
     [Benchmark]
     public void DisableReporterBenchmark()
     {
-        MonitoringController.DisableReporter(ReporterType);
+        _monitoringController!.DisableReporter(ReporterType);
     }
 
     [Benchmark]
     public void TemporarilyEnableReporterBenchmark()
     {
-        using (MonitoringController.TemporarilyEnableReporter<WorkflowReporter>())
+        using (_monitoringController!.TemporarilyEnableReporter<WorkflowReporter>())
         {
-            var currentVersion = MonitoringController.GetCurrentVersion();
-            MonitoringController.ShouldTrack(currentVersion, ReporterType, FilterType);
+            var currentVersion = _monitoringController!.GetCurrentVersion();
+            _monitoringController!.ShouldTrack(currentVersion, ReporterType, FilterType);
         }
     }
 
     [Benchmark]
     public void EnableFilterBenchmark()
     {
-        MonitoringController.EnableFilter(FilterType);
+        _monitoringController!.EnableFilter(FilterType);
     }
 
     [Benchmark]
     public void DisableFilterBenchmark()
     {
-        MonitoringController.DisableFilter(FilterType);
+        _monitoringController!.DisableFilter(FilterType);
     }
 
     [Benchmark]
     public void GlobalEnableDisableBenchmark()
     {
-        MonitoringController.Enable();
-        MonitoringController.Disable();
+        _monitoringController!.Enable();
+        _monitoringController!.Disable();
     }
 
     [Benchmark]
     public MonitoringVersion GetCurrentVersionBenchmark()
     {
-        return MonitoringController.GetCurrentVersion();
+        return _monitoringController!.GetCurrentVersion();
     }
 
     [Benchmark]
     public bool VersionComparisonBenchmark()
     {
-        var currentVersion = MonitoringController.GetCurrentVersion();
+        var currentVersion = _monitoringController!.GetCurrentVersion();
         return currentVersion == _testVersion;
     }
 
     [Benchmark]
     public void BeginOperationBenchmark()
     {
-        using (MonitoringController.BeginOperation(out var operationVersion))
+        using (_monitoringController!.BeginOperation(out var operationVersion))
         {
-            _ = MonitoringController.ShouldTrack(operationVersion, ReporterType, FilterType);
+            _ = _monitoringController!.ShouldTrack(operationVersion, ReporterType, FilterType);
         }
     }
 }

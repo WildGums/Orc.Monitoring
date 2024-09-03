@@ -6,34 +6,41 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using Moq;
-
+using Reporters;
 
 [TestFixture]
 public class CallStackSimulationTests
 {
     private TestLogger<CallStackSimulationTests> _logger;
+    private TestLoggerFactory<CallStackSimulationTests> _loggerFactory;
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;
     private MonitoringConfiguration? _config;
     private List<MethodCallInfo> _methodCalls;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<CallStackSimulationTests>();
+        _loggerFactory = new TestLoggerFactory<CallStackSimulationTests>(_logger);
+
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+
         _config = new MonitoringConfiguration();
-        var methodCallInfoPool = new MethodCallInfoPool();
-        _callStack = new CallStack(_config, methodCallInfoPool, _logger.CreateLogger<CallStack>());
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
         _methodCalls = new List<MethodCallInfo>();
 
-        MonitoringController.Enable();
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
-        MonitoringController.Disable();
+        _monitoringController.Disable();
     }
 
     [Test]
@@ -77,7 +84,7 @@ public class CallStackSimulationTests
         Assert.Multiple(() =>
         {
             // ServiceA.MethodA1
-            Assert.That(_methodCalls[0].Parent, Is.EqualTo(MethodCallInfo.Null), "MethodA1 should have no parent");
+            Assert.That(_methodCalls[0].Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "MethodA1 should have no parent");
             Assert.That(_methodCalls[0].Level, Is.EqualTo(1), "MethodA1 should be at level 1");
 
             // ServiceB.MethodB1

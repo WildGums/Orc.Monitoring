@@ -21,30 +21,36 @@ public class SpecialCaseTests
     private CallStack _callStack;
     private MethodCallInfoPool _methodCallInfoPool;
     private TestLogger<SpecialCaseTests> _logger;
+    private TestLoggerFactory<SpecialCaseTests> _loggerFactory;
+    private IMonitoringController _monitoringController;
+    private MethodCallContextFactory _methodCallContextFactory;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<SpecialCaseTests>();
+        _loggerFactory = new TestLoggerFactory<SpecialCaseTests>(_logger);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+
         _logger.LogInformation("Setup started");
 
-        MonitoringController.ResetForTesting();
-        _mockReporter = new MockReporter(_logger.CreateLogger<MockReporter>());
+        _mockReporter = new MockReporter(_loggerFactory);
         _mockFilter = new Mock<IMethodFilter>();
         _config = new MonitoringConfiguration();
-        _methodCallInfoPool = new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>());
-        _callStack = new CallStack(_config, _methodCallInfoPool, _logger.CreateLogger<CallStack>());
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
+        _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
         _config.AddReporter(_mockReporter.GetType());
         _config.AddFilter(_mockFilter.Object);
 
-        MonitoringController.Configuration = _config;
-        MonitoringController.Enable();
-        MonitoringController.EnableReporter(_mockReporter.GetType());
+        _monitoringController.Configuration = _config;
+        _monitoringController.Enable();
+        _monitoringController.EnableReporter(_mockReporter.GetType());
 
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        _logger.LogInformation($"Initial setup - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
+        _logger.LogInformation($"Initial setup - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
     }
 
     [Test]
@@ -54,9 +60,9 @@ public class SpecialCaseTests
         var methodCallInfo = CreateMethodCallInfo(staticMethod);
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config, _logger.CreateLogger<ClassMonitor>());
+        var monitor = new ClassMonitor(_monitoringController, typeof(TestClass), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
-        _logger.LogInformation($"Before static method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
+        _logger.LogInformation($"Before static method - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context = monitor.StartMethod(new MethodConfiguration
         {
@@ -78,9 +84,9 @@ public class SpecialCaseTests
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
         var tracker = new GenericMethodTracker();
-        var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config, _logger.CreateLogger<ClassMonitor>());
+        var monitor = new ClassMonitor(_monitoringController, typeof(TestClass), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
-        _logger.LogInformation($"Before generic method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
+        _logger.LogInformation($"Before generic method - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context = monitor.StartMethod(new MethodConfiguration
         {
@@ -104,9 +110,9 @@ public class SpecialCaseTests
         var methodCallInfo = CreateMethodCallInfo(asyncMethod);
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config, _logger.CreateLogger<ClassMonitor>());
+        var monitor = new ClassMonitor(_monitoringController, typeof(TestClass), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
-        _logger.LogInformation($"Before async method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
+        _logger.LogInformation($"Before async method - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         var completionSource = new TaskCompletionSource<bool>();
         _mockReporter.OnStartReporting = _ => completionSource.SetResult(true);
@@ -134,9 +140,9 @@ public class SpecialCaseTests
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
         var handler = new ExtensionMethodHandler();
-        var monitor = new ClassMonitor(typeof(TestExtensions), _callStack, _config, _logger.CreateLogger<ClassMonitor>());
+        var monitor = new ClassMonitor(_monitoringController, typeof(TestExtensions), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
-        _logger.LogInformation($"Before extension method - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
+        _logger.LogInformation($"Before extension method - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context = monitor.StartMethod(new MethodConfiguration { Reporters = new List<IMethodCallReporter> { _mockReporter } }, nameof(TestExtensions.ExtensionMethod)))
         {
@@ -160,9 +166,9 @@ public class SpecialCaseTests
         var methodCallInfo2 = CreateMethodCallInfo(method2);
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        var monitor = new ClassMonitor(typeof(TestClass), _callStack, _config, _logger.CreateLogger<ClassMonitor>());
+        var monitor = new ClassMonitor(_monitoringController, typeof(TestClass), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
-        _logger.LogInformation($"Before overloaded methods - IsEnabled: {MonitoringController.IsEnabled}, MockReporter enabled: {MonitoringController.IsReporterEnabled(_mockReporter.GetType())}");
+        _logger.LogInformation($"Before overloaded methods - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var context1 = monitor.StartMethod(new MethodConfiguration
         {

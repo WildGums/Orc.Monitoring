@@ -1,4 +1,4 @@
-#pragma warning disable CL0002
+﻿#pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
@@ -6,7 +6,9 @@ using Orc.Monitoring.Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class CsvReportWriterAdditionalTests
@@ -14,18 +16,28 @@ public class CsvReportWriterAdditionalTests
     private StringWriter _stringWriter;
     private MethodOverrideManager _overrideManager;
     private List<ReportItem> _reportItems;
+    private TestLogger<CsvReportWriterAdditionalTests> _logger;
+    private TestLoggerFactory<CsvReportWriterAdditionalTests> _loggerFactory;
+    private InMemoryFileSystem _fileSystem;
+    private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<CsvReportWriterAdditionalTests>();
+        _loggerFactory = new TestLoggerFactory<CsvReportWriterAdditionalTests>(_logger);
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
+        _csvUtils = new CsvUtils(_fileSystem);
+
         _stringWriter = new StringWriter();
-        _overrideManager = new MethodOverrideManager(Path.GetTempPath());
+        _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = new List<ReportItem>();
     }
 
     [TearDown]
     public void TearDown()
     {
+        _fileSystem.Dispose();
         _stringWriter.Dispose();
     }
 
@@ -68,9 +80,9 @@ public class CsvReportWriterAdditionalTests
 
         // Assert
         var content = _stringWriter.ToString();
-        Console.WriteLine($"CSV Content:\n{content}");
+        _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        Console.WriteLine($"Number of lines: {lines.Length}");
+        _logger.LogInformation($"Number of lines: {lines.Length}");
 
         Assert.That(lines.Length, Is.GreaterThanOrEqualTo(3), "Should have at least header and two data lines");
 
@@ -83,8 +95,8 @@ public class CsvReportWriterAdditionalTests
             var dataLine1 = lines[1].Split(',');
             var dataLine2 = lines[2].Split(',');
 
-            Console.WriteLine($"Data line 1: {lines[1]}");
-            Console.WriteLine($"Data line 2: {lines[2]}");
+            _logger.LogInformation($"Data line 1: {lines[1]}");
+            _logger.LogInformation($"Data line 2: {lines[2]}");
 
             Assert.That(dataLine1, Does.Contain("Value1"));
             Assert.That(dataLine1, Does.Contain("Value2"));
@@ -158,7 +170,7 @@ public class CsvReportWriterAdditionalTests
 
         // Assert
         var content = _stringWriter.ToString();
-        Console.WriteLine($"CSV Content:\n{content}");
+        _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");

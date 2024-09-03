@@ -7,18 +7,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Microsoft.VisualBasic;
 using Orc.Monitoring.Reporters;
 
 
 public class MethodCallInfo
 {
-    public static readonly MethodCallInfo Null = new(null) { IsNull = true };
-
-    private readonly MethodCallInfoPool? _pool;
-
     private IClassMonitor? _classMonitor;
-    private int _usageCounter;
-    private bool _readyToReturn;
     private MethodCallInfo? _parent;
 
     public bool IsNull { get; init; }
@@ -53,28 +48,18 @@ public class MethodCallInfo
     public Type? ExtendedType { get; set; }
     public IMethodCallReporter? AssociatedReporter { get; set; }
     public bool IsRootForAssociatedReporter => AssociatedReporter?.RootMethod == MethodInfo;
+    public bool ReadyToReturn { get; set; }
+    public int UsageCounter { get; set; }
 
-private MethodCallInfo(MethodCallInfoPool? pool)
-    {
-        _pool = pool;
-    }
-
-    public static MethodCallInfo CreateNull() => Null;
-
-    public static MethodCallInfo Create(MethodCallInfoPool pool, IClassMonitor? classMonitor, Type classType, MethodInfo methodInfo,
+    public void Reset(IMonitoringController monitoringController, IClassMonitor? classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
     {
-        var info = new MethodCallInfo(pool);
-        info.Reset(classMonitor, classType, methodInfo, genericArguments, id, attributeParameters);
-        return info;
-    }
+        if (IsNull)
+        {
+            return;
+        }
 
-    public void Reset(IClassMonitor? classMonitor, Type classType, MethodInfo methodInfo,
-        IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)
-    {
-        if (IsNull) return;
-
-        _readyToReturn = false;
+        ReadyToReturn = false;
         _classMonitor = classMonitor;
         ClassType = classType;
         MethodName = GetMethodName(methodInfo, genericArguments);
@@ -86,7 +71,7 @@ private MethodCallInfo(MethodCallInfoPool? pool)
 
         AttributeParameters = new HashSet<string>(attributeParameters.Keys);
         Parameters = new Dictionary<string, string>(attributeParameters);
-        Version = MonitoringController.GetCurrentVersion();
+        Version = monitoringController.GetCurrentVersion();
 
         // Set properties for static, generic, and extension methods
         IsStatic = methodInfo.IsStatic;
@@ -98,9 +83,12 @@ private MethodCallInfo(MethodCallInfoPool? pool)
 
     public void Clear()
     {
-        if (IsNull) return;
+        if (IsNull)
+        {
+            return;
+        }
 
-        _readyToReturn = false;
+        ReadyToReturn = false;
         _classMonitor = null;
         ClassType = null;
         MethodName = null;
@@ -124,36 +112,6 @@ private MethodCallInfo(MethodCallInfoPool? pool)
         GenericArguments = null;
         IsExtensionMethod = false;
         ExtendedType = null;
-    }
-
-    public void TryReturnToPool()
-    {
-        if (IsNull) return;
-
-        _readyToReturn = true;
-        if (_usageCounter == 0)
-        {
-            _pool?.Return(this);
-        }
-    }
-
-    public IAsyncDisposable Use()
-    {
-        if (IsNull)
-        {
-            return new AsyncDisposable(async () => { });
-        }
-
-        _usageCounter++;
-
-        return new AsyncDisposable(async () =>
-        {
-            _usageCounter--;
-            if (_usageCounter == 0 && _readyToReturn)
-            {
-                _pool?.Return(this);
-            }
-        });
     }
 
     public void SetGenericArguments(Type[] genericArguments)

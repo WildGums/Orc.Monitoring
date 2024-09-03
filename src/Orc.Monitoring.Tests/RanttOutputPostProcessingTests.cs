@@ -19,9 +19,14 @@ public class RanttOutputPostProcessingTests
     private Mock<IMethodCallReporter> _reporterMock;
     private string _testOutputPath;
     private TestLogger<RanttOutputPostProcessingTests> _logger;
+    private TestLoggerFactory<RanttOutputPostProcessingTests> _loggerFactory;
     private ReportOutputHelper _reportOutputHelper;
     private Mock<IEnhancedDataPostProcessor> _mockPostProcessor;
-
+    private MethodCallInfoPool _methodCallInfoPool;
+    private IMonitoringController _monitoringController;
+    private InMemoryFileSystem _fileSystem;
+    private CsvUtils _csvUtils;
+    private ReportArchiver _reportArchiver;
     private const string RelationshipsFileName = "TestReporter_Relationships.csv";
     private const string CsvFileName = "TestReporter.csv";
 
@@ -29,9 +34,15 @@ public class RanttOutputPostProcessingTests
     public void Setup()
     {
         _logger = new TestLogger<RanttOutputPostProcessingTests>();
+        _loggerFactory = new TestLoggerFactory<RanttOutputPostProcessingTests>(_logger);
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
+        _csvUtils = new CsvUtils(_fileSystem);
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _ranttOutput = InitializeRanttOutput();
         _reporterMock.Setup(r => r.FullName).Returns("TestReporter");
     }
@@ -39,11 +50,12 @@ public class RanttOutputPostProcessingTests
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
             try
             {
-                Directory.Delete(_testOutputPath, true);
+                _fileSystem.DeleteDirectory(_testOutputPath, true);
             }
             catch (Exception ex)
             {
@@ -68,9 +80,9 @@ public class RanttOutputPostProcessingTests
         await InitializeAndExportData(reportItems);
 
         var relationshipsFilePath = Path.Combine(_testOutputPath, "TestReporter", RelationshipsFileName);
-        Assert.That(File.Exists(relationshipsFilePath), Is.True, $"Relationships file does not exist: {relationshipsFilePath}");
+        Assert.That(_fileSystem.FileExists(relationshipsFilePath), Is.True, $"Relationships file does not exist: {relationshipsFilePath}");
 
-        var relationshipsContent = await File.ReadAllTextAsync(relationshipsFilePath);
+        var relationshipsContent = await _fileSystem.ReadAllTextAsync(relationshipsFilePath);
         Assert.That(relationshipsContent, Does.Contain("ROOT,1,"), "ROOT to Method1 relationship not found");
         Assert.That(relationshipsContent, Does.Contain("1,2,"), "Method1 to Method2 relationship not found");
 
@@ -101,9 +113,9 @@ public class RanttOutputPostProcessingTests
         await InitializeAndExportData(reportItems);
 
         var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", CsvFileName);
-        Assert.That(File.Exists(csvFilePath), Is.True, $"CSV file does not exist: {csvFilePath}");
+        Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, $"CSV file does not exist: {csvFilePath}");
 
-        var csvContent = await File.ReadAllTextAsync(csvFilePath);
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
         _logger.LogInformation($"CSV content:\n{csvContent}");
         Assert.That(csvContent, Does.Contain("Method1"), "Method1 should be present");
         Assert.That(csvContent, Does.Contain("Method2"), "Method2 should be present");
@@ -116,7 +128,7 @@ public class RanttOutputPostProcessingTests
     private async Task InitializeAndExportData(List<ReportItem> reportItems)
     {
         _logger.LogInformation("Initializing and exporting data");
-        var helper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        var helper = new ReportOutputHelper(_loggerFactory);
         helper.Initialize(_reporterMock.Object);
         var methodCallStarts = new List<MethodCallStart>();
 
@@ -156,8 +168,7 @@ public class RanttOutputPostProcessingTests
     private MethodCallStart CreateMethodCallStart(ReportItem item)
     {
         var methodInfo = new TestMethodInfo(item.MethodName, typeof(RanttOutputPostProcessingTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(RanttOutputPostProcessingTests),
             methodInfo,
@@ -168,12 +179,11 @@ public class RanttOutputPostProcessingTests
 
         if (item.Parent == "ROOT")
         {
-            methodCallInfo.Parent = MethodCallInfo.CreateNull();
+            methodCallInfo.Parent = _methodCallInfoPool.GetNull();
         }
         else if (!string.IsNullOrEmpty(item.Parent))
         {
-            methodCallInfo.Parent = MethodCallInfo.Create(
-                new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+            methodCallInfo.Parent = _methodCallInfoPool.Rent(
                 null,
                 typeof(RanttOutputPostProcessingTests),
                 new TestMethodInfo("ParentMethod", typeof(RanttOutputPostProcessingTests)),
@@ -189,18 +199,20 @@ public class RanttOutputPostProcessingTests
     private string CreateTestOutputPath()
     {
         var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(path);
+        _fileSystem.CreateDirectory(path);
         return path;
     }
 
     private RanttOutput InitializeRanttOutput()
     {
-        _reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
+        _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
         var output = new RanttOutput(
-            _logger.CreateLogger<RanttOutput>(),
+            MonitoringLoggerFactory.Instance,
             () => _mockPostProcessor.Object,
             _reportOutputHelper,
-            (outputFolder) => new MethodOverrideManager(outputFolder, _logger.CreateLogger<MethodOverrideManager>()));
+            (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils), 
+            _fileSystem,
+            _reportArchiver);
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         output.SetParameters(parameters);
         return output;

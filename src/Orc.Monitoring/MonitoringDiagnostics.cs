@@ -11,8 +11,9 @@ using Microsoft.Extensions.Logging;
 public static class MonitoringDiagnostics
 {
     private static readonly ConcurrentQueue<VersionChangeRecord> _versionHistory = new();
-    private static readonly ILogger _logger = MonitoringController.CreateLogger(typeof(MonitoringDiagnostics));
+    private static readonly ILogger _logger = MonitoringLoggerFactory.Instance.CreateLogger(typeof(MonitoringDiagnostics));
     private const int MaxHistorySize = 1000; // Adjust as needed
+
 
     /// <summary>
     /// Logs a change in the monitoring version.

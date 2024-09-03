@@ -15,13 +15,14 @@ using Orc.Monitoring.Reporters;
 
 public class CallStack : IObservable<ICallStackItem>
 {
-    private const int MaxCallStackDepth = 1000;
+    internal const int MaxCallStackDepth = 1000;
     private readonly ILogger<CallStack> _logger;
     private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
     private readonly ConcurrentStack<MethodCallInfo> _globalCallStack = new();
     private readonly object _idLock = new();
     private readonly List<IObserver<ICallStackItem>> _observers = [];
+    private readonly IMonitoringController _monitoringController;
     private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ConcurrentDictionary<int, MethodCallInfo> _threadRootMethods = new();
     private readonly object _globalLock = new();
@@ -31,15 +32,17 @@ public class CallStack : IObservable<ICallStackItem>
     private int _idCounter;
     private int _currentDepth = 0;
 
-    public CallStack(MonitoringConfiguration monitoringConfig, MethodCallInfoPool methodCallInfoPool, ILogger<CallStack> logger)
+    public CallStack(IMonitoringController monitoringController,  MonitoringConfiguration? monitoringConfig, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
     {
+        ArgumentNullException.ThrowIfNull(monitoringController);
         ArgumentNullException.ThrowIfNull(monitoringConfig);
         ArgumentNullException.ThrowIfNull(methodCallInfoPool);
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
+        _monitoringController = monitoringController;
         _monitoringConfig = monitoringConfig;
         _methodCallInfoPool = methodCallInfoPool;
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<CallStack>();
     }
 
     public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null)
@@ -62,7 +65,7 @@ public class CallStack : IObservable<ICallStackItem>
 
         if (result.IsNull)
         {
-            _logger.LogWarning($"Created Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}. Monitoring enabled: {MonitoringController.IsEnabled}");
+            _logger.LogWarning($"Created Null MethodCallInfo for {callerType.Name}.{methodInfo.Name}. Monitoring enabled: {_monitoringController.IsEnabled}");
         }
 
         result.IsStatic = methodInfo.IsStatic;
@@ -95,7 +98,7 @@ public class CallStack : IObservable<ICallStackItem>
             if (methodCallInfo.IsRootForAssociatedReporter)
             {
                 _reporterRootMethods[methodCallInfo.AssociatedReporter] = methodCallInfo;
-                methodCallInfo.Parent = MethodCallInfo.Null;
+                methodCallInfo.Parent = _methodCallInfoPool.GetNull();
                 methodCallInfo.Level = 1;
             }
             else
@@ -111,7 +114,7 @@ public class CallStack : IObservable<ICallStackItem>
             if (_rootParent is null)
             {
                 _rootParent = methodCallInfo;
-                methodCallInfo.Parent = MethodCallInfo.Null;
+                methodCallInfo.Parent = _methodCallInfoPool.GetNull();
                 methodCallInfo.Level = 1;
                 methodCallInfo.ParentThreadId = -1;
             }
@@ -142,8 +145,8 @@ public class CallStack : IObservable<ICallStackItem>
 
             _logger.LogInformation($"Pushed: {methodCallInfo}");
 
-            var currentVersion = MonitoringController.GetCurrentVersion();
-            if (MonitoringController.ShouldTrack(currentVersion))
+            var currentVersion = _monitoringController.GetCurrentVersion();
+            if (_monitoringController.ShouldTrack(currentVersion))
             {
                 NotifyObservers(new MethodCallStart(methodCallInfo), currentVersion);
             }
@@ -178,8 +181,8 @@ public class CallStack : IObservable<ICallStackItem>
 
                     _logger.LogInformation($"Popped: {methodCallInfo}");
 
-                    var currentVersion = MonitoringController.GetCurrentVersion();
-                    if (MonitoringController.ShouldTrack(currentVersion))
+                    var currentVersion = _monitoringController.GetCurrentVersion();
+                    if (_monitoringController.ShouldTrack(currentVersion))
                     {
                         NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
                     }
@@ -217,8 +220,8 @@ public class CallStack : IObservable<ICallStackItem>
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
 
-        var currentVersion = MonitoringController.GetCurrentVersion();
-        if (!MonitoringController.ShouldTrack(currentVersion))
+        var currentVersion = _monitoringController.GetCurrentVersion();
+        if (!_monitoringController.ShouldTrack(currentVersion))
         {
             _logger.LogDebug("Monitoring is disabled or version mismatch, not logging status");
             return;
@@ -255,12 +258,12 @@ public class CallStack : IObservable<ICallStackItem>
         var applicableFilters = _monitoringConfig.Filters;
 
         // Check if any enabled reporter is interested in this status
-        var anyEnabledReporterInterested = applicableReporters.Any(MonitoringController.IsReporterEnabled);
+        var anyEnabledReporterInterested = applicableReporters.Any(_monitoringController.IsReporterEnabled);
 
         // Check if any enabled filter allows this status
         var anyEnabledFilterAllows = applicableFilters.Any(filter =>
         {
-            if (MonitoringController.IsFilterEnabled(filter.GetType()))
+            if (_monitoringController.IsFilterEnabled(filter.GetType()))
             {
                 return filter.ShouldInclude(status.MethodCallInfo);
             }
@@ -412,7 +415,7 @@ public class CallStack : IObservable<ICallStackItem>
     {
         foreach (var observer in _observers.ToArray())
         {
-            if (MonitoringController.ShouldTrack(version))
+            if (_monitoringController.ShouldTrack(version))
             {
                 observer.OnNext(value);
             }

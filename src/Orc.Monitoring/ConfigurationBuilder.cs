@@ -9,18 +9,26 @@ using Orc.Monitoring.Reporters.ReportOutputs;
 
 public class ConfigurationBuilder
 {
+    private readonly IMonitoringController _monitoringController;
     private readonly MonitoringConfiguration _config = new();
+
+    public ConfigurationBuilder(IMonitoringController monitoringController)
+    {
+        ArgumentNullException.ThrowIfNull(monitoringController);
+
+        _monitoringController = monitoringController;
+    }
 
     public ConfigurationBuilder SetGlobalState(bool enabled)
     {
         _config.IsGloballyEnabled = enabled;
         if (enabled)
         {
-            MonitoringController.Enable();
+            _monitoringController.Enable();
         }
         else
         {
-            MonitoringController.Disable();
+            _monitoringController.Disable();
         }
         return this;
     }
@@ -36,7 +44,7 @@ public class ConfigurationBuilder
         _config.AddFilter(filter);
         if (initialState)
         {
-            MonitoringController.EnableFilter(filter.GetType());
+            _monitoringController.EnableFilter(filter.GetType());
         }
         return this;
     }
@@ -62,7 +70,7 @@ public class ConfigurationBuilder
         _config.AddReporter<T>();
         if (initialState)
         {
-            MonitoringController.EnableReporter(typeof(T));
+            _monitoringController.EnableReporter(typeof(T));
         }
         return this;
     }
@@ -77,7 +85,7 @@ public class ConfigurationBuilder
         _config.AddReporter(reporterType);
         if (initialState)
         {
-            MonitoringController.EnableReporter(reporterType);
+            _monitoringController.EnableReporter(reporterType);
         }
         return this;
     }
@@ -93,11 +101,11 @@ public class ConfigurationBuilder
         _config.SetOutputTypeState(typeof(T), enabled);
         if (enabled)
         {
-            MonitoringController.EnableOutputType<T>();
+            _monitoringController.EnableOutputType<T>();
         }
         else
         {
-            MonitoringController.DisableOutputType<T>();
+            _monitoringController.DisableOutputType<T>();
         }
         return this;
     }
@@ -112,11 +120,11 @@ public class ConfigurationBuilder
         _config.SetOutputTypeState(outputType, enabled);
         if (enabled)
         {
-            MonitoringController.EnableOutputType(outputType);
+            _monitoringController.EnableOutputType(outputType);
         }
         else
         {
-            MonitoringController.DisableOutputType(outputType);
+            _monitoringController.DisableOutputType(outputType);
         }
         return this;
     }

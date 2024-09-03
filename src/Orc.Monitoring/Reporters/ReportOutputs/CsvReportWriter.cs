@@ -7,66 +7,91 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-
 public class CsvReportWriter
 {
     private readonly TextWriter _writer;
     private readonly IEnumerable<ReportItem> _reportItems;
     private readonly MethodOverrideManager _overrideManager;
-    private readonly HashSet<string> _customColumns;
     private readonly ILogger<CsvReportWriter> _logger;
+    private readonly CsvUtils _csvUtils;
 
     public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager methodOverrideManager)
-    : this(writer, reportItems, methodOverrideManager, MonitoringController.CreateLogger<CsvReportWriter>())
+    : this(writer, reportItems, methodOverrideManager, MonitoringLoggerFactory.Instance, CsvUtils.Instance)
     {
     }
 
-    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager, ILogger<CsvReportWriter> logger)
+    public CsvReportWriter(TextWriter writer, IEnumerable<ReportItem> reportItems, MethodOverrideManager overrideManager, IMonitoringLoggerFactory loggerFactory, CsvUtils csvUtils)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(reportItems);
         ArgumentNullException.ThrowIfNull(overrideManager);
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
         _writer = writer;
         _reportItems = reportItems;
         _overrideManager = overrideManager;
-        _customColumns = new HashSet<string>(overrideManager.GetCustomColumns());
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<CsvReportWriter>();
+        _csvUtils = csvUtils;
     }
 
     public void WriteReportItemsCsv()
     {
         var headers = GetReportItemHeaders();
-        CsvUtils.WriteCsvLine(_writer, headers.Cast<string?>().ToArray());
+        _csvUtils.WriteCsvLine(_writer, headers.Cast<string?>().ToArray());
 
         foreach (var item in PrepareReportItems())
         {
             var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
-            CsvUtils.WriteCsvLine(_writer, values);
+            _csvUtils.WriteCsvLine(_writer, values);
         }
 
         _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV");
     }
 
+    private string EscapeCsvContent(string? content)
+    {
+        if (string.IsNullOrEmpty(content))
+        {
+            return string.Empty;
+        }
+
+        content = content.Replace("\"", "\"\"");
+        if (content.Contains(",") || content.Contains("\"") || content.Contains("\n") || content.Contains("<") || content.Contains(">") || content.Contains("&"))
+        {
+            return $"\"{content}\"";
+        }
+        return content;
+    }
+
     public async Task WriteReportItemsCsvAsync()
     {
         var headers = GetReportItemHeaders();
-        await CsvUtils.WriteCsvLineAsync(_writer, headers.Cast<string?>().ToArray());
+        await _csvUtils.WriteCsvLineAsync(_writer, headers.Cast<string?>().Select(EscapeCsvContent).ToArray());
 
-        foreach (var item in PrepareReportItems())
+        var items = PrepareReportItems().ToList();
+        for (int i = 0; i < items.Count; i++)
         {
-            var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
-            await CsvUtils.WriteCsvLineAsync(_writer, values);
+            var item = items[i];
+            var values = headers.Select(h => EscapeCsvContent(item.TryGetValue(h, out var value) ? value : null)).ToArray();
+
+            if (i == items.Count - 1)
+            {
+                // For the last item, write without a newline
+                await _writer.WriteAsync(string.Join(",", values));
+            }
+            else
+            {
+                await _csvUtils.WriteCsvLineAsync(_writer, values);
+            }
         }
 
-        _logger.LogInformation($"Wrote {_reportItems.Count()} report items to CSV asynchronously");
+        _logger.LogInformation($"Wrote {items.Count} report items to CSV asynchronously");
     }
 
     public void WriteRelationshipsCsv()
     {
         var headers = new string?[] { "From", "To", "RelationType" };
-        CsvUtils.WriteCsvLine(_writer, headers);
+        _csvUtils.WriteCsvLine(_writer, headers);
 
         var relationships = _reportItems
             .Where(r => !string.IsNullOrEmpty(r.Parent))
@@ -79,7 +104,7 @@ public class CsvReportWriter
 
         foreach (var relationship in relationships)
         {
-            CsvUtils.WriteCsvLine(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
+            _csvUtils.WriteCsvLine(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
         }
 
         _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV");
@@ -88,7 +113,7 @@ public class CsvReportWriter
     public async Task WriteRelationshipsCsvAsync()
     {
         var headers = new string?[] { "From", "To", "RelationType" };
-        await CsvUtils.WriteCsvLineAsync(_writer, headers);
+        await _csvUtils.WriteCsvLineAsync(_writer, headers);
 
         var relationships = _reportItems
             .Where(r => !string.IsNullOrEmpty(r.Parent))
@@ -101,7 +126,7 @@ public class CsvReportWriter
 
         foreach (var relationship in relationships)
         {
-            await CsvUtils.WriteCsvLineAsync(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
+            await _csvUtils.WriteCsvLineAsync(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
         }
 
         _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV asynchronously");
@@ -167,8 +192,8 @@ public class CsvReportWriter
     private string[] GetReportItemHeaders()
     {
         var baseHeaders = new[] { "Id", "ParentId", "StartTime", "EndTime", "Report", "ClassName", "MethodName", "FullName", "Duration", "ThreadId", "ParentThreadId", "NestingLevel", "IsStatic", "IsGeneric", "IsExtension" };
-        var parameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys).Distinct().Where(k => !_customColumns.Contains(k));
-        return baseHeaders.Concat(_customColumns).Concat(parameterHeaders).ToArray();
+        var parameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys).Distinct();
+        return baseHeaders.Concat(parameterHeaders).ToArray();
     }
 
     private string DetermineRelationType(ReportItem item)

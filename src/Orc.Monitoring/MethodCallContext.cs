@@ -9,6 +9,8 @@ using MethodLifeCycleItems;
 
 public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
 {
+    private readonly IMonitoringController _monitoringController;
+    private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ILogger<MethodCallContext> _logger;
 
     private readonly IClassMonitor? _classMonitor;
@@ -16,39 +18,38 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
     private readonly System.Diagnostics.Stopwatch _stopwatch = new();
     private bool _isDisposed;
 
-    private static MethodCallContext? Dummy;
-
     public MethodCallInfo? MethodCallInfo { get; }
 
     public IReadOnlyList<string> ReporterIds { get; }
 
-    private MethodCallContext() 
-    : this(MonitoringController.CreateLogger<MethodCallContext>())
+    public MethodCallContext(IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
+    :base(monitoringController)
     {
-    }
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(monitoringController);
+        ArgumentNullException.ThrowIfNull(methodCallInfoPool);
 
-    public MethodCallContext(ILogger<MethodCallContext> logger)
-    {
-        ArgumentNullException.ThrowIfNull(logger);
+        _monitoringController = monitoringController;
+        _methodCallInfoPool = methodCallInfoPool;
 
         // Dummy constructor
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MethodCallContext>();
 
+        MethodCallInfo = methodCallInfoPool.GetNull();
         ReporterIds = Array.Empty<string>();
     }
 
-    public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
-        : this(classMonitor, methodCallInfo, disposables, reporterIds, MonitoringController.CreateLogger<MethodCallContext>())
-    {
-
-    }
-
     public MethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
-        ILogger<MethodCallContext> logger)
+        IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
+    : base(monitoringController)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(monitoringController);
+        ArgumentNullException.ThrowIfNull(methodCallInfoPool);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MethodCallContext>();
+        _monitoringController = monitoringController;
+        _methodCallInfoPool = methodCallInfoPool;
         _classMonitor = classMonitor;
         _disposables = disposables;
         MethodCallInfo = methodCallInfo;
@@ -62,11 +63,6 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
             var startStatus = new MethodCallStart(methodCallInfo);
             (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
         }
-    }
-
-    public static MethodCallContext GetDummyCallContext(Func<MethodCallContext> dummyContextFactory)
-    {
-        return Dummy ??= dummyContextFactory();
     }
 
     public void LogException(Exception exception)
@@ -152,7 +148,7 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
             MethodCallInfo.Elapsed = _stopwatch.Elapsed;
             var endStatus = new MethodCallEnd(MethodCallInfo);
 
-            if (MonitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
+            if (_monitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
             {
                 (_classMonitor as ClassMonitor)?.LogStatus(endStatus);
             }
@@ -161,7 +157,7 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
         {
             // Log that the context was operating under an outdated version
             _logger.LogWarning(
-                $"Method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, ReporterId: {ReporterIds.FirstOrDefault()}, Context Version: {ContextVersion}, Current Version: {MonitoringController.GetCurrentVersion()}");
+                $"Method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, ReporterId: {ReporterIds.FirstOrDefault()}, Context Version: {ContextVersion}, Current Version: {_monitoringController.GetCurrentVersion()}");
         }
         finally
         {
@@ -177,9 +173,25 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
                 }
             }
 
-            MethodCallInfo.TryReturnToPool();
+            _methodCallInfoPool.Return(MethodCallInfo);
             _logger.LogInformation($"MethodCallContext disposed at {DateTime.Now:HH:mm:ss.fff}");
             _isDisposed = true;
         }
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is MethodCallContext other)
+        {
+            // Compare the properties that define equality for AsyncMethodCallContext
+            return this.MethodCallInfo == other.MethodCallInfo &&
+                   this.ReporterIds.SequenceEqual(other.ReporterIds);
+        }
+        return false;
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(MethodCallInfo, ReporterIds);
     }
 }

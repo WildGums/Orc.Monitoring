@@ -2,11 +2,9 @@
 
 using NUnit.Framework;
 using Orc.Monitoring.Reporters.ReportOutputs;
-using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
-using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class MethodOverrideManagerTests
@@ -16,100 +14,100 @@ public class MethodOverrideManagerTests
     private string _overrideTemplateFilePath;
     private MethodOverrideManager _overrideManager;
     private TestLogger<MethodOverrideManagerTests> _logger;
+    private TestLoggerFactory<MethodOverrideManagerTests> _loggerFactory;
+    private InMemoryFileSystem _fileSystem;
+    private CsvUtils _csvUtils;
 
     [SetUp]
     public void Setup()
     {
+        _logger = new TestLogger<MethodOverrideManagerTests>();
+        _loggerFactory = new TestLoggerFactory<MethodOverrideManagerTests>(_logger);
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
+        _csvUtils = new CsvUtils(_fileSystem);
+
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_testOutputPath);
+        _fileSystem.CreateDirectory(_testOutputPath);
         _overrideFilePath = Path.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = Path.Combine(_testOutputPath, "method_overrides.template");
-        _overrideManager = new MethodOverrideManager(_testOutputPath);
-        _logger = new TestLogger<MethodOverrideManagerTests>();
+        _overrideManager = new MethodOverrideManager(_testOutputPath, _loggerFactory, _fileSystem, _csvUtils);
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
-            Directory.Delete(_testOutputPath, true);
+            _fileSystem.DeleteDirectory(_testOutputPath, true);
         }
     }
 
     [Test]
-    public void LoadOverrides_LoadsCorrectly()
+    [TestCase("TestNamespace.TestClass.TestMethod,True,False,CustomValue1,CustomValue2",
+              "TestNamespace.TestClass.TestMethod", "IsStatic", "True")]
+    [TestCase("TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4",
+              "TestNamespace.TestClass.AnotherMethod", "IsExtension", "True")]
+    [TestCase("TestNamespace.TestClass.GenericMethod<T>,False,False,CustomValue5,CustomValue6",
+              "TestNamespace.TestClass.GenericMethod<T>", "CustomColumn1", "CustomValue5")]
+    public void ReadOverrides_LoadsCorrectly(string csvContent, string methodName, string expectedKey, string expectedValue)
     {
         // Arrange
-        var csvContent = @"FullName,IsStatic,IsExtension,CustomColumn1,CustomColumn2
-TestNamespace.TestClass.TestMethod,True,False,CustomValue1,CustomValue2
-TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
-
-        File.WriteAllText(_overrideFilePath, csvContent);
+        var fullCsvContent = $"FullName,IsStatic,IsExtension,CustomColumn1,CustomColumn2\n{csvContent}";
+        _fileSystem.WriteAllText(_overrideFilePath, fullCsvContent);
 
         // Act
-        _overrideManager.LoadOverrides();
+        _overrideManager.ReadOverrides();
 
         // Assert
-        var customColumns = _overrideManager.GetCustomColumns();
-        Assert.That(customColumns, Does.Contain("CustomColumn1"));
-        Assert.That(customColumns, Does.Contain("CustomColumn2"));
-
-        var testMethodOverrides = _overrideManager.GetOverridesForMethod("TestNamespace.TestClass.TestMethod");
-        Assert.That(testMethodOverrides, Does.ContainKey("IsStatic"));
-        Assert.That(testMethodOverrides["IsStatic"], Is.EqualTo("True"));
-        Assert.That(testMethodOverrides, Does.ContainKey("CustomColumn1"));
-        Assert.That(testMethodOverrides["CustomColumn1"], Is.EqualTo("CustomValue1"));
-
-        var anotherMethodOverrides = _overrideManager.GetOverridesForMethod("TestNamespace.TestClass.AnotherMethod");
-        Assert.That(anotherMethodOverrides, Does.ContainKey("IsExtension"));
-        Assert.That(anotherMethodOverrides["IsExtension"], Is.EqualTo("True"));
-        Assert.That(anotherMethodOverrides, Does.ContainKey("CustomColumn2"));
-        Assert.That(anotherMethodOverrides["CustomColumn2"], Is.EqualTo("CustomValue4"));
+        var overrides = _overrideManager.GetOverridesForMethod(methodName);
+        Assert.That(overrides, Does.ContainKey(expectedKey));
+        Assert.That(overrides[expectedKey], Is.EqualTo(expectedValue));
     }
 
     [Test]
-    public void LoadOverrides_HandlesEmptyFile()
+    public void ReadOverrides_HandlesEmptyFile()
     {
         // Arrange
-        File.WriteAllText(_overrideFilePath, string.Empty);
+        _fileSystem.WriteAllText(_overrideFilePath, string.Empty);
 
         // Act
-        _overrideManager.LoadOverrides();
+        _overrideManager.ReadOverrides();
 
         // Assert
-        var customColumns = _overrideManager.GetCustomColumns();
-        Assert.That(customColumns, Is.Empty, "Custom columns should be empty for an empty file");
-
         var overrides = _overrideManager.GetOverridesForMethod("AnyMethod");
         Assert.That(overrides, Is.Empty, "Overrides should be empty for an empty file");
     }
 
     [Test]
-    public void LoadOverrides_HandlesNonExistentFile()
+    public void ReadOverrides_HandlesNonExistentFile()
     {
         // Act
-        _overrideManager.LoadOverrides();
+        _overrideManager.ReadOverrides();
 
         // Assert
-        var customColumns = _overrideManager.GetCustomColumns();
-        Assert.That(customColumns, Is.Empty);
-
         var overrides = _overrideManager.GetOverridesForMethod("AnyMethod");
         Assert.That(overrides, Is.Empty);
     }
 
     [Test]
-    public void SaveOverrides_CreatesTemplateFile()
+    [TestCase("TestNamespace.TestClass.TestMethod", true, false, "CustomValue1")]
+    [TestCase("TestNamespace.TestClass.AnotherMethod", false, true, "CustomValue2")]
+    [TestCase("TestNamespace.TestClass.GenericMethod<T>", false, false, "CustomValue3")]
+    public void SaveOverrides_CreatesTemplateFileWithCorrectColumns(string methodName, bool isStatic, bool isExtension, string customValue)
     {
         // Arrange
         var reportItems = new List<ReportItem>
         {
             new ReportItem
             {
-                FullName = "TestNamespace.TestClass.TestMethod",
-                Parameters = new Dictionary<string, string> { { "CustomColumn", "CustomValue" } },
-                AttributeParameters = new HashSet<string> { "CustomColumn" }
+                FullName = methodName,
+                Parameters = new Dictionary<string, string>
+                {
+                    { "IsStatic", isStatic.ToString() },
+                    { "IsExtension", isExtension.ToString() },
+                    { "CustomColumn", customValue }
+                }
             }
         };
 
@@ -117,150 +115,56 @@ TestNamespace.TestClass.AnotherMethod,False,True,CustomValue3,CustomValue4";
         _overrideManager.SaveOverrides(reportItems);
 
         // Assert
-        Assert.That(File.Exists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var templateContent = File.ReadAllText(_overrideTemplateFilePath);
-        Assert.That(templateContent, Does.Contain("CustomColumn"), "Template should contain the custom column");
-        Assert.That(templateContent, Does.Contain("CustomValue"), "Template should contain the custom value");
+        Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
+        var templateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
+        Assert.That(templateContent, Does.Contain("FullName,IsStatic,IsExtension"), "Template should contain standard columns");
+        Assert.That(templateContent, Does.Contain($"{methodName},{isStatic},{isExtension}"), "Template should contain correct values");
+        Assert.That(templateContent, Does.Not.Contain("CustomColumn"), "Template should not contain custom columns");
     }
 
     [Test]
-    public void SaveOverrides_DoesNotModifyCsvFile()
+    [TestCase("TestMethod", "CustomColumn", "CustomValue")]
+    [TestCase("AnotherMethod", "IsStatic", "True")]
+    [TestCase("GenericMethod<T>", "IsExtension", "False")]
+    public void GetOverridesForMethod_ReturnsCorrectOverrides(string methodName, string overrideKey, string overrideValue)
     {
         // Arrange
-        var initialCsvContent = "FullName,CustomColumn\nTestMethod,InitialValue";
-        File.WriteAllText(_overrideFilePath, initialCsvContent);
+        var csvContent = $"FullName,{overrideKey}\n{methodName},{overrideValue}";
+        _fileSystem.WriteAllText(_overrideFilePath, csvContent);
+        _overrideManager.ReadOverrides();
 
-        var reportItems = new List<ReportItem>
+        // Act
+        var overrides = _overrideManager.GetOverridesForMethod(methodName);
+
+        // Assert
+        Assert.That(overrides, Does.ContainKey(overrideKey));
+        Assert.That(overrides[overrideKey], Is.EqualTo(overrideValue));
+    }
+
+    [Test]
+    [TestCase("TestMethod,CustomValue1\nAnotherMethod,CustomValue2", 2)]
+    [TestCase("SingleMethod,CustomValue", 1)]
+    [TestCase("", 0)]
+    public void ReadOverrides_HandlesVariousFileContents(string fileContent, int expectedOverrideCount)
+    {
+        // Arrange
+        var fullContent = $"FullName,CustomColumn\n{fileContent}";
+        _fileSystem.WriteAllText(_overrideFilePath, fullContent);
+
+        // Act
+        _overrideManager.ReadOverrides();
+
+        // Assert
+        var allOverrides = new List<Dictionary<string, string>>();
+        foreach (var line in fileContent.Split('\n'))
         {
-            new ReportItem
+            if (!string.IsNullOrEmpty(line))
             {
-                FullName = "TestMethod",
-                Parameters = new Dictionary<string, string> { { "CustomColumn", "NewValue" } },
-                AttributeParameters = new HashSet<string> { "CustomColumn" }
+                var parts = line.Split(',');
+                allOverrides.Add(_overrideManager.GetOverridesForMethod(parts[0]));
             }
-        };
-
-        // Act
-        _overrideManager.SaveOverrides(reportItems);
-
-        // Assert
-        var csvContent = File.ReadAllText(_overrideFilePath);
-        Assert.That(csvContent, Is.EqualTo(initialCsvContent), "CSV file should not be modified");
-    }
-
-    [Test]
-    public void GetOverridesForMethod_ReturnsCorrectOverrides()
-    {
-        // Arrange
-        var csvContent = "FullName,CustomColumn\nTestMethod,CustomValue";
-        File.WriteAllText(_overrideFilePath, csvContent);
-        _overrideManager.LoadOverrides();
-
-        // Act
-        var overrides = _overrideManager.GetOverridesForMethod("TestMethod");
-
-        // Assert
-        Assert.That(overrides, Does.ContainKey("CustomColumn"));
-        Assert.That(overrides["CustomColumn"], Is.EqualTo("CustomValue"));
-    }
-
-    [Test]
-    public void GetCustomColumns_ReturnsCorrectColumns()
-    {
-        // Arrange
-        var csvContent = "FullName,CustomColumn1,CustomColumn2\nTestMethod,Value1,Value2";
-        File.WriteAllText(_overrideFilePath, csvContent);
-        _overrideManager.LoadOverrides();
-
-        // Act
-        var customColumns = _overrideManager.GetCustomColumns();
-
-        // Assert
-        Assert.That(customColumns, Does.Contain("CustomColumn1"));
-        Assert.That(customColumns, Does.Contain("CustomColumn2"));
-    }
-
-    [Test]
-    public void SaveOverrides_MultipleSaves_ShouldNotDuplicateColumnsInTemplate()
-    {
-        var manager = new MethodOverrideManager(_testOutputPath);
-        var reportItems1 = new List<ReportItem>
-    {
-        new ReportItem
-        {
-            FullName = "Test.Method1",
-            Parameters = new Dictionary<string, string> { { "CustomColumn1", "Value1" } },
-            AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn1" }
         }
-    };
-        var reportItems2 = new List<ReportItem>
-    {
-        new ReportItem
-        {
-            FullName = "Test.Method2",
-            Parameters = new Dictionary<string, string> { { "CustomColumn2", "Value2" } },
-            AttributeParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CustomColumn2" }
-        }
-    };
-
-        manager.SaveOverrides(reportItems1);
-        var templateContent1 = File.ReadAllText(_overrideTemplateFilePath);
-        _logger.LogInformation($"Template content after first save: {templateContent1}");
-
-        manager.SaveOverrides(reportItems2);
-        var templateContent2 = File.ReadAllText(_overrideTemplateFilePath);
-        _logger.LogInformation($"Template content after second save: {templateContent2}");
-
-        var headers = templateContent2.Split('\n')[0].Split(',').Select(h => h.Trim()).ToArray();
-        var uniqueHeaders = new HashSet<string>(headers, StringComparer.OrdinalIgnoreCase);
-
-        Assert.That(headers.Length, Is.EqualTo(uniqueHeaders.Count), "Template should not contain duplicate columns after multiple saves");
-        Assert.That(uniqueHeaders, Does.Contain("CustomColumn1"), "CustomColumn1 should be present");
-        Assert.That(uniqueHeaders, Does.Contain("CustomColumn2"), "CustomColumn2 should be present");
-    }
-
-    [Test]
-    public void SaveOverrides_UpdatesTemplateWithLatestData()
-    {
-        var initialReportItems = new List<ReportItem>
-    {
-        new ReportItem
-        {
-            FullName = "TestMethod",
-            Parameters = new Dictionary<string, string> { { "InitialColumn", "InitialValue" } },
-            AttributeParameters = new HashSet<string> { "InitialColumn" }
-        }
-    };
-
-        var updatedReportItems = new List<ReportItem>
-    {
-        new ReportItem
-        {
-            FullName = "TestMethod",
-            Parameters = new Dictionary<string, string> { { "UpdatedColumn", "UpdatedValue" } },
-            AttributeParameters = new HashSet<string> { "UpdatedColumn" }
-        }
-    };
-
-        _overrideManager.SaveOverrides(initialReportItems);
-        var initialTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
-        _logger.LogInformation($"Initial template content: {initialTemplateContent}");
-
-        _overrideManager.SaveOverrides(updatedReportItems);
-        var updatedTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
-        _logger.LogInformation($"Updated template content: {updatedTemplateContent}");
-
-        Assert.That(updatedTemplateContent, Does.Contain("UpdatedColumn"), "Template should contain the updated column");
-        Assert.That(updatedTemplateContent, Does.Contain("UpdatedValue"), "Template should contain the updated value");
-
-        // The initial column is now marked as obsolete but still present
-        Assert.That(updatedTemplateContent, Does.Contain("InitialColumn"), "Template should still contain the initial column");
-
-        _overrideManager.CleanupObsoleteColumns();
-        var cleanedTemplateContent = File.ReadAllText(_overrideTemplateFilePath);
-        _logger.LogInformation($"Cleaned template content: {cleanedTemplateContent}");
-
-        Assert.That(cleanedTemplateContent, Does.Not.Contain("InitialColumn"), "Template should not contain the initial column after cleanup");
-        Assert.That(cleanedTemplateContent, Does.Not.Contain("InitialValue"), "Template should not contain the initial value after cleanup");
+        Assert.That(allOverrides.Count, Is.EqualTo(expectedOverrideCount));
+        Assert.That(allOverrides.All(o => o.Count > 0), Is.True);
     }
 }

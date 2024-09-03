@@ -10,46 +10,56 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Moq;
-
+using Orc.Monitoring.Reporters;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class CallStackParentChildTests
 {
     private TestLogger<CallStackParentChildTests> _logger;
-    private CallStack? _callStack;
-    private Mock<IClassMonitor>? _mockClassMonitor;
-    private MonitoringConfiguration? _config;
+    private TestLoggerFactory<CallStackParentChildTests> _loggerFactory;
+    private CallStack _callStack;
+    private Mock<IClassMonitor> _mockClassMonitor;
+    private MonitoringConfiguration _config;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<CallStackParentChildTests>();
+        _loggerFactory = new TestLoggerFactory<CallStackParentChildTests>(_logger);
         _config = new MonitoringConfiguration();
-        var methodCallInfoPool = new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>());
-        _callStack = new CallStack(_config, methodCallInfoPool, _logger.CreateLogger<CallStack>());
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+
+        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
 
-        MonitoringController.Enable();
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
-        MonitoringController.Disable();
+        _monitoringController.Disable();
     }
 
     [Test]
     public void SimpleParentChildRelationship_SetsParentCorrectly()
     {
         var parentInfo = CreateMethodCallInfo("ParentMethod");
-        _callStack?.Push(parentInfo);
-
         var childInfo = CreateMethodCallInfo("ChildMethod");
-        _callStack?.Push(childInfo);
 
-        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child's parent should be the parent method");
-        Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "Child's parent thread ID should match the parent's thread ID");
-        Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), "Child's level should be one more than the parent's level");
+        _callStack.Push(parentInfo);
+        _callStack.Push(childInfo);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child's parent should be the parent method");
+            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "Child's parent thread ID should match the parent's thread ID");
+            Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), "Child's level should be one more than the parent's level");
+        });
     }
 
     [Test]
@@ -59,47 +69,49 @@ public class CallStackParentChildTests
         var level2 = CreateMethodCallInfo("Level2");
         var level3 = CreateMethodCallInfo("Level3");
 
-        _callStack?.Push(level1);
-        _callStack?.Push(level2);
-        _callStack?.Push(level3);
+        _callStack.Push(level1);
+        _callStack.Push(level2);
+        _callStack.Push(level3);
 
-        Console.WriteLine($"Level1: {level1}");
-        Console.WriteLine($"Level2: {level2}");
-        Console.WriteLine($"Level3: {level3}");
+        Assert.Multiple(() =>
+        {
+            Assert.That(level3.Parent, Is.EqualTo(level2), "Level3's parent should be Level2");
+            Assert.That(level2.Parent, Is.EqualTo(level1), "Level2's parent should be Level1");
+            Assert.That(level1.Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "Level1's parent should be null");
 
-        Assert.That(level3.Parent, Is.EqualTo(level2), "Level3's parent should be Level2");
-        Assert.That(level2.Parent, Is.EqualTo(level1), "Level2's parent should be Level1");
-        Assert.That(level1.Parent, Is.EqualTo(MethodCallInfo.Null), "Level1's parent should be null");
-
-        Assert.That(level3.Level, Is.EqualTo(3), "Level3 should be at level 3");
-        Assert.That(level2.Level, Is.EqualTo(2), "Level2 should be at level 2");
-        Assert.That(level1.Level, Is.EqualTo(1), "Level1 should be at level 1");
+            Assert.That(level3.Level, Is.EqualTo(3), "Level3 should be at level 3");
+            Assert.That(level2.Level, Is.EqualTo(2), "Level2 should be at level 2");
+            Assert.That(level1.Level, Is.EqualTo(1), "Level1 should be at level 1");
+        });
     }
 
     [Test]
     public async Task AsyncMethodCalls_MaintainsParentChildRelationship()
     {
         var parentInfo = CreateMethodCallInfo("AsyncParentMethod");
-        _callStack?.Push(parentInfo);
+        _callStack.Push(parentInfo);
 
         var childInfoTask = Task.Run(() => {
             var childInfo = CreateMethodCallInfo("AsyncChildMethod");
-            _callStack?.Push(childInfo);
+            _callStack.Push(childInfo);
             return childInfo;
         });
 
         var childInfo = await childInfoTask;
 
-        Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child's parent should be the parent method");
-        Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "Child's parent thread ID should match the parent's thread ID");
-        Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), "Child's level should be one more than the parent's level");
+        Assert.Multiple(() =>
+        {
+            Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child's parent should be the parent method");
+            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "Child's parent thread ID should match the parent's thread ID");
+            Assert.That(childInfo.Level, Is.EqualTo(parentInfo.Level + 1), "Child's level should be one more than the parent's level");
+        });
     }
 
     [Test]
     public void MultiThreadedCalls_SetsParentCorrectlyAcrossThreads()
     {
         var parentInfo = CreateMethodCallInfo("ParentMethod");
-        _callStack?.Push(parentInfo);
+        _callStack.Push(parentInfo);
 
         var childInfos = new ConcurrentBag<MethodCallInfo>();
         var allChildrenPushed = new ManualResetEventSlim(false);
@@ -107,7 +119,7 @@ public class CallStackParentChildTests
         var tasks = Enumerable.Range(0, 5).Select(_ => Task.Run(() =>
         {
             var childInfo = CreateMethodCallInfo("ChildMethod");
-            _callStack?.Push(childInfo);
+            _callStack.Push(childInfo);
             childInfos.Add(childInfo);
             if (childInfos.Count == 5)
             {
@@ -120,31 +132,27 @@ public class CallStackParentChildTests
 
         foreach (var childInfo in childInfos)
         {
-            if (childInfo.ThreadId == parentInfo.ThreadId)
+            Assert.Multiple(() =>
             {
-                // Calls on the same thread as parent should be nested
-                Assert.That(childInfo.Parent?.ThreadId, Is.EqualTo(parentInfo.ThreadId), "Same-thread child should have the parent as its parent");
-            }
-            else
-            {
-                // Calls on different threads should have the root parent
                 Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Cross-thread child should have the parent as its parent");
-            }
-            Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "ParentThreadId should match the parent's thread ID");
-            Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent?.Level + 1), "Child's level should be one more than the parent's level");
+                Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "ParentThreadId should match the parent's thread ID");
+                Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent.Level + 1), "Child's level should be one more than the parent's level");
+            });
         }
     }
-
 
     [Test]
     public void RootMethod_HasNoParent()
     {
         var rootInfo = CreateMethodCallInfo("RootMethod");
-        _callStack?.Push(rootInfo);
+        _callStack.Push(rootInfo);
 
-        Assert.That(rootInfo.Parent, Is.EqualTo(MethodCallInfo.Null), "Root method should have no parent");
-        Assert.That(rootInfo.ParentThreadId, Is.EqualTo(-1), "Root method should have no parent thread ID");
-        Assert.That(rootInfo.Level, Is.EqualTo(1), "Root method should be at level 1");
+        Assert.Multiple(() =>
+        {
+            Assert.That(rootInfo.Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "Root method should have no parent");
+            Assert.That(rootInfo.ParentThreadId, Is.EqualTo(-1), "Root method should have no parent thread ID");
+            Assert.That(rootInfo.Level, Is.EqualTo(1), "Root method should be at level 1");
+        });
     }
 
     [Test]
@@ -153,56 +161,58 @@ public class CallStackParentChildTests
         var parentInfo = CreateMethodCallInfo("ParentMethod");
         var childInfo = CreateMethodCallInfo("ChildMethod");
 
-        _callStack?.Push(parentInfo);
-        _callStack?.Push(childInfo);
+        _callStack.Push(parentInfo);
+        _callStack.Push(childInfo);
 
-        _callStack?.Pop(childInfo);
+        _callStack.Pop(childInfo);
 
         Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Child should maintain parent relationship after being popped");
 
         var newChildInfo = CreateMethodCallInfo("NewChildMethod");
-        _callStack?.Push(newChildInfo);
+        _callStack.Push(newChildInfo);
 
-        Assert.That(newChildInfo.Parent, Is.EqualTo(parentInfo), "New child should have the parent as its parent");
-        Assert.That(newChildInfo.Level, Is.EqualTo(parentInfo.Level + 1), "New child should be at level 2");
+        Assert.Multiple(() =>
+        {
+            Assert.That(newChildInfo.Parent, Is.EqualTo(parentInfo), "New child should have the parent as its parent");
+            Assert.That(newChildInfo.Level, Is.EqualTo(parentInfo.Level + 1), "New child should be at level 2");
+        });
     }
 
     [Test]
     public void DeepNestedCalls_CorrectlyTracksAllLevels()
     {
-        const int depth = 100; // Test with a deep call stack
+        const int depth = 100;
         var methodInfos = new MethodCallInfo[depth];
 
         for (int i = 0; i < depth; i++)
         {
             methodInfos[i] = CreateMethodCallInfo($"Method{i}");
-            _callStack?.Push(methodInfos[i]);
+            _callStack.Push(methodInfos[i]);
         }
 
         for (int i = 0; i < depth; i++)
         {
-            Assert.That(methodInfos[i].Level, Is.EqualTo(i + 1), $"Level mismatch at depth {i}");
-            if (i > 0)
+            Assert.Multiple(() =>
             {
-                Assert.That(methodInfos[i].Parent, Is.EqualTo(methodInfos[i - 1]), $"Parent mismatch at depth {i}");
-            }
-            else
-            {
-                Assert.That(methodInfos[i].Parent, Is.EqualTo(MethodCallInfo.Null), "Root method should have Null parent");
-            }
+                Assert.That(methodInfos[i].Level, Is.EqualTo(i + 1), $"Level mismatch at depth {i}");
+                if (i > 0)
+                {
+                    Assert.That(methodInfos[i].Parent, Is.EqualTo(methodInfos[i - 1]), $"Parent mismatch at depth {i}");
+                }
+                else
+                {
+                    Assert.That(methodInfos[i].Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "Root method should have Null parent");
+                }
+            });
         }
 
-        // Pop all methods and verify
         for (int i = depth - 1; i >= 0; i--)
         {
-            _callStack?.Pop(methodInfos[i]);
+            _callStack.Pop(methodInfos[i]);
         }
 
-        var threadCallStacksField = _callStack?.GetType().GetField("_threadCallStacks", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var threadCallStacks = threadCallStacksField?.GetValue(_callStack) as ConcurrentDictionary<int, Stack<MethodCallInfo>>;
-
-        Assert.That(threadCallStacks, Is.Not.Null, "ThreadCallStacks should not be null");
-        Assert.That(threadCallStacks!.IsEmpty, Is.True, $"Call stack should be empty after popping all methods. Current state: {string.Join(", ", threadCallStacks.Select(kvp => $"{kvp.Key}: {kvp.Value.Count}"))}");
+        var threadCallStacks = GetThreadCallStacks(_callStack);
+        Assert.That(threadCallStacks.IsEmpty, Is.True, "Call stack should be empty after popping all methods");
     }
 
     [Test]
@@ -210,28 +220,28 @@ public class CallStackParentChildTests
     {
         var methodInfo = CreateMethodCallInfo("UnpushedMethod");
 
-        Assert.DoesNotThrow(() => _callStack?.Pop(methodInfo), "Popping an unpushed method should not throw an exception");
+        Assert.DoesNotThrow(() => _callStack.Pop(methodInfo), "Popping an unpushed method should not throw an exception");
     }
 
     [Test]
     public async Task LongRunningAsyncOperation_MaintainsCorrectRelationship()
     {
         var parentInfo = CreateMethodCallInfo("LongRunningParent");
-        _callStack?.Push(parentInfo);
+        _callStack.Push(parentInfo);
 
         var longRunningTask = Task.Run(async () =>
         {
             var childInfo = CreateMethodCallInfo("LongRunningChild");
-            _callStack?.Push(childInfo);
-            await Task.Delay(5000); // Simulate a long-running operation
+            _callStack.Push(childInfo);
+            await Task.Delay(1000);
             return childInfo;
         });
 
-        await Task.Delay(1000); // Give some time for the long-running task to start
+        await Task.Delay(200);
 
         var quickChildInfo = CreateMethodCallInfo("QuickChild");
-        _callStack?.Push(quickChildInfo);
-        _callStack?.Pop(quickChildInfo);
+        _callStack.Push(quickChildInfo);
+        _callStack.Pop(quickChildInfo);
 
         var longRunningChildInfo = await longRunningTask;
 
@@ -244,8 +254,8 @@ public class CallStackParentChildTests
             Assert.That(longRunningChildInfo.Level, Is.EqualTo(2), "Long-running child level should be 2");
         });
 
-        _callStack?.Pop(longRunningChildInfo);
-        _callStack?.Pop(parentInfo);
+        _callStack.Pop(longRunningChildInfo);
+        _callStack.Pop(parentInfo);
     }
 
     [Test]
@@ -261,9 +271,8 @@ public class CallStackParentChildTests
             for (int i = 0; i < operationCount; i++)
             {
                 var methodInfo = CreateMethodCallInfo($"PushMethod{i}");
-                _callStack?.Push(methodInfo);
-                if (random.Next(2) == 0) // Randomly sleep to increase chance of interleaving
-                    Thread.Sleep(1);
+                _callStack.Push(methodInfo);
+                if (random.Next(2) == 0) Thread.Sleep(1);
             }
         });
 
@@ -273,26 +282,21 @@ public class CallStackParentChildTests
             for (int i = 0; i < operationCount; i++)
             {
                 var methodInfo = CreateMethodCallInfo($"PopMethod{i}");
-                _callStack?.Pop(methodInfo);
-                if (random.Next(2) == 0) // Randomly sleep to increase chance of interleaving
-                    Thread.Sleep(1);
+                _callStack.Pop(methodInfo);
+                if (random.Next(2) == 0) Thread.Sleep(1);
             }
         });
 
         Task.WaitAll(pushTask, popTask);
 
-        // Verify the final state
-        var finalStackField = _callStack?.GetType().GetField("_threadCallStacks", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var finalStack = (ConcurrentDictionary<int, Stack<MethodCallInfo>>?)finalStackField?.GetValue(_callStack);
-
-        Assert.That(finalStack, Is.Not.Null, "Final stack should not be null");
-        Assert.That(finalStack!.Values.Sum(stack => stack.Count), Is.LessThanOrEqualTo(operationCount), "Final stack count should not exceed operation count");
+        var finalStack = GetThreadCallStacks(_callStack);
+        Assert.That(finalStack.Values.Sum(stack => stack.Count), Is.LessThanOrEqualTo(operationCount), "Final stack count should not exceed operation count");
     }
 
     [Test]
     public void Push_WithNullMethodCallInfo_ThrowsException()
     {
-        Assert.Throws<ArgumentNullException>(() => _callStack?.Push(null!));
+        Assert.Throws<ArgumentNullException>(() => _callStack.Push(null));
     }
 
     [Test]
@@ -305,22 +309,22 @@ public class CallStackParentChildTests
         var method5 = CreateMethodCallInfo("MethodCall5");
         var method6 = CreateMethodCallInfo("MethodCall6");
 
-        _callStack?.Push(method1);
-        _callStack?.Push(method2);
-        _callStack?.Push(method3);
-        _callStack?.Push(method4);
-        _callStack?.Pop(method4);
-        _callStack?.Push(method5);
-        _callStack?.Pop(method5);
-        _callStack?.Pop(method3);
-        _callStack?.Push(method6);
-        _callStack?.Pop(method6);
-        _callStack?.Pop(method2);
-        _callStack?.Pop(method1);
+        _callStack.Push(method1);
+        _callStack.Push(method2);
+        _callStack.Push(method3);
+        _callStack.Push(method4);
+        _callStack.Pop(method4);
+        _callStack.Push(method5);
+        _callStack.Pop(method5);
+        _callStack.Pop(method3);
+        _callStack.Push(method6);
+        _callStack.Pop(method6);
+        _callStack.Pop(method2);
+        _callStack.Pop(method1);
 
         Assert.Multiple(() =>
         {
-            Assert.That(method1.Parent, Is.EqualTo(MethodCallInfo.Null), "MethodCall1 should have no parent");
+            Assert.That(method1.Parent, Is.EqualTo(_methodCallInfoPool.GetNull()), "MethodCall1 should have no parent");
             Assert.That(method1.Level, Is.EqualTo(1), "MethodCall1 should be at level 1");
 
             Assert.That(method2.Parent, Is.EqualTo(method1), "MethodCall2's parent should be MethodCall1");
@@ -339,20 +343,12 @@ public class CallStackParentChildTests
             Assert.That(method6.Level, Is.EqualTo(3), "MethodCall6 should be at level 3");
         });
 
-        // Verify that the call stack is empty at the end
-        var threadCallStacksField = _callStack?.GetType().GetField("_threadCallStacks", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        var threadCallStacks = threadCallStacksField?.GetValue(_callStack) as ConcurrentDictionary<int, Stack<MethodCallInfo>>;
-        Assert.That(threadCallStacks, Is.Not.Null, "ThreadCallStacks should not be null");
-        Assert.That(threadCallStacks!.IsEmpty, Is.True, "Call stack should be empty after all methods are popped");
+        var threadCallStacks = GetThreadCallStacks(_callStack);
+        Assert.That(threadCallStacks.IsEmpty, Is.True, "Call stack should be empty after all methods are popped");
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName)
     {
-        if (_callStack is null)
-        {
-            throw new InvalidOperationException("CallStack not initialized");
-        }
-
         var config = new MethodCallContextConfig
         {
             ClassType = typeof(CallStackParentChildTests),
@@ -364,6 +360,181 @@ public class CallStackParentChildTests
         // Add the MethodCallParameterAttribute
         testMethod.SetCustomAttribute(new MethodCallParameterAttribute("TestParam", "TestValue"));
 
-        return _callStack.CreateMethodCallInfo(_mockClassMonitor?.Object, typeof(CallStackParentChildTests), config, testMethod);
+        return _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, typeof(CallStackParentChildTests), config, testMethod);
+    }
+
+    private ConcurrentDictionary<int, Stack<MethodCallInfo>> GetThreadCallStacks(CallStack callStack)
+    {
+        var field = callStack.GetType().GetField("_threadCallStacks", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return (ConcurrentDictionary<int, Stack<MethodCallInfo>>)field.GetValue(callStack);
+    }
+
+    [Test]
+    public void ConcurrentPushAcrossMultipleThreads_MaintainsCorrectState()
+    {
+        const int threadCount = 10;
+        const int operationsPerThread = 100;
+        var barrier = new Barrier(threadCount);
+        var tasks = new Task[threadCount];
+
+        for (int i = 0; i < threadCount; i++)
+        {
+            int threadId = i;
+            tasks[i] = Task.Run(() =>
+            {
+                barrier.SignalAndWait();
+                for (int j = 0; j < operationsPerThread; j++)
+                {
+                    var methodInfo = CreateMethodCallInfo($"Method_Thread{threadId}_Op{j}");
+                    _callStack.Push(methodInfo);
+                    Thread.Sleep(1); // Small delay to increase chance of interleaving
+                    _callStack.Pop(methodInfo);
+                }
+            });
+        }
+
+        Task.WaitAll(tasks);
+
+        var finalStack = GetThreadCallStacks(_callStack);
+        Assert.That(finalStack.Values.Sum(stack => stack.Count), Is.EqualTo(0), "Call stack should be empty after all operations");
+    }
+
+    [Test]
+    public async Task AsyncOperationsWithDifferentCompletionOrder_MaintainCorrectRelationships()
+    {
+        var parentInfo = CreateMethodCallInfo("AsyncParent");
+        _callStack.Push(parentInfo);
+
+        var child1Task = Task.Run(async () =>
+        {
+            var childInfo = CreateMethodCallInfo("AsyncChild1");
+            _callStack.Push(childInfo);
+            await Task.Delay(500);
+            return childInfo;
+        });
+
+        var child2Task = Task.Run(async () =>
+        {
+            var childInfo = CreateMethodCallInfo("AsyncChild2");
+            _callStack.Push(childInfo);
+            await Task.Delay(200);
+            return childInfo;
+        });
+
+        var child2 = await child2Task;
+        var child1 = await child1Task;
+
+        _callStack.Pop(child2);
+        _callStack.Pop(child1);
+        _callStack.Pop(parentInfo);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(child1.Parent, Is.EqualTo(parentInfo), "AsyncChild1's parent should be AsyncParent");
+            Assert.That(child2.Parent, Is.EqualTo(parentInfo), "AsyncChild2's parent should be AsyncParent");
+            Assert.That(child1.Level, Is.EqualTo(2), "AsyncChild1 should be at level 2");
+            Assert.That(child2.Level, Is.EqualTo(2), "AsyncChild2 should be at level 2");
+        });
+
+        var finalStack = GetThreadCallStacks(_callStack);
+        Assert.That(finalStack.Values.Sum(stack => stack.Count), Is.EqualTo(0), "Call stack should be empty after all operations");
+    }
+
+    [Test]
+    public void PushAndPopWithHighConcurrency_MaintainsCorrectState()
+    {
+        const int operationCount = 10000;
+        var methodInfos = new ConcurrentDictionary<string, MethodCallInfo>();
+        var unpairedPushCount = 0;
+        var pushCount = 0;
+        var popCount = 0;
+
+        Parallel.For(0, operationCount, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, i =>
+        {
+            if (i % 2 == 0)
+            {
+                if (Interlocked.Increment(ref pushCount) <= CallStack.MaxCallStackDepth)
+                {
+                    var methodInfo = CreateMethodCallInfo($"Method{i}");
+                    _callStack.Push(methodInfo);
+                    if (methodInfos.TryAdd(methodInfo.Id, methodInfo))
+                    {
+                        Interlocked.Increment(ref unpairedPushCount);
+                    }
+                }
+                else
+                {
+                    Interlocked.Decrement(ref pushCount);
+                }
+            }
+            else
+            {
+                if (methodInfos.Count > 0)
+                {
+                    var key = methodInfos.Keys.FirstOrDefault();
+                    if (key is not null && methodInfos.TryRemove(key, out var methodInfo))
+                    {
+                        _callStack.Pop(methodInfo);
+                        Interlocked.Increment(ref popCount);
+                        Interlocked.Decrement(ref unpairedPushCount);
+                    }
+                }
+            }
+
+            if (i % 1000 == 0)
+            {
+                _logger.LogDebug($"Operation {i}: Push Count = {pushCount}, Pop Count = {popCount}, Unpaired Push Count = {unpairedPushCount}, Dictionary Count = {methodInfos.Count}");
+            }
+        });
+
+        var finalStack = GetThreadCallStacks(_callStack);
+        var finalStackCount = finalStack.Values.Sum(stack => stack.Count);
+
+        _logger.LogInformation($"Total Push operations: {pushCount}");
+        _logger.LogInformation($"Total Pop operations: {popCount}");
+        _logger.LogInformation($"Unpaired Push operations: {unpairedPushCount}");
+        _logger.LogInformation($"Final Stack Count: {finalStackCount}");
+        _logger.LogInformation($"Final Dictionary Count: {methodInfos.Count}");
+
+        Assert.That(finalStackCount, Is.EqualTo(unpairedPushCount),
+            $"Final stack count should match the number of unpaired push operations. Unpaired: {unpairedPushCount}, Stack Count: {finalStackCount}");
+        Assert.That(pushCount - popCount, Is.EqualTo(unpairedPushCount),
+            $"The difference between push and pop operations should equal unpaired push operations. Pushes: {pushCount}, Pops: {popCount}, Unpaired: {unpairedPushCount}");
+        Assert.That(methodInfos.Count, Is.EqualTo(unpairedPushCount),
+            $"The number of items in the dictionary should equal the number of unpaired push operations. Dictionary Count: {methodInfos.Count}, Unpaired: {unpairedPushCount}");
+    }
+
+    [Test]
+    public void NestedCallsAcrossMultipleThreads_MaintainCorrectHierarchy()
+    {
+        const int threadCount = 5;
+        const int depthPerThread = 10;
+        var tasks = new Task[threadCount];
+
+        for (int i = 0; i < threadCount; i++)
+        {
+            int threadId = i;
+            tasks[i] = Task.Run(() =>
+            {
+                var methodInfos = new Stack<MethodCallInfo>();
+                for (int depth = 0; depth < depthPerThread; depth++)
+                {
+                    var methodInfo = CreateMethodCallInfo($"Method_Thread{threadId}_Depth{depth}");
+                    _callStack.Push(methodInfo);
+                    methodInfos.Push(methodInfo);
+                }
+
+                while (methodInfos.Count > 0)
+                {
+                    _callStack.Pop(methodInfos.Pop());
+                }
+            });
+        }
+
+        Task.WaitAll(tasks);
+
+        var finalStack = GetThreadCallStacks(_callStack);
+        Assert.That(finalStack.Values.Sum(stack => stack.Count), Is.EqualTo(0),
+            "Call stack should be empty after all nested calls are completed");
     }
 }

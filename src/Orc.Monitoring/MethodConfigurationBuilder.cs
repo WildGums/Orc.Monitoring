@@ -11,16 +11,16 @@ public class MethodConfigurationBuilder
     private readonly MethodConfiguration _config = new();
 
     public MethodConfigurationBuilder()
-    : this(MonitoringController.CreateLogger<MethodConfigurationBuilder>())
+    : this(MonitoringLoggerFactory.Instance)
     {
         
     }
 
-    public MethodConfigurationBuilder(ILogger<MethodConfigurationBuilder> logger)
+    public MethodConfigurationBuilder(IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<MethodConfigurationBuilder>();
     }
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
@@ -30,18 +30,19 @@ public class MethodConfigurationBuilder
         return this;
     }
 
-    public MethodConfigurationBuilder AddReporter<TReporter>(Action<TReporter>? configAction = null) where TReporter : IMethodCallReporter, new()
+    public MethodConfigurationBuilder AddReporter<TReporter>(Action<IMethodCallReporter>? configAction = null) where TReporter : IMethodCallReporter, new()
     {
+        // TODO: we need to resolve reporter factory based on the type of reporter and then create the reporter
         var reporter = new TReporter();
         if (string.IsNullOrEmpty(reporter.Id))
         {
             reporter.Id = Guid.NewGuid().ToString(); // Assign a unique Id only if one doesn't exist
         }
+
         configAction?.Invoke(reporter);
 
         return AddReporter(reporter);
     }
-
     public MethodConfigurationBuilder WithArguments(params object[] parameters)
     {
         _config.ParameterTypes.AddRange(parameters.Select(p => p.GetType()));

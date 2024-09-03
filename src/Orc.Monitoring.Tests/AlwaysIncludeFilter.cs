@@ -8,11 +8,11 @@ public class AlwaysIncludeFilter : IMethodFilter
 {
     private readonly ILogger<AlwaysIncludeFilter> _logger;
 
-    public AlwaysIncludeFilter(ILogger<AlwaysIncludeFilter> logger)
+    public AlwaysIncludeFilter(IMonitoringLoggerFactory loggerFactory)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<AlwaysIncludeFilter>();
     }
 
     public bool ShouldInclude(MethodCallInfo methodCallInfo)

@@ -6,22 +6,32 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using IO;
 
-public static class CsvUtils
+public class CsvUtils
 {
-    public static void WriteCsvLine(TextWriter writer, string?[] values)
+    private readonly IFileSystem _fileSystem;
+
+    public static CsvUtils Instance { get; } = new CsvUtils(FileSystem.Instance);
+
+    public CsvUtils(IFileSystem fileSystem)
+    {
+        _fileSystem = fileSystem;
+    }
+
+    public void WriteCsvLine(TextWriter writer, string?[] values)
     {
         writer.WriteLine(string.Join(",", values.Select(EscapeCsvValue)));
     }
 
-    public static async Task WriteCsvLineAsync(TextWriter writer, string?[] values)
+    public async Task WriteCsvLineAsync(TextWriter writer, string?[] values)
     {
         await writer.WriteLineAsync(string.Join(",", values.Select(EscapeCsvValue)));
     }
 
-    public static void WriteCsv<T>(string filePath, IEnumerable<T> data, string[] headers)
+    public void WriteCsv<T>(string filePath, IEnumerable<T> data, string[] headers)
     {
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
+        using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
 
         WriteCsvLine(writer, headers.Cast<string?>().ToArray());
 
@@ -32,9 +42,9 @@ public static class CsvUtils
         }
     }
 
-    public static async Task WriteCsvAsync<T>(string filePath, IEnumerable<T> data, string[] headers)
+    public async Task WriteCsvAsync<T>(string filePath, IEnumerable<T> data, string[] headers)
     {
-        using var writer = new StreamWriter(filePath, false, Encoding.UTF8);
+        using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
 
         await WriteCsvLineAsync(writer, headers.Cast<string?>().ToArray());
 
@@ -45,10 +55,10 @@ public static class CsvUtils
         }
     }
 
-    public static List<Dictionary<string, string>> ReadCsv(string filePath)
+    public List<Dictionary<string, string>> ReadCsv(string filePath)
     {
         var result = new List<Dictionary<string, string>>();
-        using var reader = new StreamReader(filePath);
+        using var reader = _fileSystem.CreateStreamReader(filePath);
 
         var headers = ParseCsvLine(reader.ReadLine() ?? string.Empty);
 
@@ -69,10 +79,10 @@ public static class CsvUtils
         return result;
     }
 
-    public static async Task<List<Dictionary<string, string>>> ReadCsvAsync(string filePath)
+    public async Task<List<Dictionary<string, string>>> ReadCsvAsync(string filePath)
     {
         var result = new List<Dictionary<string, string>>();
-        using var reader = new StreamReader(filePath);
+        using var reader = _fileSystem.CreateStreamReader(filePath);
 
         var headerLine = await reader.ReadLineAsync();
         var headers = ParseCsvLine(headerLine ?? string.Empty);
@@ -94,7 +104,7 @@ public static class CsvUtils
         return result;
     }
 
-    public static string? EscapeCsvValue(string? value)
+    public string? EscapeCsvValue(string? value)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -108,7 +118,7 @@ public static class CsvUtils
         return value;
     }
 
-    private static string[] ParseCsvLine(string line)
+    private string[] ParseCsvLine(string line)
     {
         var result = new List<string>();
         var currentValue = new StringBuilder();
@@ -143,7 +153,7 @@ public static class CsvUtils
         return result.ToArray();
     }
 
-    private static object? GetPropertyValue(object? obj, string propertyName)
+    private object? GetPropertyValue(object? obj, string propertyName)
     {
         if (obj is null)
         {

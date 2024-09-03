@@ -6,11 +6,12 @@ using NUnit.Framework;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using Orc.Monitoring.Reporters;
-using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using Microsoft.Extensions.Logging;
 
 [TestFixture]
 public class TxtReportOutputLimitableTests
@@ -18,27 +19,42 @@ public class TxtReportOutputLimitableTests
     private TxtReportOutput _txtReportOutput;
     private string _testOutputPath;
     private TestLogger<TxtReportOutputLimitableTests> _logger;
+    private TestLoggerFactory<TxtReportOutputLimitableTests> _loggerFactory;
+    private IMonitoringController _monitoringController;
+    private MethodCallInfoPool _methodCallInfoPool;
+    private InMemoryFileSystem _fileSystem;
+    private ReportArchiver _reportArchiver;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<TxtReportOutputLimitableTests>();
+        _loggerFactory = new TestLoggerFactory<TxtReportOutputLimitableTests>(_logger);
+        _loggerFactory.EnableLoggingFor<TxtReportOutput>();
+        _fileSystem = new InMemoryFileSystem(_loggerFactory);
+        _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
+
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        Directory.CreateDirectory(_testOutputPath);
+        _fileSystem.CreateDirectory(_testOutputPath);
         
-        var reportOutputHelper = new ReportOutputHelper(_logger.CreateLogger<ReportOutputHelper>());
-        _txtReportOutput = new TxtReportOutput(_logger.CreateLogger<TxtReportOutput>(), reportOutputHelper);
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        _txtReportOutput = new TxtReportOutput(_loggerFactory, reportOutputHelper, _reportArchiver, _fileSystem);
 
         var parameters = TxtReportOutput.CreateParameters(_testOutputPath, "TestDisplay");
         _txtReportOutput.SetParameters(parameters);
+
+        _monitoringController.Enable();
     }
 
     [TearDown]
     public void TearDown()
     {
-        if (Directory.Exists(_testOutputPath))
+        _fileSystem.Dispose();
+        if (_fileSystem.DirectoryExists(_testOutputPath))
         {
-            Directory.Delete(_testOutputPath, true);
+            _fileSystem.DeleteDirectory(_testOutputPath, true);
         }
     }
 
@@ -76,7 +92,7 @@ public class TxtReportOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
-        var lines = await File.ReadAllLinesAsync(filePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(filePath);
         Assert.That(lines.Length, Is.EqualTo(5), "Should have 5 items");
     }
 
@@ -96,15 +112,42 @@ public class TxtReportOutputLimitableTests
         }
 
         var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
-        var lines = await File.ReadAllLinesAsync(filePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(filePath);
         Assert.That(lines.Length, Is.EqualTo(10), "Should have all 10 items");
+    }
+
+    [Test]
+    public async Task WriteItem_DoesNotAddEmptyLineAtEnd()
+    {
+        var mockReporter = new Mock<IMethodCallReporter>();
+        mockReporter.Setup(r => r.Name).Returns("TestReporter");
+        mockReporter.Setup(r => r.RootMethod).Returns((MethodInfo)null);
+        await using (var disposable = _txtReportOutput.Initialize(mockReporter.Object))
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                var item = CreateTestMethodLifeCycleItem($"Item{i}", DateTime.Now.AddMinutes(-i));
+                _txtReportOutput.WriteItem(item);
+            }
+        }
+
+        var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
+        var content = await _fileSystem.ReadAllTextAsync(filePath);
+
+        _logger.LogInformation($"File content:\n{content}");
+
+        Assert.That(content, Is.Not.Empty, "TXT file should not be empty");
+        Assert.That(content, Does.Not.EndWith("\n"), "TXT file should not end with an empty line");
+
+        var lines = content.Split('\n');
+        Assert.That(lines.Length, Is.EqualTo(3), "Should have exactly 3 lines");
+        Assert.That(lines[2], Does.Not.EndWith("\n"), "Last line should not end with a newline");
     }
 
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
     {
         var methodInfo = new TestMethodInfo(itemName, typeof(TxtReportOutputLimitableTests));
-        var methodCallInfo = MethodCallInfo.Create(
-            new MethodCallInfoPool(_logger.CreateLogger<MethodCallInfoPool>()),
+        var methodCallInfo = _methodCallInfoPool.Rent(
             null,
             typeof(TxtReportOutputLimitableTests),
             methodInfo,

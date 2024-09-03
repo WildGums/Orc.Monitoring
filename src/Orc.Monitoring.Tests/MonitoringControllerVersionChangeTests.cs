@@ -11,11 +11,17 @@ using System.Threading.Tasks;
 [TestFixture]
 public class MonitoringControllerVersionChangeTests
 {
+    private TestLogger<MonitoringControllerVersionChangeTests> _logger;
+    private TestLoggerFactory<MonitoringControllerVersionChangeTests> _loggerFactory;
+    private IMonitoringController _monitoringController;
     [SetUp]
     public void Setup()
     {
-        MonitoringController.ResetForTesting();
-        MonitoringController.Enable();
+        _logger = new TestLogger<MonitoringControllerVersionChangeTests>();
+        _loggerFactory = new TestLoggerFactory<MonitoringControllerVersionChangeTests>(_logger);
+        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+
+        _monitoringController.Enable();
     }
 
     [Test]
@@ -25,22 +31,22 @@ public class MonitoringControllerVersionChangeTests
         MonitoringVersion? oldVersion = null;
         MonitoringVersion? newVersion = null;
 
-        MonitoringController.VersionChanged += (sender, args) =>
+        _monitoringController.VersionChanged += (sender, args) =>
         {
             eventFired = true;
             oldVersion = args.OldVersion;
             newVersion = args.NewVersion;
         };
 
-        var initialVersion = MonitoringController.GetCurrentVersion();
-        MonitoringController.EnableReporter(typeof(MockReporter));
+        var initialVersion = _monitoringController.GetCurrentVersion();
+        _monitoringController.EnableReporter(typeof(MockReporter));
 
         Assert.Multiple(() =>
         {
             Assert.That(eventFired, Is.True, "VersionChanged event should have fired");
             Assert.That(oldVersion, Is.EqualTo(initialVersion), "Old version should match the initial version");
             Assert.That(newVersion, Is.Not.EqualTo(initialVersion), "New version should be different from the initial version");
-            Assert.That(newVersion, Is.EqualTo(MonitoringController.GetCurrentVersion()), "New version should match the current version");
+            Assert.That(newVersion, Is.EqualTo(_monitoringController.GetCurrentVersion()), "New version should match the current version");
         });
     }
 
@@ -52,10 +58,10 @@ public class MonitoringControllerVersionChangeTests
 
         for (int i = 0; i < subscriberCount; i++)
         {
-            MonitoringController.VersionChanged += (sender, args) => notifiedSubscribers++;
+            _monitoringController.VersionChanged += (sender, args) => notifiedSubscribers++;
         }
 
-        MonitoringController.EnableReporter(typeof(MockReporter));
+        _monitoringController.EnableReporter(typeof(MockReporter));
 
         Assert.That(notifiedSubscribers, Is.EqualTo(subscriberCount), "All subscribers should have been notified");
     }
@@ -66,12 +72,12 @@ public class MonitoringControllerVersionChangeTests
         var notificationCount = 0;
         EventHandler<VersionChangedEventArgs> handler = (sender, args) => notificationCount++;
 
-        MonitoringController.VersionChanged += handler;
-        MonitoringController.EnableReporter(typeof(MockReporter));
+        _monitoringController.VersionChanged += handler;
+        _monitoringController.EnableReporter(typeof(MockReporter));
         Assert.That(notificationCount, Is.EqualTo(1), "Subscriber should have been notified once");
 
-        MonitoringController.VersionChanged -= handler;
-        MonitoringController.DisableReporter(typeof(MockReporter));
+        _monitoringController.VersionChanged -= handler;
+        _monitoringController.DisableReporter(typeof(MockReporter));
         Assert.That(notificationCount, Is.EqualTo(1), "Unsubscribed handler should not have been notified");
     }
 
@@ -87,13 +93,13 @@ public class MonitoringControllerVersionChangeTests
             var index = i;
             tasks.Add(Task.Run(() =>
             {
-                MonitoringController.VersionChanged += (sender, args) => notifiedSubscribers[index] = true;
+                _monitoringController.VersionChanged += (sender, args) => notifiedSubscribers[index] = true;
             }));
         }
 
         Task.WaitAll(tasks.ToArray());
 
-        MonitoringController.EnableReporter(typeof(MockReporter));
+        _monitoringController.EnableReporter(typeof(MockReporter));
 
         Assert.That(notifiedSubscribers, Is.All.True, "All concurrent subscribers should have been notified");
     }
@@ -101,15 +107,15 @@ public class MonitoringControllerVersionChangeTests
     [Test]
     public void PropagateVersionChange_UpdatesAllActiveContexts()
     {
-        var context1 = new TestVersionedMonitoringContext();
-        var context2 = new TestVersionedMonitoringContext();
+        var context1 = new TestVersionedMonitoringContext(_monitoringController);
+        var context2 = new TestVersionedMonitoringContext(_monitoringController);
 
-        MonitoringController.RegisterContext(context1);
-        MonitoringController.RegisterContext(context2);
+        _monitoringController.RegisterContext(context1);
+        _monitoringController.RegisterContext(context2);
 
-        var initialVersion = MonitoringController.GetCurrentVersion();
-        MonitoringController.EnableReporter(typeof(MockReporter));
-        var newVersion = MonitoringController.GetCurrentVersion();
+        var initialVersion = _monitoringController.GetCurrentVersion();
+        _monitoringController.EnableReporter(typeof(MockReporter));
+        var newVersion = _monitoringController.GetCurrentVersion();
 
         Assert.Multiple(() =>
         {
@@ -122,6 +128,12 @@ public class MonitoringControllerVersionChangeTests
 
     private class TestVersionedMonitoringContext : VersionedMonitoringContext
     {
+        public TestVersionedMonitoringContext(IMonitoringController monitoringController)
+        : base(monitoringController)
+        {
+            
+        }
+
         public MonitoringVersion CurrentVersion => ContextVersion;
     }
 }

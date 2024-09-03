@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using IO;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
@@ -17,6 +18,8 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
 {
     private readonly ILogger<TxtReportOutput> _logger;
     private readonly ReportOutputHelper _helper;
+    private readonly ReportArchiver _reportArchiver;
+    private readonly IFileSystem _fileSystem;
     private readonly Queue<LogEntry> _logEntries = new();
     private readonly List<int> _nestingLevels = [];
 
@@ -26,18 +29,22 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public TxtReportOutput()
-    : this(MonitoringController.CreateLogger<TxtReportOutput>(), new ReportOutputHelper())
+    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance), new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance), FileSystem.Instance)
     {
         
     }
 
-    public TxtReportOutput(ILogger<TxtReportOutput> logger, ReportOutputHelper reportOutputHelper)
+    public TxtReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper, ReportArchiver reportArchiver, IFileSystem fileSystem)
     {
-        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(reportOutputHelper);
+        ArgumentNullException.ThrowIfNull(reportArchiver);
+        ArgumentNullException.ThrowIfNull(fileSystem);
 
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<TxtReportOutput>();
         _helper = reportOutputHelper;
+        _reportArchiver = reportArchiver;
+        _fileSystem = fileSystem;
 
         _logger.LogDebug("Creating TxtReportOutput instance");
     }
@@ -72,7 +79,7 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
             throw new InvalidOperationException("Folder path is not set");
         }
 
-        Directory.CreateDirectory(_folderPath);
+        _fileSystem.CreateDirectory(_folderPath);
         _logger.LogInformation($"Created output directory: {_folderPath}");
 
         var rootDisplayName = GetRootDisplayName();
@@ -82,7 +89,7 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
         _logger.LogInformation($"File name set to: {_fileName}");
 
         // Create an empty file to ensure it exists
-        File.WriteAllText(_fileName, string.Empty);
+        _fileSystem.WriteAllText(_fileName, string.Empty);
         _logger.LogInformation($"Empty file created: {_fileName}");
 
         return new AsyncDisposable(async () =>
@@ -93,9 +100,9 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
                 await WriteLogEntriesToFileAsync();
                 _logger.LogInformation($"Log entries written to file: {_fileName}");
 
-                if (File.Exists(_fileName))
+                if (_fileSystem.FileExists(_fileName))
                 {
-                    ReportArchiver.CreateTimestampedFileCopy(_fileName);
+                    _reportArchiver.CreateTimestampedFileCopy(_fileName);
                     _logger.LogInformation($"Created timestamped copy of {_fileName}");
                 }
                 else
@@ -232,21 +239,31 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
             var limitedEntries = ApplyLimits(_logEntries.ToList());
 
             _logger.LogInformation($"Writing {limitedEntries.Count} entries to file:");
-            await using (var writer = new StreamWriter(_fileName, false, Encoding.UTF8))
+            await using (var writer = _fileSystem.CreateStreamWriter(_fileName, false, Encoding.UTF8))
             {
-                foreach (var entry in limitedEntries)
+                for (int i = 0; i < limitedEntries.Count; i++)
                 {
+                    var entry = limitedEntries[i];
                     var line = $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Category}] {entry.Message}";
-                    await writer.WriteLineAsync(line);
+
+                    if (i == limitedEntries.Count - 1)
+                    {
+                        // For the last entry, write without a newline
+                        await writer.WriteAsync(line);
+                    }
+                    else
+                    {
+                        await writer.WriteLineAsync(line);
+                    }
                     _logger.LogInformation($"Writing entry: {line}");
                 }
             }
 
             _logger.LogInformation($"TXT report written to {_fileName} with {limitedEntries.Count} entries");
 
-            if (File.Exists(_fileName))
+            if (_fileSystem.FileExists(_fileName))
             {
-                var fileContent = await File.ReadAllTextAsync(_fileName);
+                var fileContent = await _fileSystem.ReadAllTextAsync(_fileName);
                 _logger.LogInformation($"File content:\n{fileContent}");
                 var lineCount = fileContent.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
                 _logger.LogInformation($"Actual line count in file: {lineCount}");
