@@ -19,4 +19,5 @@ public class ReportItem
     public string? ParentThreadId { get; set; }
     public IReadOnlyDictionary<string, string> Parameters { get; set; } = new Dictionary<string, string>();
     public HashSet<string> AttributeParameters { get; set; } = [];
+    public bool IsRoot { get; set; }
 }

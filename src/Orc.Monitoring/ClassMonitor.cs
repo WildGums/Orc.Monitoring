@@ -101,7 +101,7 @@ public class ClassMonitor : IClassMonitor
                 _logger.LogDebug($"Set root method for reporter: {reporter.GetType().Name}");
             }
 
-            methodCallInfo.AssociatedReporter = reporter;
+            methodCallInfo.AddAssociatedReporter(reporter);
 
             if (_monitoringController.IsReporterEnabled(reporter.GetType()))
             {

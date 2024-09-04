@@ -96,11 +96,15 @@ public class ReportOutputHelper
     private ReportItem ProcessStart(MethodCallStart start)
     {
         var methodCallInfo = start.MethodCallInfo;
-        var id = methodCallInfo.Id ?? Guid.NewGuid().ToString();
+        var reporter = Reporter;
+        var id = methodCallInfo.Id;
+
+        id ??= Guid.NewGuid().ToString();
 
         var reportItem = new ReportItem
         {
             Id = id,
+            IsRoot = reporter is not null && methodCallInfo.AssociatedReporters.Contains(reporter),
             StartTime = methodCallInfo.StartTime.ToString("yyyy-MM-dd HH:mm:ss.fff"),
             Report = _reporter?.FullName ?? string.Empty,
             ThreadId = methodCallInfo.ThreadId.ToString(),
@@ -109,7 +113,7 @@ public class ReportOutputHelper
             MethodName = methodCallInfo.MethodName,
             ItemName = methodCallInfo.MethodName,
             FullName = $"{methodCallInfo.ClassType?.Name}.{methodCallInfo.MethodName}",
-            Parent = methodCallInfo.Parent?.Id ?? "ROOT",
+            Parent = methodCallInfo.Parent?.Id,
             ParentThreadId = methodCallInfo.ParentThreadId.ToString()
         };
 

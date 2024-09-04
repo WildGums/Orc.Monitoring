@@ -26,7 +26,6 @@ public class CallStack : IObservable<ICallStackItem>
     private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ConcurrentDictionary<int, MethodCallInfo> _threadRootMethods = new();
     private readonly object _globalLock = new();
-    private readonly ConcurrentDictionary<IMethodCallReporter, MethodCallInfo> _reporterRootMethods = new();
 
     private MethodCallInfo? _rootParent;
     private int _idCounter;
@@ -91,23 +90,6 @@ public class CallStack : IObservable<ICallStackItem>
 
         var threadId = methodCallInfo.ThreadId;
         var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
-
-
-        if (methodCallInfo.AssociatedReporter is not null)
-        {
-            if (methodCallInfo.IsRootForAssociatedReporter)
-            {
-                _reporterRootMethods[methodCallInfo.AssociatedReporter] = methodCallInfo;
-                methodCallInfo.Parent = _methodCallInfoPool.GetNull();
-                methodCallInfo.Level = 1;
-            }
-            else
-            {
-                var rootForReporter = _reporterRootMethods[methodCallInfo.AssociatedReporter];
-                methodCallInfo.Parent = rootForReporter;
-                methodCallInfo.Level = rootForReporter.Level + 1;
-            }
-        }
 
         lock (_globalLock)
         {

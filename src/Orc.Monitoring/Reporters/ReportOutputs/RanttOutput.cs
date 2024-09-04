@@ -129,10 +129,9 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         {
             if (callStackItem is MethodCallStart methodCallStart)
             {
-                _logger.LogInformation($"Processing MethodCallStart: Id={methodCallStart.MethodCallInfo.Id}, MethodName={methodCallStart.MethodCallInfo.MethodName}, Parent={methodCallStart.MethodCallInfo.Parent?.Id ?? "ROOT"}");
+                _logger.LogInformation($"Processing MethodCallStart: Id={methodCallStart.MethodCallInfo.Id}, MethodName={methodCallStart.MethodCallInfo.MethodName}, Parent={methodCallStart.MethodCallInfo.Parent?.Id ?? string.Empty}");
                 reportItem.MethodName = methodCallStart.MethodCallInfo.MethodName;
                 reportItem.FullName = $"{methodCallStart.MethodCallInfo.ClassType?.Name}.{methodCallStart.MethodCallInfo.MethodName}";
-                reportItem.Parent = methodCallStart.MethodCallInfo.Parent?.Id ?? "ROOT";
             }
             else if (callStackItem is MethodCallEnd methodCallEnd)
             {

@@ -56,6 +56,7 @@ public class RanttOutputTests
         _loggerFactory.EnableLoggingFor<ReportOutputHelper>();
         _loggerFactory.EnableLoggingFor<InMemoryFileSystem>();
         _loggerFactory.EnableLoggingFor<CsvReportOutput>();
+        _loggerFactory.EnableLoggingFor<EnhancedDataPostProcessor>();
     }
 
     private void InitializeDependencies()
@@ -234,6 +235,76 @@ public class RanttOutputTests
             "Unescaped XML content should not be present in Rantt project file");
         Assert.That(ranttContent, Does.Not.Contain("Invalid&Xml\"Chars"),
             "Unescaped XML content should not be present in Rantt project file");
+    }
+
+    [Test]
+    public async Task RanttOutput_EnsuresCorrectRootMethodForReporterAndInvariants()
+    {
+        // Arrange
+        var rootMethodInfo = CreateMethodCallInfo("RootMethod", null);
+        var childMethodInfo = CreateMethodCallInfo("ChildMethod", rootMethodInfo);
+        _mockReporter = new MockReporter(_loggerFactory)
+        {
+            Name = TestReporterName,
+            FullName = TestReporterName
+        };
+
+        rootMethodInfo.AddAssociatedReporter(_mockReporter);
+
+        _mockReporter.Initialize(new MonitoringConfiguration(), rootMethodInfo);
+
+        // Act
+        await using (var disposable = _ranttOutput.Initialize(_mockReporter))
+        {
+            _ranttOutput.WriteItem(new MethodCallStart(rootMethodInfo));
+            _ranttOutput.WriteItem(new MethodCallStart(childMethodInfo));
+            _ranttOutput.WriteItem(new MethodCallEnd(childMethodInfo));
+            _ranttOutput.WriteItem(new MethodCallEnd(rootMethodInfo));
+        }
+
+        // Assert
+        var csvFilePath = GetFilePath(CsvFileName);
+        AssertFileExists(csvFilePath);
+
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        _logger.LogInformation($"CSV Content:\n{csvContent}");
+
+        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var headers = lines[0].Split(',');
+        var dataLines = lines.Skip(1).ToList(); // Skip header
+
+        Assert.That(dataLines, Has.Count.GreaterThan(0), "CSV should contain data lines");
+
+        var idIndex = Array.IndexOf(headers, "Id");
+        var parentIdIndex = Array.IndexOf(headers, "ParentId");
+        Assert.That(idIndex, Is.GreaterThanOrEqualTo(0), "CSV should have an 'Id' column");
+        Assert.That(parentIdIndex, Is.GreaterThanOrEqualTo(0), "CSV should have a 'ParentId' column");
+
+        // Check invariant for all lines
+        foreach (var line in dataLines)
+        {
+            var fields = line.Split(',');
+            var id = fields[idIndex];
+            var parentId = fields[parentIdIndex];
+
+            Assert.That(id, Is.Not.EqualTo(parentId),
+                $"Id should never equal ParentId. Violating line: {line}");
+        }
+
+        var rootLine = dataLines.FirstOrDefault(l => l.Contains("RootMethod"));
+        Assert.That(rootLine, Is.Not.Null, "CSV should contain a line for the RootMethod");
+        var rootFields = rootLine.Split(',');
+        Assert.That(rootFields[idIndex], Is.EqualTo("ROOT"), "RootMethod should have 'ROOT' as its Id");
+        Assert.That(rootFields[parentIdIndex], Is.Empty.Or.Null, "RootMethod should have an empty or null ParentId");
+
+        var childLine = dataLines.FirstOrDefault(l => l.Contains("ChildMethod"));
+        Assert.That(childLine, Is.Not.Null, "CSV should contain a line for the ChildMethod");
+        var childFields = childLine.Split(',');
+        Assert.That(childFields[idIndex], Is.Not.EqualTo("ROOT"), "ChildMethod should not have 'ROOT' as its Id");
+        Assert.That(childFields[parentIdIndex], Is.EqualTo("ROOT"), "ChildMethod should have 'ROOT' as its ParentId");
+
+        _logger.LogInformation($"Root Line: {rootLine}");
+        _logger.LogInformation($"Child Line: {childLine}");
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)

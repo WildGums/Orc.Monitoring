@@ -134,9 +134,9 @@ public class CsvReportWriter
 
     private IEnumerable<Dictionary<string, string>> PrepareReportItems()
     {
-        var rootItem = _reportItems.FirstOrDefault(item => item.Id == "ROOT");
+        var rootItem = _reportItems.FirstOrDefault(item => item.IsRoot);
         var nonRootItems = _reportItems
-            .Where(item => item.Id != "ROOT" && !string.IsNullOrEmpty(item.StartTime))
+            .Where(item => !item.IsRoot && !string.IsNullOrEmpty(item.StartTime))
             .OrderBy(item => DateTime.Parse(item.StartTime ?? string.Empty))
             .ThenBy(item => item.ThreadId)
             .ThenBy(item => item.Level);
@@ -156,7 +156,7 @@ public class CsvReportWriter
         var result = new Dictionary<string, string>
         {
             ["Id"] = item.Id ?? string.Empty,
-            ["ParentId"] = item.Id == "ROOT" ? string.Empty : (item.Parent ?? "ROOT"),
+            ["ParentId"] = item.Parent ?? string.Empty,
             ["StartTime"] = item.StartTime ?? string.Empty,
             ["EndTime"] = item.EndTime ?? string.Empty,
             ["Report"] = item.Report ?? string.Empty,

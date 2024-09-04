@@ -15,6 +15,7 @@ public class MethodCallInfo
 {
     private IClassMonitor? _classMonitor;
     private MethodCallInfo? _parent;
+    private readonly HashSet<IMethodCallReporter> _associatedReporters = new HashSet<IMethodCallReporter>();
 
     public bool IsNull { get; init; }
     public Dictionary<string, string>? Parameters { get; set; }
@@ -46,8 +47,9 @@ public class MethodCallInfo
     public Type[]? GenericArguments { get; private set; }
     public bool IsExtensionMethod { get; set; }
     public Type? ExtendedType { get; set; }
-    public IMethodCallReporter? AssociatedReporter { get; set; }
-    public bool IsRootForAssociatedReporter => AssociatedReporter?.RootMethod == MethodInfo;
+
+    public IReadOnlyCollection<IMethodCallReporter> AssociatedReporters => _associatedReporters;
+
     public bool ReadyToReturn { get; set; }
     public int UsageCounter { get; set; }
 
@@ -153,6 +155,11 @@ public class MethodCallInfo
         return methodName;
     }
 
+    public bool IsRootForReporter(IMethodCallReporter reporter)
+    {
+        return AssociatedReporters.Contains(reporter);
+    }
+
     public override bool Equals(object? obj)
     {
         if (obj is not MethodCallInfo other)
@@ -210,5 +217,10 @@ public class MethodCallInfo
     public static bool operator !=(MethodCallInfo? left, MethodCallInfo? right)
     {
         return !(left == right);
+    }
+
+    public void AddAssociatedReporter(IMethodCallReporter reporter)
+    {
+        _associatedReporters.Add(reporter);
     }
 }

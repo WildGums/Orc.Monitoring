@@ -25,10 +25,15 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
         foreach (var item in items)
         {
-            if (item.Parent is null || item.Parent == "ROOT")
+            if (item.Parent is null || item.IsRoot)
             {
                 rootItems.Add(item);
             }
+        }
+
+        if (rootItems.Count > 1)
+        {
+            _logger.LogWarning($"Found {rootItems.Count} root items. Expected only one. Using the first one.");
         }
 
         foreach (var rootItem in rootItems)
@@ -36,8 +41,27 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
             ProcessItem(rootItem, idMap, processedItems);
         }
 
+        var rootId = rootItems.FirstOrDefault()?.Id;
+        ReplaceRootId(processedItems, rootId, "ROOT");
+
         _logger.LogInformation($"Post-processing completed. Result contains {processedItems.Count} items");
         return processedItems;
+    }
+
+    private static void ReplaceRootId(List<ReportItem> processedItems, string? rootId, string newRootId)
+    {
+        foreach (var item in processedItems)
+        {
+            if (item.Parent == rootId)
+            {
+                item.Parent = newRootId;
+            }
+
+            if(item.Id == rootId)
+            {
+                item.Id = newRootId;
+            }
+        }
     }
 
     private void ProcessItem(ReportItem item, Dictionary<string, ReportItem> idMap, List<ReportItem> processedItems)
