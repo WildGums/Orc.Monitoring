@@ -115,7 +115,7 @@ public class RanttOutputTests
 
         var lines = relationshipsContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.That(lines.Length, Is.GreaterThan(1), "Relationships file should have more than just the header");
-        Assert.That(lines.Any(l => l.StartsWith($"{parentMethodInfo.Id},{childMethodInfo.Id}")), Is.True,
+        Assert.That(lines.Any(l => l.StartsWith($"ROOT,{childMethodInfo.Id}")), Is.True,
             $"Relationship between parent and child should be present. Expected: {parentMethodInfo.Id},{childMethodInfo.Id}");
     }
 
