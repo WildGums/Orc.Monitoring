@@ -115,7 +115,8 @@ public class ReportOutputHelper
             ItemName = methodCallInfo.MethodName,
             FullName = $"{methodCallInfo.ClassType?.Name}.{methodCallInfo.MethodName}",
             Parent = methodCallInfo.Parent?.Id,
-            ParentThreadId = methodCallInfo.ParentThreadId.ToString()
+            ParentThreadId = methodCallInfo.ParentThreadId.ToString(),
+            Parameters = methodCallInfo.Parameters ?? new Dictionary<string, string>(),
         };
 
         _logger.LogInformation($"Created new ReportItem: Id={reportItem.Id}, MethodName={reportItem.MethodName}, Parent={reportItem.Parent}");

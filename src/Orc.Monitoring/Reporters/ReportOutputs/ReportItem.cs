@@ -4,6 +4,10 @@ using System.Collections.Generic;
 
 public class ReportItem
 {
+    public ReportItem()
+    {
+        
+    }
     public string? Id { get; set; }
     public string? StartTime { get; set; }
     public string? ItemName { get; set; }

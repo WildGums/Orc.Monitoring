@@ -53,7 +53,7 @@ public class MethodOverrideManagerAndRanttOutputTests
     public async Task RanttOutput_WithOverrides_ShouldUseOverridesFromCsvFile()
     {
         // Arrange
-        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.Test.Method(),OverrideValue";
+        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.TestMethod(),OverrideValue";
         await _fileSystem.WriteAllTextAsync(_overrideFilePath, csvContent);
         _logger.LogInformation($"Override file content: {csvContent}");
 
@@ -67,7 +67,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         // Act
         await using (var disposable = ranttOutput.Initialize(mockReporter.Object))
         {
-            var item = CreateTestMethodLifeCycleItem("Test.Method", DateTime.Now);
+            var item = CreateTestMethodLifeCycleItem("TestMethod", DateTime.Now);
             ranttOutput.WriteItem(item);
         }
 
@@ -95,16 +95,27 @@ public class MethodOverrideManagerAndRanttOutputTests
         // Act
         await using (var disposable = ranttOutput.Initialize(mockReporter.Object))
         {
-            var item = CreateTestMethodLifeCycleItem("Test.Method", DateTime.Now, new Dictionary<string, string> { { "CustomColumn", "CustomValue" } });
+            var item = CreateTestMethodLifeCycleItem("TestMethod", DateTime.Now, new Dictionary<string, string> { { "CustomColumn", "CustomValue" } });
             ranttOutput.WriteItem(item);
         }
 
         // Assert
         Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var templateContent = await _fileSystem.ReadAllTextAsync(_overrideTemplateFilePath);
-        Assert.That(templateContent, Does.Contain("FullName,IsStatic,IsExtension"), "Template should contain only standard columns");
-        Assert.That(templateContent, Does.Not.Contain("CustomColumn"), "Template should not contain custom columns");
-        Assert.That(templateContent, Does.Not.Contain("CustomValue"), "Template should not contain custom values");
+        var lines = await _fileSystem.ReadAllLinesAsync(_overrideTemplateFilePath);
+
+        var headerLine = lines[0];
+        var headers = headerLine.Split(',');
+        var fullNameIndex = Array.IndexOf(headers, "FullName");
+        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+
+        // assert header
+        Assert.That(fullNameIndex, Is.GreaterThanOrEqualTo(0), "FullName column should be present");
+        Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), "CustomColumn column should be present");
+
+        // assert values
+        var values = lines[1].Split(',');
+        Assert.That(values[fullNameIndex], Is.EqualTo($"{nameof(MethodOverrideManagerAndRanttOutputTests)}.TestMethod()"), "FullName value should be Test.Method");
+        Assert.That(values[customColumnIndex], Is.EqualTo("CustomValue"), "CustomColumn value should be CustomValue");
     }
 
     private void InitializeFileSystem()
