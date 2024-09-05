@@ -74,7 +74,7 @@ public class MethodOverrideManager
         using var writer = _fileSystem.CreateStreamWriter(_overrideTemplateFilePath, false, System.Text.Encoding.UTF8);
         _csvUtils.WriteCsvLine(writer, headers);
 
-        foreach (var item in reportItems)
+        foreach (var item in reportItems.Where(i => i.MethodName != MethodCallParameter.Types.Gap))
         {
             var fullName = item.FullName ?? string.Empty;
             var isStatic = item.Parameters.TryGetValue("IsStatic", out var staticValue) ? staticValue : string.Empty;

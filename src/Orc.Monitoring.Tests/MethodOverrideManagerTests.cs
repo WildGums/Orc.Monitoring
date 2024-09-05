@@ -1,6 +1,8 @@
 ﻿namespace Orc.Monitoring.Tests;
 
+using System;
 using NUnit.Framework;
+using Orc.Monitoring.Reporters;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
@@ -166,5 +168,34 @@ public class MethodOverrideManagerTests
         }
         Assert.That(allOverrides.Count, Is.EqualTo(expectedOverrideCount));
         Assert.That(allOverrides.All(o => o.Count > 0), Is.True);
+    }
+
+    [Test]
+    public void SaveOverrides_ExcludesGapsFromTemplate()
+    {
+        // Arrange
+        var reportItems = new List<ReportItem>
+        {
+            new ReportItem { FullName = "Method1", MethodName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" } } },
+            new ReportItem { FullName = "Method2", MethodName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" } } },
+            new ReportItem { FullName = "Gap", MethodName = MethodCallParameter.Types.Gap, Parameters = new Dictionary<string, string>() }
+        };
+
+        // Act
+        _overrideManager.SaveOverrides(reportItems);
+
+        // Assert
+        Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
+        var templateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
+        var lines = templateContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines.Length, Is.EqualTo(3), "Template should have header and two data lines");
+        Assert.That(lines[0].Trim(), Is.EqualTo("FullName,IsStatic,IsExtension"), "Header should be correct");
+        Assert.That(lines[1].Trim(), Does.StartWith("Method1"), "First data line should be Method1");
+        Assert.That(lines[2].Trim(), Does.StartWith("Method2"), "Second data line should be Method2");
+        foreach (var line in lines)
+        {
+            Assert.That(line, Does.Not.Contain("Gap"), "Template should not contain Gap");
+        }
     }
 }
