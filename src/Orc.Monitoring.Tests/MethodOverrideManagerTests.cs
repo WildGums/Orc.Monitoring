@@ -118,10 +118,28 @@ public class MethodOverrideManagerTests
 
         // Assert
         Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var templateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
-        Assert.That(templateContent, Does.Contain("FullName,IsStatic,IsExtension"), "Template should contain standard columns");
-        Assert.That(templateContent, Does.Contain($"{methodName},{isStatic},{isExtension}"), "Template should contain correct values");
-        Assert.That(templateContent, Does.Not.Contain("CustomColumn"), "Template should not contain custom columns");
+        var templateContent = _fileSystem.ReadAllLines(_overrideTemplateFilePath);
+
+        var headerLine = templateContent[0];
+        var headers = headerLine.Split(',').ToList();
+        var methodNameIndex = headers.IndexOf("FullName");
+        var isStaticIndex = headers.IndexOf("IsStatic");
+        var isExtensionIndex = headers.IndexOf("IsExtension");
+        var customColumnIndex = headers.IndexOf("CustomColumn");
+
+        // assert headers exist
+        Assert.That(methodNameIndex, Is.GreaterThanOrEqualTo(0), "FullName column should exist");
+        Assert.That(isStaticIndex, Is.GreaterThanOrEqualTo(0), "IsStatic column should exist");
+        Assert.That(isExtensionIndex, Is.GreaterThanOrEqualTo(0), "IsExtension column should exist");
+        Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), "CustomColumn column should exist");
+
+        // asserting data
+        var dataLine = templateContent[1];
+        var data = dataLine.Split(',').ToList();
+        Assert.That(data[methodNameIndex], Is.EqualTo(methodName), "FullName should be correct");
+        Assert.That(data[isStaticIndex], Is.EqualTo(isStatic.ToString()), "IsStatic should be correct");
+        Assert.That(data[isExtensionIndex], Is.EqualTo(isExtension.ToString()), "IsExtension should be correct");
+        Assert.That(data[customColumnIndex], Is.EqualTo(customValue), "CustomColumn should be correct");
     }
 
     [Test]
@@ -190,12 +208,44 @@ public class MethodOverrideManagerTests
         var lines = templateContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(3), "Template should have header and two data lines");
-        Assert.That(lines[0].Trim(), Is.EqualTo("FullName,IsStatic,IsExtension"), "Header should be correct");
+        var headerLine = lines[0].Trim();
+        var headers = headerLine.Split(',').ToList();
+        var methodNameIndex = headers.IndexOf("FullName");
+        var isStaticIndex = headers.IndexOf("IsStatic");
+        var isExtensionIndex = headers.IndexOf("IsExtension");
+
+        // assert headers exist
+        Assert.That(methodNameIndex, Is.GreaterThanOrEqualTo(0), "FullName column should exist");
+        Assert.That(isStaticIndex, Is.GreaterThanOrEqualTo(0), "IsStatic column should exist");
+        Assert.That(isExtensionIndex, Is.GreaterThanOrEqualTo(0), "IsExtension column should exist");
+
+        // assert data
         Assert.That(lines[1].Trim(), Does.StartWith("Method1"), "First data line should be Method1");
         Assert.That(lines[2].Trim(), Does.StartWith("Method2"), "Second data line should be Method2");
         foreach (var line in lines)
         {
             Assert.That(line, Does.Not.Contain("Gap"), "Template should not contain Gap");
         }
+    }
+
+    [Test]
+    public void SaveOverrides_DoesNotWriteDuplicates()
+    {
+        // Arrange
+        var reportItems = new List<ReportItem>
+        {
+            new ReportItem { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
+            new ReportItem { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
+            new ReportItem { FullName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" }, { "CustomParam", "Value2" } } }
+        };
+
+        // Act
+        _overrideManager.SaveOverrides(reportItems);
+
+        // Assert
+        var overrides = _csvUtils.ReadCsv(_overrideTemplateFilePath);
+        Assert.That(overrides.Count, Is.EqualTo(2), "Should have only 2 entries (no duplicates)");
+        Assert.That(overrides.Any(r => r["FullName"] == "Method1" && r["CustomParam"] == "Value1"), Is.True, "Should contain Method1");
+        Assert.That(overrides.Any(r => r["FullName"] == "Method2" && r["CustomParam"] == "Value2"), Is.True, "Should contain Method2");
     }
 }

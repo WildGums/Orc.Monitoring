@@ -69,18 +69,43 @@ public class MethodOverrideManager
 
     public void SaveOverrides(ICollection<ReportItem> reportItems)
     {
-        var headers = new[] { "FullName", "IsStatic", "IsExtension" };
+        var headers = new HashSet<string>();
+
+        foreach (var reportItem in reportItems)
+        {
+            foreach (var parameter in reportItem.Parameters)
+            {
+                headers.Add(parameter.Key);
+            }
+        }
+
+        var sortedHeader = headers.OrderBy(h => h).ToList();
+        sortedHeader.Insert(0, "FullName");
 
         using var writer = _fileSystem.CreateStreamWriter(_overrideTemplateFilePath, false, System.Text.Encoding.UTF8);
-        _csvUtils.WriteCsvLine(writer, headers);
+        _csvUtils.WriteCsvLine(writer, sortedHeader.ToArray());
+
+        var savedFullNames = new HashSet<string>(); 
 
         foreach (var item in reportItems.Where(i => i.MethodName != MethodCallParameter.Types.Gap))
         {
-            var fullName = item.FullName ?? string.Empty;
-            var isStatic = item.Parameters.TryGetValue("IsStatic", out var staticValue) ? staticValue : string.Empty;
-            var isExtension = item.Parameters.TryGetValue("IsExtension", out var extensionValue) ? extensionValue : string.Empty;
+            var fullName = item.FullName;
+            if (string.IsNullOrEmpty(fullName) || !savedFullNames.Add(fullName))
+            {
+                continue;
+            }
 
-            _csvUtils.WriteCsvLine(writer, new[] { fullName, isStatic, isExtension });
+            var values = new string[sortedHeader.Count];
+            values[0] = fullName;
+
+            for (var i = 1; i < sortedHeader.Count; i++)
+            {
+                var header = sortedHeader[i];
+                var value = item.Parameters.TryGetValue(header, out var parameterValue) ? parameterValue : string.Empty;
+                values[i] = value;
+            }
+
+            _csvUtils.WriteCsvLine(writer, values);
         }
 
         _logger.LogInformation($"Saved method override template to {_overrideTemplateFilePath}");
