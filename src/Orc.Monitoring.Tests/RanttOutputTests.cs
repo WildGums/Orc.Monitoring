@@ -42,6 +42,10 @@ public class RanttOutputTests
     public void Setup()
     {
         InitializeLogger();
+
+        _logger.LogInformation("___");
+        _logger.LogInformation("Starting RanttOutputTests setup");
+
         InitializeDependencies();
         InitializeRanttOutput();
 
@@ -87,16 +91,21 @@ public class RanttOutputTests
     [TearDown]
     public void TearDown()
     {
+        _logger.LogInformation("Starting RanttOutputTests teardown");
         _fileSystem.Dispose();
         if (_fileSystem.DirectoryExists(_testFolderPath))
         {
             _fileSystem.DeleteDirectory(_testFolderPath, true);
         }
+
+        _logger.LogInformation("Finished RanttOutputTests teardown");
+        _logger.LogInformation("___");
     }
 
     [Test]
     public async Task WriteItem_ShouldGenerateCorrectParentChildRelationships()
     {
+        _logger.LogInformation("Starting WriteItem_ShouldGenerateCorrectParentChildRelationships test");
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
         var parentMethodInfo = CreateMethodCallInfo("ParentMethod", null);
@@ -170,6 +179,8 @@ public class RanttOutputTests
     [Ignore("Not important at the moment")]
     public async Task Initialize_ShouldThrowUnauthorizedAccessException_WhenFolderIsReadOnly()
     {
+        _logger.LogInformation("Starting Initialize_ShouldThrowUnauthorizedAccessException_WhenFolderIsReadOnly test");
+
         var readOnlyFolder = CreateReadOnlyTestFolder();
         var parameters = RanttOutput.CreateParameters(readOnlyFolder);
         _ranttOutput.SetParameters(parameters);
@@ -183,6 +194,8 @@ public class RanttOutputTests
     [Test]
     public async Task WriteItem_ShouldHandleCorruptDataGracefully()
     {
+        _logger.LogInformation("Starting WriteItem_ShouldHandleCorruptDataGracefully test");
+
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
         var corruptMethodCallInfo = CreateMethodCallInfo("CorruptMethod", null);
@@ -197,6 +210,8 @@ public class RanttOutputTests
     [Test]
     public async Task ExportToRantt_ShouldHandleInvalidXmlCharactersGracefully()
     {
+        _logger.LogInformation("Starting ExportToRantt_ShouldHandleInvalidXmlCharactersGracefully test");
+
         var methodName = "Method<with>Invalid&Xml\"Chars";
         var methodCallInfo = CreateMethodCallInfo(methodName, null);
 
@@ -240,6 +255,8 @@ public class RanttOutputTests
     [Test]
     public async Task RanttOutput_EnsuresCorrectRootMethodForReporterAndInvariants()
     {
+        _logger.LogInformation("Starting RanttOutput_EnsuresCorrectRootMethodForReporterAndInvariants test");
+
         // Arrange
         var rootMethodInfo = CreateMethodCallInfo("RootMethod", null);
         var childMethodInfo = CreateMethodCallInfo("ChildMethod", rootMethodInfo);
