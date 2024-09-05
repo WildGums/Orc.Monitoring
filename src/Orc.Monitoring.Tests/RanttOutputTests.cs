@@ -14,7 +14,6 @@ using System.Threading.Tasks;
 using IO;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.MethodLifeCycleItems;
-using Moq;
 
 [TestFixture]
 public class RanttOutputTests
@@ -109,9 +108,11 @@ public class RanttOutputTests
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
         var parentMethodInfo = CreateMethodCallInfo("ParentMethod", null);
+        _logger.LogInformation($"Created parent method: Id={parentMethodInfo.Id}, MethodName={parentMethodInfo.MethodName}");
         WriteMethodLifecycle(parentMethodInfo);
 
         var childMethodInfo = CreateMethodCallInfo("ChildMethod", parentMethodInfo);
+        _logger.LogInformation($"Created child method: Id={childMethodInfo.Id}, MethodName={childMethodInfo.MethodName}, Parent={childMethodInfo.Parent?.Id}");
         WriteMethodLifecycle(childMethodInfo);
 
         await disposable.DisposeAsync();
@@ -124,8 +125,23 @@ public class RanttOutputTests
 
         var lines = relationshipsContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.That(lines.Length, Is.GreaterThan(1), "Relationships file should have more than just the header");
-        Assert.That(lines.Any(l => l.StartsWith($"ROOT,{childMethodInfo.Id}")), Is.True,
-            $"Relationship between parent and child should be present. Expected: {parentMethodInfo.Id},{childMethodInfo.Id}");
+
+        var dataLine = lines.Skip(1).FirstOrDefault()?.Trim('\r');
+        Assert.That(dataLine, Is.Not.Null, "Relationships file should contain at least one data line");
+        _logger.LogInformation($"Relationship data line: {dataLine}");
+
+        var parts = dataLine.Split(',');
+        Assert.That(parts.Length, Is.EqualTo(3), "Relationship line should have 3 parts: From, To, RelationType");
+
+        Assert.That(parts[0], Is.EqualTo("ROOT"), "From should be ROOT");
+        Assert.That(parts[1], Is.EqualTo(childMethodInfo.Id), "To should be the child method ID");
+        Assert.That(parts[2], Is.EqualTo("Regular"), "RelationType should be Regular");
+
+        // Additional checks
+        var csvFilePath = GetFilePath(CsvFileName);
+        AssertFileExists(csvFilePath);
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        _logger.LogInformation($"CSV content:\n{csvContent}");
     }
 
     [Test]

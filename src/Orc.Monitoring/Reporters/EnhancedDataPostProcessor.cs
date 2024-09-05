@@ -25,9 +25,11 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
         foreach (var item in items)
         {
+            _logger.LogDebug($"Examining item: Id={item.Id}, MethodName={item.MethodName}, Parent={item.Parent}, IsRoot={item.IsRoot}");
             if (item.Parent is null || item.IsRoot)
             {
                 rootItems.Add(item);
+                _logger.LogDebug($"Added root item: Id={item.Id}, MethodName={item.MethodName}");
             }
         }
 
@@ -66,13 +68,15 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
     private void ProcessItem(ReportItem item, Dictionary<string, ReportItem> idMap, List<ReportItem> processedItems)
     {
+        _logger.LogDebug($"Processing item: Id={item.Id}, MethodName={item.MethodName}, Parent={item.Parent}");
         processedItems.Add(item);
-        _logger.LogDebug($"Processing item: {item.Id} (Parent: {item.Parent})");
 
         var childItems = idMap.Values
             .Where(i => i.Parent == item.Id)
             .OrderBy(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString()))
             .ToList();
+
+        _logger.LogDebug($"Found {childItems.Count} children for item {item.Id}");
 
         foreach (var childItem in childItems)
         {

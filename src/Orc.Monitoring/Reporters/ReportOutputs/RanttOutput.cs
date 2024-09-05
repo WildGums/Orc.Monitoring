@@ -197,6 +197,8 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
     private async Task ExportToCsvAsync(string fileName, IMethodCallReporter reporter)
     {
+        _logger.LogInformation($"Starting CSV export for reporter: {reporter.FullName}");
+
         if (_outputDirectory is null || _overrideManager is null)
         {
             throw new InvalidOperationException("Output directory or method override manager is not set");
@@ -213,19 +215,19 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                 .OrderBy(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
                 .ToList();
 
-            _logger.LogInformation($"Number of sorted items: {sortedItems.Count}");
+            _logger.LogInformation($"Sorted items count: {sortedItems.Count}");
             foreach (var item in sortedItems)
             {
-                _logger.LogInformation($"Sorted item: Id={item.Id}, MethodName={item.MethodName}");
+                _logger.LogInformation($"Sorted item: Id={item.Id}, MethodName={item.MethodName}, Parent={item.Parent}, IsRoot={item.IsRoot}");
             }
 
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
             var processedItems = enhancedDataPostProcessor.PostProcessData(sortedItems);
 
-            _logger.LogInformation($"Number of items after post-processing: {processedItems.Count}");
+            _logger.LogInformation($"Processed items count: {processedItems.Count}");
             foreach (var item in processedItems)
             {
-                _logger.LogInformation($"Processed item: Id={item.Id}, MethodName={item.MethodName}");
+                _logger.LogInformation($"Processed item: Id={item.Id}, MethodName={item.MethodName}, Parent={item.Parent}, IsRoot={item.IsRoot}");
             }
 
             var itemsToWrite = processedItems.Count > 0 ? processedItems : sortedItems;
