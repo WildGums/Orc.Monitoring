@@ -8,6 +8,7 @@ using System.Threading;
 using Moq;
 using Orc.Monitoring.Reporters.ReportOutputs;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
@@ -172,7 +173,7 @@ public class MissingEndTimeAndEmptyDurationTests
         Assert.That(veryShortMethodReport.StartTime, Is.Not.Null, "VeryShortMethod should have a StartTime.");
         Assert.That(veryShortMethodReport.Duration, Is.Not.Null, "VeryShortMethod should have a Duration.");
 
-        var duration = double.Parse(veryShortMethodReport.Duration);
+        var duration = double.Parse(veryShortMethodReport.Duration, NumberStyles.Any, CultureInfo.InvariantCulture);
         Assert.That(duration, Is.GreaterThanOrEqualTo(0), "VeryShortMethod should have a Duration greater than 0.");
     }
 

@@ -15,6 +15,7 @@ using Filters;
 using Microsoft.Extensions.Logging;
 using Reporters.ReportOutputs;
 using Reporters;
+using System.Globalization;
 
 public sealed class TestWorkflowReporter : IMethodCallReporter
 {
@@ -477,7 +478,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             .Append('\'')
             .Append(workflowItemName)
             .Append("' ended, took ")
-            .Append(methodCallEnd.MethodCallInfo.Elapsed.TotalMilliseconds.ToString("N1"))
+            .Append(methodCallEnd.MethodCallInfo.Elapsed.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture))
             .Append(" ms");
 
         var message = _messageBuilder.ToString();
@@ -503,7 +504,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             .Append("Summary '")
             .Append(workflowItemName)
             .Append("' calculated total duration: ")
-            .Append(_callProcessingContext.UserInteractionDuration.TotalMilliseconds.ToString("N1"))
+            .Append(_callProcessingContext.UserInteractionDuration.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture))
             .Append(" ms");
         var message = _messageBuilder.ToString();
         PublishSummary(message);
@@ -514,7 +515,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             .Append("Summary '")
             .Append(workflowItemName)
             .Append("' calculated total gap duration: ")
-            .Append(gapsDuration.TotalMilliseconds.ToString("N1"))
+            .Append(gapsDuration.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture))
             .Append(" ms");
         message = _messageBuilder.ToString();
         PublishSummary(message);
@@ -525,7 +526,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             .Append("Summary '")
             .Append(workflowItemName)
             .Append("' calculated total user interaction duration: ")
-            .Append(userInteractionDuration.TotalMilliseconds.ToString("N1"))
+            .Append(userInteractionDuration.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture))
             .Append(" ms");
         message = _messageBuilder.ToString();
         PublishSummary(message);
@@ -536,7 +537,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             .Append("Summary '")
             .Append(workflowItemName)
             .Append("' measured total duration: ")
-            .Append(totalDuration.TotalMilliseconds.ToString("N1"))
+            .Append(totalDuration.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture))
             .Append(" ms");
         message = _messageBuilder.ToString();
         PublishSummary(message);
@@ -547,7 +548,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             .Append("Summary '")
             .Append(workflowItemName)
             .Append("' measured duration without user interaction: ")
-            .Append(durationWithoutUserInteraction.TotalMilliseconds.ToString("N1"))
+            .Append(durationWithoutUserInteraction.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture))
             .Append(" ms");
         message = _messageBuilder.ToString();
         PublishSummary(message);

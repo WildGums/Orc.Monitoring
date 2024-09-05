@@ -72,7 +72,7 @@ public class CsvReportWriter
         for (int i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            var values = headers.Select(h => EscapeCsvContent(item.TryGetValue(h, out var value) ? value : null)).ToArray();
+            var values = headers.Select(h => EscapeCsvContent(item.GetValueOrDefault(h))).ToArray();
 
             if (i == items.Count - 1)
             {

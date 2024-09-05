@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Orc.Monitoring.MethodLifeCycleItems;
 using Orc.Monitoring.Reporters;
@@ -159,7 +160,7 @@ public class ReportOutputHelper
         var endTime = end.TimeStamp;
         LastEndTime = endTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
         reportItem.EndTime = LastEndTime;
-        reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1");
+        reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture);
         reportItem.Parameters = methodCallInfo.Parameters ?? new Dictionary<string, string>();
         reportItem.AttributeParameters = methodCallInfo.AttributeParameters ?? new HashSet<string>();
 
@@ -177,7 +178,7 @@ public class ReportOutputHelper
             Id = Guid.NewGuid().ToString(),
             StartTime = gap.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
             EndTime = (gap.TimeStamp + gap.Elapsed).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            Duration = gap.Elapsed.TotalMilliseconds.ToString("N1"),
+            Duration = gap.Elapsed.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture),
             Report = _reporter?.FullName ?? string.Empty,
             ThreadId = string.Empty,
             Level = string.Empty,

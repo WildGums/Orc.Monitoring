@@ -10,6 +10,7 @@ using System.Linq;
 using System.Collections.Generic;
 using Moq;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 [TestFixture]
 public class ReportOutputHelperTests
@@ -132,7 +133,7 @@ public class ReportOutputHelperTests
         Assert.That(result, Is.Not.Null);
         Assert.That(result.MethodName, Is.EqualTo(MethodCallParameter.Types.Gap));
         Assert.That(_reportOutputHelper.Gaps, Has.Count.EqualTo(1));
-        Assert.That(_reportOutputHelper.Gaps[0].Duration, Is.EqualTo(gapDuration.TotalMilliseconds.ToString("N1")));
+        Assert.That(_reportOutputHelper.Gaps[0].Duration, Is.EqualTo(gapDuration.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture)));
     }
 
     [Test]
