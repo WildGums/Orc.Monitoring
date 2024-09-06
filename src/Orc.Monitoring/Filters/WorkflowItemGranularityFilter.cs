@@ -2,8 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using Reporters;
 
 /// <summary>
@@ -13,12 +11,12 @@ public class WorkflowItemGranularityFilter : IMethodFilter
 {
     private readonly int _level;
 
-    private readonly List<string> _sortedLevers = new List<string>()
-    {
+    private readonly List<string> _sortedLevers =
+    [
         MethodCallParameter.Granularity.Fine,
         MethodCallParameter.Granularity.Medium,
-        MethodCallParameter.Granularity.Coarse,
-    };
+        MethodCallParameter.Granularity.Coarse
+    ];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkflowItemGranularityFilter"/> class.
@@ -41,7 +39,7 @@ public class WorkflowItemGranularityFilter : IMethodFilter
     /// <returns><c>true</c> if the method call should be included; otherwise, <c>false</c>.</returns>
     public bool ShouldInclude(MethodCallInfo methodCallInfo)
     {
-        if (methodCallInfo?.Parameters is null)
+        if (methodCallInfo.Parameters is null)
         {
             return true;
         }

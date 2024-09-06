@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using MethodLifeCycleItems;
-using Filters;
 using System.Linq;
 using System.Reflection;
 
@@ -93,13 +92,6 @@ public class ClassMonitor : IClassMonitor
         foreach (var reporter in config.Reporters)
         {
             reporter.Initialize(_monitoringConfig, methodCallInfo);
-
-            // Only set root method if it hasn't been set already
-            if (reporter.RootMethod is null)
-            {
-                reporter.SetRootMethod(methodInfo);
-                _logger.LogDebug($"Set root method for reporter: {reporter.GetType().Name}");
-            }
 
             methodCallInfo.AddAssociatedReporter(reporter);
 
@@ -261,7 +253,7 @@ public class ClassMonitor : IClassMonitor
         _trackedMethodNames = GetAllMethodNames();
     }
 
-    private HashSet<string>? GetAllMethodNames()
+    private HashSet<string> GetAllMethodNames()
     {
         return _classType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
             .Select(m => m.Name)
@@ -283,7 +275,7 @@ public class ClassMonitor : IClassMonitor
             : _methodCallContextFactory.CreateMethodCallContext(this, methodCallInfo, disposables, reporterIds);
     }
 
-    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion, IEnumerable<string> reporterIds)
+    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion, IReadOnlyCollection<string> reporterIds)
     {
         _logger.LogDebug($"ShouldTrackMethod called for {methodCallInfo.MethodName}");
         var shouldTrack = _monitoringController.ShouldTrack(operationVersion, reporterIds: reporterIds);
@@ -310,7 +302,7 @@ public class ClassMonitor : IClassMonitor
 
         ArgumentNullException.ThrowIfNull(status);
 
-        if (status is MethodCallEnd endStatus && !endStatus.MethodCallInfo.IsNull)
+        if (status is MethodCallEnd { MethodCallInfo.IsNull: false } endStatus)
         {
             _logger.LogDebug($"Popping MethodCallInfo for {endStatus.MethodCallInfo}");
             _callStack.Pop(endStatus.MethodCallInfo);

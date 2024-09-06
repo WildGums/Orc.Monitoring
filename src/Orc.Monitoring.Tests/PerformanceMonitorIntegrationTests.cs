@@ -10,9 +10,7 @@ using System;
 using System.Threading.Tasks;
 using System.Threading;
 using Microsoft.Extensions.Logging;
-using Moq;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
+using Reporters;
 using System.Linq;
 
 
@@ -34,7 +32,7 @@ public class PerformanceMonitorIntegrationTests
     {
         _logger = new TestLogger<PerformanceMonitorIntegrationTests>();
         _loggerFactory = new TestLoggerFactory<PerformanceMonitorIntegrationTests>(_logger);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
 
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
@@ -144,22 +142,14 @@ public class PerformanceMonitorIntegrationTests
         Assert.That(_mockReporter.CallCount, Is.EqualTo(2), "Call after re-enabling should be tracked");
     }
 
-    private class TestClassWithAsyncMethods
+    private class TestClassWithAsyncMethods(IPerformanceMonitor performanceMonitor, IMonitoringLoggerFactory loggerFactory, IMethodCallReporter reporter)
     {
-        private readonly IClassMonitor _monitor;
-        private readonly ILogger<TestClassWithAsyncMethods> _logger;
-        private readonly IMethodCallReporter _reporter;
-
-        public TestClassWithAsyncMethods(IPerformanceMonitor performanceMonitor, IMonitoringLoggerFactory loggerFactory, IMethodCallReporter reporter)
-        {
-            _logger = loggerFactory.CreateLogger<TestClassWithAsyncMethods>();
-            _monitor = performanceMonitor.ForClass<TestClassWithAsyncMethods>();
-            _reporter = reporter;
-        }
+        private readonly IClassMonitor _monitor = performanceMonitor.ForClass<TestClassWithAsyncMethods>();
+        private readonly ILogger<TestClassWithAsyncMethods> _logger = loggerFactory.CreateLogger<TestClassWithAsyncMethods>();
 
         public async Task ComplexAsyncWorkflowAsync(CancellationToken cancellationToken)
         {
-            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(_reporter));
+            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(reporter));
             try
             {
                 _logger.LogInformation("Starting complex async workflow");
@@ -178,7 +168,7 @@ public class PerformanceMonitorIntegrationTests
 
         public async Task AsyncOperation1Async()
         {
-            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(_reporter));
+            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(reporter));
             _logger.LogInformation("Async Operation 1 started");
             await Task.Delay(1000);
             _logger.LogInformation("Async Operation 1 completed");
@@ -186,7 +176,7 @@ public class PerformanceMonitorIntegrationTests
 
         public async Task AsyncOperation2Async()
         {
-            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(_reporter));
+            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(reporter));
             _logger.LogInformation("Async Operation 2 started");
             await Task.Delay(1500);
             _logger.LogInformation("Async Operation 2 completed");
@@ -194,29 +184,21 @@ public class PerformanceMonitorIntegrationTests
 
         public async Task AsyncMethodWithExceptionAsync()
         {
-            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(_reporter));
+            await using var context = _monitor.AsyncStart(builder => builder.AddReporter(reporter));
             _logger.LogInformation("Async method with exception started");
             await Task.Delay(500);
             throw new InvalidOperationException("Test exception");
         }
     }
 
-    private class TestClassWithNestedMethods
+    private class TestClassWithNestedMethods(IPerformanceMonitor performanceMonitor, IMonitoringLoggerFactory loggerFactory, IMethodCallReporter reporter)
     {
-        private readonly IClassMonitor _monitor;
-        private readonly ILogger<TestClassWithNestedMethods> _logger;
-        private readonly IMethodCallReporter _reporter;
-
-        public TestClassWithNestedMethods(IPerformanceMonitor performanceMonitor, IMonitoringLoggerFactory loggerFactory, IMethodCallReporter reporter)
-        {
-            _logger = loggerFactory.CreateLogger<TestClassWithNestedMethods>();
-            _monitor = performanceMonitor.ForClass<TestClassWithNestedMethods>();
-            _reporter = reporter;
-        }
+        private readonly IClassMonitor _monitor = performanceMonitor.ForClass<TestClassWithNestedMethods>();
+        private readonly ILogger<TestClassWithNestedMethods> _logger = loggerFactory.CreateLogger<TestClassWithNestedMethods>();
 
         public void OuterMethod()
         {
-            using var context = _monitor.Start(builder => builder.AddReporter(_reporter));
+            using var context = _monitor.Start(builder => builder.AddReporter(reporter));
             _logger.LogInformation("Outer method started");
             MiddleMethod();
             _logger.LogInformation("Outer method completed");
@@ -224,7 +206,7 @@ public class PerformanceMonitorIntegrationTests
 
         private void MiddleMethod()
         {
-            using var context = _monitor.Start(builder => builder.AddReporter(_reporter));
+            using var context = _monitor.Start(builder => builder.AddReporter(reporter));
             _logger.LogInformation("Middle method started");
             InnerMethod();
             _logger.LogInformation("Middle method completed");
@@ -232,29 +214,21 @@ public class PerformanceMonitorIntegrationTests
 
         private void InnerMethod()
         {
-            using var context = _monitor.Start(builder => builder.AddReporter(_reporter));
+            using var context = _monitor.Start(builder => builder.AddReporter(reporter));
             _logger.LogInformation("Inner method started");
             Thread.Sleep(100);
             _logger.LogInformation("Inner method completed");
         }
     }
 
-    private class TestClassWithSyncMethods
+    private class TestClassWithSyncMethods(IPerformanceMonitor performanceMonitor, IMonitoringLoggerFactory loggerFactory, IMethodCallReporter reporter)
     {
-        private readonly IClassMonitor _monitor;
-        private readonly ILogger<TestClassWithSyncMethods> _logger;
-        private readonly IMethodCallReporter _reporter;
-
-        public TestClassWithSyncMethods(IPerformanceMonitor performanceMonitor, IMonitoringLoggerFactory loggerFactory, IMethodCallReporter reporter)
-        {
-            _logger = loggerFactory.CreateLogger<TestClassWithSyncMethods>();
-            _monitor = performanceMonitor.ForClass<TestClassWithSyncMethods>();
-            _reporter = reporter;
-        }
+        private readonly IClassMonitor _monitor = performanceMonitor.ForClass<TestClassWithSyncMethods>();
+        private readonly ILogger<TestClassWithSyncMethods> _logger = loggerFactory.CreateLogger<TestClassWithSyncMethods>();
 
         public void SyncMethod()
         {
-            using var context = _monitor.Start(builder => builder.AddReporter(_reporter));
+            using var context = _monitor.Start(builder => builder.AddReporter(reporter));
             _logger.LogInformation("Sync method started");
             Thread.Sleep(100);
             _logger.LogInformation("Sync method completed");

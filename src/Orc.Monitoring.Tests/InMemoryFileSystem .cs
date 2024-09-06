@@ -16,11 +16,11 @@ using Microsoft.Extensions.Logging;
 public class InMemoryFileSystem : IFileSystem, IDisposable
 {
     private readonly ILogger<InMemoryFileSystem> _logger;
-    private readonly ConcurrentDictionary<string, InMemoryFile> _files = new ConcurrentDictionary<string, InMemoryFile>(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, FileAttributes> _directoryAttributes = new Dictionary<string, FileAttributes>(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, object> _fileLocks = new ConcurrentDictionary<string, object>();
-    private readonly object _fileLock = new object();
+    private readonly ConcurrentDictionary<string, InMemoryFile> _files = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _directories = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, FileAttributes> _directoryAttributes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, object> _fileLocks = new();
+    private readonly object _fileLock = new();
 
     private bool _disposed;
 
@@ -107,13 +107,11 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
             }
 
             file.Contents.Position = 0;
-            using (var reader = new StreamReader(file.Contents, Encoding.UTF8, true, 1024, true))
-            {
-                var content = reader.ReadToEnd();
-                file.Contents.Position = 0;
-                _logger.LogInformation("Successfully read text from file at path: {Path}", path);
-                return content;
-            }
+            using var reader = new StreamReader(file.Contents, Encoding.UTF8, true, 1024, true);
+            var content = reader.ReadToEnd();
+            file.Contents.Position = 0;
+            _logger.LogInformation("Successfully read text from file at path: {Path}", path);
+            return content;
         }
     }
 
@@ -246,7 +244,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         }
         else if (_directories.Contains(normalizedPath))
         {
-            return _directoryAttributes.TryGetValue(normalizedPath, out var attributes) ? attributes : FileAttributes.Directory;
+            return _directoryAttributes.GetValueOrDefault(normalizedPath, FileAttributes.Directory);
         }
         else
         {
@@ -281,10 +279,8 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         lock (_fileLock)
         {
             file.Contents.Position = 0;
-            using (var reader = new StreamReader(file.Contents, Encoding.UTF8, true, 1024, true))
-            {
-                return reader.ReadToEnd();
-            }
+            using var reader = new StreamReader(file.Contents, Encoding.UTF8, true, 1024, true);
+            return reader.ReadToEnd();
         }
     }
 
@@ -422,7 +418,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public async Task<string[]> ReadAllLinesAsync(string path)
     {
         var contents = await ReadAllTextAsync(path);
-        return contents.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        return contents.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
     }
 
     public Task WriteAllTextAsync(string path, string contents)
@@ -468,17 +464,15 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
             if (!_files.TryRemove(sourcePath, out var sourceFile))
                 throw new FileNotFoundException("File not found", sourceFileName);
 
-            if (_files.ContainsKey(destPath))
+            if (!_files.TryAdd(destPath, sourceFile))
                 throw new IOException("File already exists");
-
-            _files[destPath] = sourceFile;
         }
     }
 
     public string[] ReadAllLines(string path)
     {
         var contents = ReadAllText(path);
-        return contents.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+        return contents.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
     }
 
     private string NormalizePath(string path)
@@ -516,10 +510,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         {
             currentPath += part + "/";
             var dirPath = NormalizePath(currentPath);
-            if (!_directories.Contains(dirPath))
-            {
-                _directories.Add(dirPath);
-            }
+            _directories.Add(dirPath);
         }
     }
 
@@ -556,43 +547,34 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
         public void Dispose()
         {
-            Contents?.Dispose();
+            Contents.Dispose();
         }
     }
 
-    private class NonClosingStreamWrapper : Stream
+    private class NonClosingStreamWrapper(Stream baseStream, Action onDispose) : Stream
     {
-        private readonly Stream _baseStream;
-        private readonly Action _onDispose;
-
-        public NonClosingStreamWrapper(Stream baseStream, Action onDispose)
-        {
-            _baseStream = baseStream;
-            _onDispose = onDispose;
-        }
-
-        public override bool CanRead => _baseStream.CanRead;
-        public override bool CanSeek => _baseStream.CanSeek;
-        public override bool CanWrite => _baseStream.CanWrite;
-        public override long Length => _baseStream.Length;
+        public override bool CanRead => baseStream.CanRead;
+        public override bool CanSeek => baseStream.CanSeek;
+        public override bool CanWrite => baseStream.CanWrite;
+        public override long Length => baseStream.Length;
 
         public override long Position
         {
-            get => _baseStream.Position;
-            set => _baseStream.Position = value;
+            get => baseStream.Position;
+            set => baseStream.Position = value;
         }
 
-        public override void Flush() => _baseStream.Flush();
-        public override int Read(byte[] buffer, int offset, int count) => _baseStream.Read(buffer, offset, count);
-        public override long Seek(long offset, SeekOrigin origin) => _baseStream.Seek(offset, origin);
-        public override void SetLength(long value) => _baseStream.SetLength(value);
-        public override void Write(byte[] buffer, int offset, int count) => _baseStream.Write(buffer, offset, count);
+        public override void Flush() => baseStream.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => baseStream.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => baseStream.Seek(offset, origin);
+        public override void SetLength(long value) => baseStream.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => baseStream.Write(buffer, offset, count);
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                _onDispose?.Invoke();
+                onDispose.Invoke();
             }
             base.Dispose(disposing);
         }

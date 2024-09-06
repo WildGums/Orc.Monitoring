@@ -1,11 +1,10 @@
 ﻿namespace Orc.Monitoring;
 
 using System;
-using System.Linq;
 using System.Reflection;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Filters;
+using Reporters;
+using Reporters.ReportOutputs;
 
 public class ConfigurationBuilder
 {
@@ -106,25 +105,6 @@ public class ConfigurationBuilder
         else
         {
             _monitoringController.DisableOutputType<T>();
-        }
-        return this;
-    }
-
-    public ConfigurationBuilder SetOutputTypeState(Type outputType, bool enabled)
-    {
-        if (!typeof(IReportOutput).IsAssignableFrom(outputType))
-        {
-            throw new ArgumentException($"Type {outputType.Name} does not implement IReportOutput", nameof(outputType));
-        }
-
-        _config.SetOutputTypeState(outputType, enabled);
-        if (enabled)
-        {
-            _monitoringController.EnableOutputType(outputType);
-        }
-        else
-        {
-            _monitoringController.DisableOutputType(outputType);
         }
         return this;
     }

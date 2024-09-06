@@ -38,7 +38,7 @@ public class MethodCallException : IMethodLifeCycleItem
 
     public override string ToString()
     {
-        var methodCallInfoString = MethodCallInfo?.ToString() ?? "null";
+        var methodCallInfoString = MethodCallInfo.ToString();
         return $"MethodCallException: {methodCallInfoString}";
     }
 }

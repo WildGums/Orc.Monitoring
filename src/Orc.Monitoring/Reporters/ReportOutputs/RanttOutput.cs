@@ -2,17 +2,18 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using IO;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
+using Monitoring;
+using MethodLifeCycleItems;
+using Reporters;
 
-public sealed class RanttOutput : IReportOutput, ILimitableOutput
+public sealed class RanttOutput : IReportOutput
 {
     private const string RanttProjectContents = @"<?xml version=""1.0"" encoding=""utf-8""?>
 <Project RanttVersion=""3.5.0.0"" MinimumRanttVersion=""2.0"">
@@ -52,7 +53,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
     private readonly IFileSystem _fileSystem;
     private readonly ReportArchiver _reportArchiver;
-    private readonly CsvUtils _csvUtils;
 
     public RanttOutput()
     : this(MonitoringLoggerFactory.Instance, () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
@@ -71,7 +71,6 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
         _fileSystem = fileSystem;
         _reportArchiver = reportArchiver;
-        _csvUtils = new CsvUtils(_fileSystem);
     }
 
     public static RanttReportParameters CreateParameters(
@@ -161,10 +160,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
         _fileSystem.CreateDirectory(_outputDirectory);
         _logger.LogInformation($"Created output directory: {_outputDirectory}");
 
-        if (_overrideManager is null)
-        {
-            _overrideManager = _methodOverrideManagerFactory(_outputDirectory!);
-        }
+        _overrideManager ??= _methodOverrideManagerFactory(_outputDirectory!);
         _overrideManager.ReadOverrides();
 
         var fileName = $"{reporter.FullName}.csv";
@@ -212,7 +208,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Number of report items before processing: {_helper.ReportItems.Count}");
 
             var sortedItems = _helper.ReportItems
-                .OrderBy(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .OrderBy(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString(CultureInfo.InvariantCulture)))
                 .ToList();
 
             _logger.LogInformation($"Sorted items count: {sortedItems.Count}");
@@ -264,7 +260,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
                     Parent = item.Parent,
                     ParentThreadId = item.ParentThreadId,
                     Parameters = newParameters,
-                    AttributeParameters = new HashSet<string>(item.AttributeParameters)
+                    AttributeParameters = [..item.AttributeParameters]
                 };
             }).ToList();
 
@@ -304,7 +300,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Starting relationships CSV export to {fullPath}");
 
             var sortedItems = _helper.ReportItems
-                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString(CultureInfo.InvariantCulture)))
                 .ToList();
 
             var enhancedDataPostProcessor = _enhancedDataPostProcessorFactory();
@@ -342,7 +338,7 @@ public sealed class RanttOutput : IReportOutput, ILimitableOutput
 
     private string EscapeXmlContent(string content)
     {
-        return System.Security.SecurityElement.Escape(content) ?? string.Empty;
+        return System.Security.SecurityElement.Escape(content);
     }
 
     private void ExportToRantt(IMethodCallReporter reporter, string dataFileName, string relationshipsFileName)

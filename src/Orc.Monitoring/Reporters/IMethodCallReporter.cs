@@ -2,10 +2,8 @@
 namespace Orc.Monitoring.Reporters;
 
 using System;
-using System.Collections.Generic;
 using System.Reflection;
 using MethodLifeCycleItems;
-using Orc.Monitoring.Filters;
 
 /// <summary>
 /// Defines a method for reporting performance data.
@@ -40,5 +38,4 @@ public interface IMethodCallReporter : IOutputContainer
     IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack);
 
     void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod);
-    void SetRootMethod(MethodInfo methodInfo);
 }

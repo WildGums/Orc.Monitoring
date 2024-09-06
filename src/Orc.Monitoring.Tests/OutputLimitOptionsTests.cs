@@ -1,7 +1,7 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters.ReportOutputs;
 using System;
 
 [TestFixture]
@@ -62,7 +62,10 @@ public class OutputLimitOptionsTests
     [Test]
     public void MaxItems_CannotBeSetToNegativeValue()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new OutputLimitOptions { MaxItems = -1 });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            _ = new OutputLimitOptions { MaxItems = -1 };
+        });
     }
 
     [Test]

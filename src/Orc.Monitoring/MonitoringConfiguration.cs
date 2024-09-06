@@ -3,21 +3,20 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Filters;
+using Reporters;
 
 public class MonitoringConfiguration
 {
     private readonly Dictionary<Type, IMethodFilter> _filters = new();
-    private readonly HashSet<Type> _reporterTypes = new();
+    private readonly HashSet<Type> _reporterTypes = [];
 
     public IReadOnlyCollection<IMethodFilter> Filters => _filters.Values;
     public IReadOnlyDictionary<Type, IMethodFilter> FilterDictionary => _filters.AsReadOnly();
     public IReadOnlyCollection<Type> ReporterTypes => _reporterTypes;
 
-    public List<Assembly> TrackedAssemblies { get; } = new List<Assembly>();
-    public Dictionary<Type, bool> OutputTypeStates { get; } = new Dictionary<Type, bool>();
+    public List<Assembly> TrackedAssemblies { get; } = [];
+    public Dictionary<Type, bool> OutputTypeStates { get; } = new();
     public bool IsGloballyEnabled { get; set; } = true;
 
     internal void AddFilter(IMethodFilter filter)

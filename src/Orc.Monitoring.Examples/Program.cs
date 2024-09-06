@@ -1,6 +1,5 @@
 ﻿namespace Orc.Monitoring.Examples;
 
-using System;
 using System.Threading.Tasks;
 
 internal class Program

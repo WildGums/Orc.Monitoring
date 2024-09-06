@@ -1,8 +1,6 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -19,7 +17,7 @@ public class MonitoringControllerVersionChangeTests
     {
         _logger = new TestLogger<MonitoringControllerVersionChangeTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringControllerVersionChangeTests>(_logger);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
 
         _monitoringController.Enable();
     }
@@ -31,7 +29,7 @@ public class MonitoringControllerVersionChangeTests
         MonitoringVersion? oldVersion = null;
         MonitoringVersion? newVersion = null;
 
-        _monitoringController.VersionChanged += (sender, args) =>
+        _monitoringController.VersionChanged += (_, args) =>
         {
             eventFired = true;
             oldVersion = args.OldVersion;
@@ -58,7 +56,7 @@ public class MonitoringControllerVersionChangeTests
 
         for (int i = 0; i < subscriberCount; i++)
         {
-            _monitoringController.VersionChanged += (sender, args) => notifiedSubscribers++;
+            _monitoringController.VersionChanged += (_, _) => notifiedSubscribers++;
         }
 
         _monitoringController.EnableReporter(typeof(MockReporter));
@@ -70,7 +68,7 @@ public class MonitoringControllerVersionChangeTests
     public void VersionChanged_Unsubscribe_NoLongerNotified()
     {
         var notificationCount = 0;
-        EventHandler<VersionChangedEventArgs> handler = (sender, args) => notificationCount++;
+        EventHandler<VersionChangedEventArgs> handler = (_, _) => notificationCount++;
 
         _monitoringController.VersionChanged += handler;
         _monitoringController.EnableReporter(typeof(MockReporter));
@@ -93,7 +91,7 @@ public class MonitoringControllerVersionChangeTests
             var index = i;
             tasks.Add(Task.Run(() =>
             {
-                _monitoringController.VersionChanged += (sender, args) => notifiedSubscribers[index] = true;
+                _monitoringController.VersionChanged += (_, _) => notifiedSubscribers[index] = true;
             }));
         }
 
@@ -126,14 +124,8 @@ public class MonitoringControllerVersionChangeTests
         });
     }
 
-    private class TestVersionedMonitoringContext : VersionedMonitoringContext
+    private class TestVersionedMonitoringContext(IMonitoringController monitoringController) : VersionedMonitoringContext(monitoringController)
     {
-        public TestVersionedMonitoringContext(IMonitoringController monitoringController)
-        : base(monitoringController)
-        {
-            
-        }
-
         public MonitoringVersion CurrentVersion => ContextVersion;
     }
 }

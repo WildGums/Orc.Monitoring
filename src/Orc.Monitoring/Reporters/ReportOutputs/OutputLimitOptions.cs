@@ -18,7 +18,7 @@ public class OutputLimitOptions
         get => _maxItems;
         set
         {
-            if (value.HasValue && value.Value < 0)
+            if (value is < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(value), "MaxItems cannot be negative.");
             }
@@ -34,7 +34,7 @@ public class OutputLimitOptions
     /// <summary>
     /// Gets the default unlimited options.
     /// </summary>
-    public static OutputLimitOptions Unlimited => new OutputLimitOptions();
+    public static OutputLimitOptions Unlimited => new();
 
     /// <summary>
     /// Creates a new instance of OutputLimitOptions with a maximum number of items.

@@ -1,6 +1,5 @@
 ﻿namespace Orc.Monitoring;
 
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,16 +7,9 @@ using System.Text;
 using System.Threading.Tasks;
 using IO;
 
-public class CsvUtils
+public class CsvUtils(IFileSystem fileSystem)
 {
-    private readonly IFileSystem _fileSystem;
-
-    public static CsvUtils Instance { get; } = new CsvUtils(FileSystem.Instance);
-
-    public CsvUtils(IFileSystem fileSystem)
-    {
-        _fileSystem = fileSystem;
-    }
+    public static CsvUtils Instance { get; } = new(FileSystem.Instance);
 
     public void WriteCsvLine(TextWriter writer, string?[] values)
     {
@@ -31,7 +23,7 @@ public class CsvUtils
 
     public void WriteCsv<T>(string filePath, IEnumerable<T> data, string[] headers)
     {
-        using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
+        using var writer = fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
 
         WriteCsvLine(writer, headers.Cast<string?>().ToArray());
 
@@ -44,7 +36,7 @@ public class CsvUtils
 
     public async Task WriteCsvAsync<T>(string filePath, IEnumerable<T> data, string[] headers)
     {
-        using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
+        await using var writer = fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
 
         await WriteCsvLineAsync(writer, headers.Cast<string?>().ToArray());
 
@@ -58,12 +50,11 @@ public class CsvUtils
     public List<Dictionary<string, string>> ReadCsv(string filePath)
     {
         var result = new List<Dictionary<string, string>>();
-        using var reader = _fileSystem.CreateStreamReader(filePath);
+        using var reader = fileSystem.CreateStreamReader(filePath);
 
         var headers = ParseCsvLine(reader.ReadLine() ?? string.Empty);
 
-        string? line;
-        while ((line = reader.ReadLine()) is not null)
+        while (reader.ReadLine() is { } line)
         {
             var values = ParseCsvLine(line);
             if (values.Length != headers.Length) continue;
@@ -82,13 +73,12 @@ public class CsvUtils
     public async Task<List<Dictionary<string, string>>> ReadCsvAsync(string filePath)
     {
         var result = new List<Dictionary<string, string>>();
-        using var reader = _fileSystem.CreateStreamReader(filePath);
+        using var reader = fileSystem.CreateStreamReader(filePath);
 
         var headerLine = await reader.ReadLineAsync();
         var headers = ParseCsvLine(headerLine ?? string.Empty);
 
-        string? line;
-        while ((line = await reader.ReadLineAsync()) is not null)
+        while (await reader.ReadLineAsync() is { } line)
         {
             var values = ParseCsvLine(line);
             if (values.Length != headers.Length) continue;
@@ -104,7 +94,7 @@ public class CsvUtils
         return result;
     }
 
-    public string? EscapeCsvValue(string? value)
+    public string EscapeCsvValue(string? value)
     {
         if (string.IsNullOrEmpty(value))
         {

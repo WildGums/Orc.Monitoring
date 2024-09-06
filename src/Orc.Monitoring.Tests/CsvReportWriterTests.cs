@@ -2,7 +2,7 @@
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters.ReportOutputs;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ public class CsvReportWriterTests
 
         _stringWriter = new StringWriter();
         _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
-        _reportItems = new List<ReportItem>();
+        _reportItems = [];
     }
 
     [TearDown]
@@ -105,7 +105,7 @@ public class CsvReportWriterTests
         _overrideManager.ReadOverrides();
         var overrides = new Dictionary<string, string> { { customColumnName, overrideValue } };
         _overrideManager.GetType().GetField("_overrides", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .SetValue(_overrideManager, new Dictionary<string, Dictionary<string, string>> { { "TestNamespace.TestClass.TestMethod", overrides } });
+            ?.SetValue(_overrideManager, new Dictionary<string, Dictionary<string, string>> { { "TestNamespace.TestClass.TestMethod", overrides } });
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
         await writer.WriteReportItemsCsvAsync();
@@ -134,8 +134,7 @@ public class CsvReportWriterTests
     [Test]
     public async Task WriteReportItemsCsvAsync_HandlesMultipleItems()
     {
-        _reportItems.AddRange(new[]
-        {
+        _reportItems.AddRange([
             new ReportItem
             {
                 Id = "1",
@@ -166,7 +165,7 @@ public class CsvReportWriterTests
                 Level = "2",
                 Parameters = new Dictionary<string, string> { { "Param3", "Value3" } }
             }
-        });
+        ]);
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
         await writer.WriteReportItemsCsvAsync();
@@ -235,8 +234,8 @@ public class CsvReportWriterTests
 #pragma warning restore IDISP001
         var reportItems = new List<ReportItem>
         {
-            new ReportItem { Id = "1", MethodName = "Method1", StartTime = "2023-01-01 00:00:00" },
-            new ReportItem { Id = "2", MethodName = "Method2", StartTime = "2023-01-01 00:00:01" }
+            new() { Id = "1", MethodName = "Method1", StartTime = "2023-01-01 00:00:00" },
+            new() { Id = "2", MethodName = "Method2", StartTime = "2023-01-01 00:00:01" }
         };
         var overrideManager = new Mock<MethodOverrideManager>(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils).Object;
         var writer = new CsvReportWriter(stringWriter, reportItems, overrideManager, _loggerFactory, _csvUtils);

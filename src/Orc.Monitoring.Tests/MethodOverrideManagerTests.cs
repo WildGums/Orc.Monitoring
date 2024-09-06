@@ -2,8 +2,8 @@
 
 using System;
 using NUnit.Framework;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters;
+using Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -101,7 +101,7 @@ public class MethodOverrideManagerTests
         // Arrange
         var reportItems = new List<ReportItem>
         {
-            new ReportItem
+            new()
             {
                 FullName = methodName,
                 Parameters = new Dictionary<string, string>
@@ -194,9 +194,9 @@ public class MethodOverrideManagerTests
         // Arrange
         var reportItems = new List<ReportItem>
         {
-            new ReportItem { FullName = "Method1", MethodName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" } } },
-            new ReportItem { FullName = "Method2", MethodName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" } } },
-            new ReportItem { FullName = "Gap", MethodName = MethodCallParameter.Types.Gap, Parameters = new Dictionary<string, string>() }
+            new() { FullName = "Method1", MethodName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" } } },
+            new() { FullName = "Method2", MethodName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" } } },
+            new() { FullName = "Gap", MethodName = MethodCallParameter.Types.Gap, Parameters = new Dictionary<string, string>() }
         };
 
         // Act
@@ -234,9 +234,9 @@ public class MethodOverrideManagerTests
         // Arrange
         var reportItems = new List<ReportItem>
         {
-            new ReportItem { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
-            new ReportItem { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
-            new ReportItem { FullName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" }, { "CustomParam", "Value2" } } }
+            new() { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
+            new() { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
+            new() { FullName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" }, { "CustomParam", "Value2" } } }
         };
 
         // Act

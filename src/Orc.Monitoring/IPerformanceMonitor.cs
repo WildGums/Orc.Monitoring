@@ -10,8 +10,6 @@ public interface IPerformanceMonitor
 
     MonitoringConfiguration? GetCurrentConfiguration();
 
-    void LogCurrentConfiguration();
-
     void Reset();
 
     IClassMonitor ForCurrentClass();

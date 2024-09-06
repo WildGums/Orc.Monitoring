@@ -2,14 +2,8 @@
 
 using System;
 
-public class VersionChangedEventArgs : EventArgs
+public class VersionChangedEventArgs(MonitoringVersion oldVersion, MonitoringVersion newVersion) : EventArgs
 {
-    public MonitoringVersion OldVersion { get; }
-    public MonitoringVersion NewVersion { get; }
-
-    public VersionChangedEventArgs(MonitoringVersion oldVersion, MonitoringVersion newVersion)
-    {
-        OldVersion = oldVersion;
-        NewVersion = newVersion;
-    }
+    public MonitoringVersion OldVersion { get; } = oldVersion;
+    public MonitoringVersion NewVersion { get; } = newVersion;
 }

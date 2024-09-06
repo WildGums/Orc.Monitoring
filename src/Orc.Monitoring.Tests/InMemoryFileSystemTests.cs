@@ -148,7 +148,7 @@ public class InMemoryFileSystemTests
     {
         using (var stream = _fileSystem.CreateFileStream("/streamTest.txt", FileMode.Create, FileAccess.Write, FileShare.None, 1024, FileOptions.None))
         {
-            byte[] bytes = Encoding.UTF8.GetBytes("Stream Test");
+            byte[] bytes = "Stream Test"u8.ToArray();
             stream.Write(bytes, 0, bytes.Length);
         }
 
@@ -163,7 +163,7 @@ public class InMemoryFileSystemTests
 
         using (var stream = _fileSystem.CreateFileStream("/streamTest.txt", FileMode.Append, FileAccess.Write, FileShare.None, 1024, FileOptions.None))
         {
-            byte[] bytes = Encoding.UTF8.GetBytes("End");
+            byte[] bytes = "End"u8.ToArray();
             stream.Write(bytes, 0, bytes.Length);
         }
 
@@ -231,7 +231,7 @@ public class InMemoryFileSystemTests
         _fileSystem.WriteAllText(filePath, "Initial content");
 
         Exception caughtException = null;
-        using (var stream = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.Write, FileShare.Read))
+        using (var _ = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.Write, FileShare.Read))
         {
             try
             {

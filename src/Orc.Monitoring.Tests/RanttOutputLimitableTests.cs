@@ -36,7 +36,7 @@ public class RanttOutputLimitableTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -86,7 +86,7 @@ public class RanttOutputLimitableTests
         _ranttOutput.SetLimitOptions(OutputLimitOptions.LimitItems(5));
         var mockReporter = new Mock<IMethodCallReporter>();
         mockReporter.Setup(r => r.FullName).Returns("TestReporter");
-        await using (var disposable = _ranttOutput.Initialize(mockReporter.Object))
+        await using (var _ = _ranttOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 10; i++)
             {
@@ -120,7 +120,7 @@ public class RanttOutputLimitableTests
     {
         var mockReporter = new Mock<IMethodCallReporter>();
         mockReporter.Setup(r => r.FullName).Returns("TestReporter");
-        await using (var disposable = _ranttOutput.Initialize(mockReporter.Object))
+        await using (var _ = _ranttOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 10; i++)
             {

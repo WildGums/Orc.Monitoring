@@ -2,9 +2,9 @@
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.MethodLifeCycleItems;
+using Reporters.ReportOutputs;
+using Reporters;
+using MethodLifeCycleItems;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -28,7 +28,7 @@ public class ReportOutputHelperTests
         _logger = new TestLogger<ReportOutputHelperTests>();
         _loggerFactory = new TestLoggerFactory<ReportOutputHelperTests>(_logger);
         _loggerFactory.EnableLoggingFor<ReportOutputHelper>();
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
@@ -98,13 +98,10 @@ public class ReportOutputHelperTests
         Assert.That(startResult, Is.Not.Null, "Start result should not be null");
         Assert.That(endResult, Is.Not.Null, "End result should not be null");
 
-        if (endResult is not null)
-        {
-            Assert.That(endResult.MethodName, Is.EqualTo("TestMethod"), "Method name should match");
-            Assert.That(endResult.EndTime, Is.Not.Null, "End time should be set");
-            Assert.That(endResult.Duration, Is.Not.Null, "Duration should be set");
-            Assert.That(_reportOutputHelper.LastEndTime, Is.EqualTo(endResult.EndTime), "Last end time should be updated");
-        }
+        Assert.That(endResult.MethodName, Is.EqualTo("TestMethod"), "Method name should match");
+        Assert.That(endResult.EndTime, Is.Not.Null, "End time should be set");
+        Assert.That(endResult.Duration, Is.Not.Null, "Duration should be set");
+        Assert.That(_reportOutputHelper.LastEndTime, Is.EqualTo(endResult.EndTime), "Last end time should be updated");
 
         // Log the current state of ReportItems
         _logger.LogInformation($"Report items count: {_reportOutputHelper.ReportItems.Count}");

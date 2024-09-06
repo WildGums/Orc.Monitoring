@@ -1,7 +1,7 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -30,7 +30,7 @@ public class CsvReportWriterSpecialCharactersTests
 
         _stringWriter = new StringWriter();
         _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
-        _reportItems = new List<ReportItem>();
+        _reportItems = [];
     }
 
     [TearDown]

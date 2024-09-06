@@ -3,9 +3,9 @@ namespace Orc.Monitoring.Tests;
 
 using Moq;
 using NUnit.Framework;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Reporters;
+using MethodLifeCycleItems;
+using Reporters.ReportOutputs;
+using Reporters;
 using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ public class CsvReportOutputLimitableTests
         _logger = new TestLogger<CsvReportOutputLimitableTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportOutputLimitableTests>(_logger);
 
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
@@ -84,7 +84,7 @@ public class CsvReportOutputLimitableTests
     {
         _csvReportOutput.SetLimitOptions(OutputLimitOptions.LimitItems(5));
         var mockReporter = new Mock<IMethodCallReporter>();
-        await using (var disposable = _csvReportOutput.Initialize(mockReporter.Object))
+        await using (var _ = _csvReportOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 10; i++)
             {
@@ -95,7 +95,7 @@ public class CsvReportOutputLimitableTests
 
         var filePath = Path.Combine(_testOutputPath, "TestReport.csv");
         var lines = (await _fileSystem.ReadAllTextAsync(filePath))
-            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
 
         _logger.LogInformation($"CSV file contents ({lines.Length} lines):");
         foreach (var line in lines)
@@ -112,7 +112,7 @@ public class CsvReportOutputLimitableTests
     public async Task WriteItem_WithNoLimit_WritesAllItems()
     {
         var mockReporter = new Mock<IMethodCallReporter>();
-        await using (var disposable = _csvReportOutput.Initialize(mockReporter.Object))
+        await using (var _ = _csvReportOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 10; i++)
             {
@@ -123,7 +123,7 @@ public class CsvReportOutputLimitableTests
 
         var filePath = Path.Combine(_testOutputPath, "TestReport.csv");
         var lines = (await _fileSystem.ReadAllTextAsync(filePath))
-            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
         Assert.That(lines.Length, Is.EqualTo(11)); // Header + 10 items
     }
 

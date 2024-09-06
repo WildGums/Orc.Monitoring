@@ -41,7 +41,7 @@ public class CsvReportWriter
 
         foreach (var item in PrepareReportItems())
         {
-            var values = headers.Select(h => item.TryGetValue(h, out var value) ? value : null).ToArray();
+            var values = headers.Select(h => item.GetValueOrDefault(h)).ToArray();
             _csvUtils.WriteCsvLine(_writer, values);
         }
 
@@ -88,31 +88,9 @@ public class CsvReportWriter
         _logger.LogInformation($"Wrote {items.Count} report items to CSV asynchronously");
     }
 
-    public void WriteRelationshipsCsv()
-    {
-        var headers = new string?[] { "From", "To", "RelationType" };
-        _csvUtils.WriteCsvLine(_writer, headers);
-
-        var relationships = _reportItems
-            .Where(r => !string.IsNullOrEmpty(r.Parent))
-            .Select(item => new
-            {
-                From = item.Parent,
-                To = item.Id,
-                RelationType = DetermineRelationType(item)
-            });
-
-        foreach (var relationship in relationships)
-        {
-            _csvUtils.WriteCsvLine(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
-        }
-
-        _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV");
-    }
-
     public async Task WriteRelationshipsCsvAsync()
     {
-        var headers = new string?[] { "From", "To", "RelationType" };
+        var headers = new[] { "From", "To", "RelationType" };
         await _csvUtils.WriteCsvLineAsync(_writer, headers);
 
         var relationships = _reportItems
@@ -124,12 +102,14 @@ public class CsvReportWriter
                 RelationType = DetermineRelationType(item)
             });
 
+        var counter = 0;
         foreach (var relationship in relationships)
         {
-            await _csvUtils.WriteCsvLineAsync(_writer, new string?[] { relationship.From, relationship.To, relationship.RelationType });
+            await _csvUtils.WriteCsvLineAsync(_writer, [relationship.From, relationship.To, relationship.RelationType]);
+            counter++;
         }
 
-        _logger.LogInformation($"Wrote {relationships.Count()} relationships to CSV asynchronously");
+        _logger.LogInformation($"Wrote {counter} relationships to CSV asynchronously");
     }
 
     private IEnumerable<Dictionary<string, string>> PrepareReportItems()

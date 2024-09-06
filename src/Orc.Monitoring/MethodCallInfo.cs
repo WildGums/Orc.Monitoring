@@ -7,15 +7,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Microsoft.VisualBasic;
-using Orc.Monitoring.Reporters;
+using Reporters;
 
 
 public class MethodCallInfo
 {
-    private IClassMonitor? _classMonitor;
     private MethodCallInfo? _parent;
-    private readonly HashSet<IMethodCallReporter> _associatedReporters = new HashSet<IMethodCallReporter>();
+    private readonly HashSet<IMethodCallReporter> _associatedReporters = [];
 
     public bool IsNull { get; init; }
     public Dictionary<string, string>? Parameters { get; set; }
@@ -62,7 +60,6 @@ public class MethodCallInfo
         }
 
         ReadyToReturn = false;
-        _classMonitor = classMonitor;
         ClassType = classType;
         MethodName = GetMethodName(methodInfo, genericArguments);
         MethodInfo = methodInfo;
@@ -71,7 +68,7 @@ public class MethodCallInfo
         ThreadId = Environment.CurrentManagedThreadId;
         Elapsed = TimeSpan.Zero;
 
-        AttributeParameters = new HashSet<string>(attributeParameters.Keys);
+        AttributeParameters = [..attributeParameters.Keys];
         Parameters = new Dictionary<string, string>(attributeParameters);
         Version = monitoringController.GetCurrentVersion();
 
@@ -91,7 +88,6 @@ public class MethodCallInfo
         }
 
         ReadyToReturn = false;
-        _classMonitor = null;
         ClassType = null;
         MethodName = null;
         MethodInfo = null;
@@ -153,11 +149,6 @@ public class MethodCallInfo
         }
 
         return methodName;
-    }
-
-    public bool IsRootForReporter(IMethodCallReporter reporter)
-    {
-        return AssociatedReporters.Contains(reporter);
     }
 
     public override bool Equals(object? obj)

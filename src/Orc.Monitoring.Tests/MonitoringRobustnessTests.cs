@@ -2,11 +2,9 @@
 
 using NUnit.Framework;
 using System;
-using Orc.Monitoring;
-using Orc.Monitoring.MethodLifeCycleItems;
+using Monitoring;
+using MethodLifeCycleItems;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
-using Reporters;
 
 [TestFixture]
 public class MonitoringRobustnessTests
@@ -25,7 +23,7 @@ public class MonitoringRobustnessTests
     {
         _logger = new TestLogger<MonitoringRobustnessTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringRobustnessTests>(_logger);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
         _classMonitorFactory = new ClassMonitorFactory(_monitoringController, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
@@ -58,7 +56,7 @@ public class MonitoringRobustnessTests
 
         Assert.DoesNotThrow(() =>
         {
-            using var context = monitor.Start(builder => { });
+            using var context = monitor.Start(_ => { });
             Assert.That(context, Is.Not.Null);
             using var dummyMethodCallContext = _methodCallContextFactory.GetDummyMethodCallContext();
             Assert.That(context, Is.EqualTo(dummyMethodCallContext));
@@ -100,31 +98,40 @@ public class MonitoringRobustnessTests
         Assert.DoesNotThrow(() =>
         {
             var monitor = _performanceMonitor.ForClass<MonitoringRobustnessTests>();
-            using (var context = monitor.Start(builder => { }))
-            {
-                // Simulate some work
-                System.Threading.Thread.Sleep(10);
+            using var context = monitor.Start(_ => { });
+            // Simulate some work
+            System.Threading.Thread.Sleep(10);
 
-                // Log some status
-                context.Log("TestCategory", "Test data");
+            // Log some status
+            context.Log("TestCategory", "Test data");
 
-                // Simulate an exception
-                context.LogException(new Exception("Test exception"));
-            }
+            // Simulate an exception
+            context.LogException(new Exception("Test exception"));
         });
     }
 
-    private class MockMethodLifeCycleItem : IMethodLifeCycleItem
+    [Test]
+    public async Task FullMethodExecution_WhenMonitoringNotConfigured_ShouldNotThrowExceptionAsync()
     {
-        private readonly MethodCallInfoPool _methodCallInfoPool;
-
-        public MockMethodLifeCycleItem(MethodCallInfoPool methodCallInfoPool)
+        Assert.DoesNotThrowAsync(async () =>
         {
-            _methodCallInfoPool = methodCallInfoPool;
-        }
+            var monitor = _performanceMonitor.ForClass<MonitoringRobustnessTests>();
+            await using var context = monitor.AsyncStart(_ => { });
+            // Simulate some work
+            System.Threading.Thread.Sleep(10);
 
+            // Log some status
+            context.Log("TestCategory", "Test data");
+
+            // Simulate an exception
+            context.LogException(new Exception("Test exception"));
+        });
+    }
+
+    private class MockMethodLifeCycleItem(MethodCallInfoPool methodCallInfoPool) : IMethodLifeCycleItem
+    {
         public DateTime TimeStamp => DateTime.Now;
-        public MethodCallInfo MethodCallInfo => _methodCallInfoPool.GetNull();
+        public MethodCallInfo MethodCallInfo => methodCallInfoPool.GetNull();
         public int ThreadId => 0;
     }
 }

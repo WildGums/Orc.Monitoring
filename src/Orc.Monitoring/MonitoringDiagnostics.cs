@@ -97,16 +97,9 @@ public static class MonitoringDiagnostics
     }
 }
 
-public readonly struct VersionChangeRecord
+public readonly struct VersionChangeRecord(MonitoringVersion oldVersion, MonitoringVersion newVersion, DateTime timestamp)
 {
-    public MonitoringVersion OldVersion { get; }
-    public MonitoringVersion NewVersion { get; }
-    public DateTime Timestamp { get; }
-
-    public VersionChangeRecord(MonitoringVersion oldVersion, MonitoringVersion newVersion, DateTime timestamp)
-    {
-        OldVersion = oldVersion;
-        NewVersion = newVersion;
-        Timestamp = timestamp;
-    }
+    public MonitoringVersion OldVersion { get; } = oldVersion;
+    public MonitoringVersion NewVersion { get; } = newVersion;
+    public DateTime Timestamp { get; } = timestamp;
 }

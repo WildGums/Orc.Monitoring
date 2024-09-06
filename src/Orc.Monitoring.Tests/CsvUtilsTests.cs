@@ -1,10 +1,9 @@
 ﻿namespace Orc.Monitoring.Tests;
 
-using System;
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 [TestFixture]
@@ -38,23 +37,19 @@ public class CsvUtilsTests
     [Test]
     public void WriteCsvLine_WritesCorrectly()
     {
-        using (var writer = new StringWriter())
-        {
-            _csvUtils.WriteCsvLine(writer, new[] { "Header1", "Header2", "Header3" });
-            var result = writer.ToString().Trim();
-            Assert.That(result, Is.EqualTo("Header1,Header2,Header3"));
-        }
+        using var writer = new StringWriter();
+        _csvUtils.WriteCsvLine(writer, ["Header1", "Header2", "Header3"]);
+        var result = writer.ToString().Trim();
+        Assert.That(result, Is.EqualTo("Header1,Header2,Header3"));
     }
 
     [Test]
     public void WriteCsvLine_HandlesSpecialCharacters()
     {
-        using (var writer = new StringWriter())
-        {
-            _csvUtils.WriteCsvLine(writer, new[] { "Normal", "With,Comma", "With\"Quote" });
-            var result = writer.ToString().Trim();
-            Assert.That(result, Is.EqualTo("Normal,\"With,Comma\",\"With\"\"Quote\""));
-        }
+        using var writer = new StringWriter();
+        _csvUtils.WriteCsvLine(writer, ["Normal", "With,Comma", "With\"Quote"]);
+        var result = writer.ToString().Trim();
+        Assert.That(result, Is.EqualTo("Normal,\"With,Comma\",\"With\"\"Quote\""));
     }
 
     [Test]
@@ -84,17 +79,17 @@ public class CsvUtilsTests
     }
 
     [Test]
-    public void WriteCsv_WritesCorrectly()
+    public async Task WriteCsv_WritesCorrectlyAsync()
     {
         var testData = new List<Dictionary<string, string>>
         {
-            new Dictionary<string, string> { { "Header1", "Value1" }, { "Header2", "Value2" } },
-            new Dictionary<string, string> { { "Header1", "Value3" }, { "Header2", "Value4" } }
+            new() { { "Header1", "Value1" }, { "Header2", "Value2" } },
+            new() { { "Header1", "Value3" }, { "Header2", "Value4" } }
         };
 
-        _csvUtils.WriteCsv(_testFilePath, testData, new[] { "Header1", "Header2" });
+        await _csvUtils.WriteCsvAsync(_testFilePath, testData, ["Header1", "Header2"]);
 
-        var lines = _fileSystem.ReadAllLines(_testFilePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(_testFilePath);
 
         // Log the actual content for debugging
         _logger.LogInformation($"Actual CSV content ({lines.Length} lines):");

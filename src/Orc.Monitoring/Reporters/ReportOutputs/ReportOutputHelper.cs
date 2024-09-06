@@ -4,25 +4,20 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
+using MethodLifeCycleItems;
+using Reporters;
 using Microsoft.Extensions.Logging;
 
-public class ReportOutputHelper
+public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
 {
-    private readonly ILogger<ReportOutputHelper> _logger;
-    private readonly List<ReportItem> _reportItems = new List<ReportItem>();
+    private readonly ILogger<ReportOutputHelper> _logger = loggerFactory.CreateLogger<ReportOutputHelper>();
+    private readonly List<ReportItem> _reportItems = [];
 
     private IMethodCallReporter? _reporter;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
-    public ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger<ReportOutputHelper>();
-    }
-
-    public List<ReportItem> Gaps { get; } = new List<ReportItem>();
-    public HashSet<string> ParameterNames { get; } = new HashSet<string>();
+    public List<ReportItem> Gaps { get; } = [];
+    public HashSet<string> ParameterNames { get; } = [];
     public string? LastEndTime { get; private set; }
     public IReadOnlyCollection<ReportItem> ReportItems => _reportItems;
     public IMethodCallReporter? Reporter => _reporter;
@@ -47,12 +42,12 @@ public class ReportOutputHelper
         {
             case MethodCallStart start:
                 result = ProcessStart(start);
-                _logger.LogInformation($"Processed MethodCallStart: {start.MethodCallInfo.MethodName}, Id: {start.MethodCallInfo.Id}, Result: {result?.MethodName}");
+                _logger.LogInformation($"Processed MethodCallStart: {start.MethodCallInfo.MethodName}, Id: {start.MethodCallInfo.Id}, Result: {result.MethodName}");
                 break;
 
             case MethodCallEnd end:
                 result = ProcessEnd(end);
-                _logger.LogInformation($"Processed MethodCallEnd: {end.MethodCallInfo.MethodName}, Id: {end.MethodCallInfo.Id}, Result: {result?.MethodName}");
+                _logger.LogInformation($"Processed MethodCallEnd: {end.MethodCallInfo.MethodName}, Id: {end.MethodCallInfo.Id}, Result: {result.MethodName}");
                 break;
 
             case CallGap gap:
@@ -124,7 +119,7 @@ public class ReportOutputHelper
         return reportItem;
     }
 
-    private ReportItem? ProcessEnd(MethodCallEnd end)
+    private ReportItem ProcessEnd(MethodCallEnd end)
     {
         var methodCallInfo = end.MethodCallInfo;
         var id = methodCallInfo.Id;
@@ -163,7 +158,7 @@ public class ReportOutputHelper
         reportItem.EndTime = LastEndTime;
         reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture);
         reportItem.Parameters = methodCallInfo.Parameters ?? new Dictionary<string, string>();
-        reportItem.AttributeParameters = methodCallInfo.AttributeParameters ?? new HashSet<string>();
+        reportItem.AttributeParameters = methodCallInfo.AttributeParameters ?? [];
 
         ParameterNames.UnionWith(reportItem.Parameters.Keys);
 
@@ -233,7 +228,7 @@ public class ReportOutputHelper
             if (itemsToRemove > 0)
             {
                 var itemsToKeep = _reportItems
-                    .OrderByDescending(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString()))
+                    .OrderByDescending(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString(CultureInfo.InvariantCulture)))
                     .Take(_limitOptions.MaxItems.Value)
                     .ToList();
 

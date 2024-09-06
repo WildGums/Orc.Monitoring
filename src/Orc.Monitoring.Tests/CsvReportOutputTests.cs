@@ -2,14 +2,14 @@
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters;
+using Reporters.ReportOutputs;
 using Moq;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Orc.Monitoring.MethodLifeCycleItems;
+using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
 using IO;
 using System.Text;
@@ -37,7 +37,7 @@ public class CsvReportOutputTests
         _loggerFactory.EnableLoggingFor<CsvReportOutput>();
         _loggerFactory.EnableLoggingFor<InMemoryFileSystem>();
 
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
@@ -155,7 +155,7 @@ public class CsvReportOutputTests
             await using var _ = _csvReportOutput.Initialize(_mockReporter.Object);
         });
 
-        Assert.That(exception.Message, Is.EqualTo("Access to the path is denied."));
+        Assert.That(exception?.Message, Is.EqualTo("Access to the path is denied."));
     }
 
     [Test]
@@ -190,7 +190,7 @@ public class CsvReportOutputTests
         await _fileSystem.WriteAllTextAsync(filePath, "Initial content");
 
         // Lock the file
-        using (var fs = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        await using (var _ = _fileSystem.CreateFileStream(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
         {
             // Attempt to dispose while the file is locked
             var disposable = _csvReportOutput.Initialize(mockReporter.Object);
@@ -242,7 +242,7 @@ public class CsvReportOutputTests
         mockReporter.Setup(r => r.FullName).Returns("TestReporter");
 
         // Act
-        await using (var disposable = _csvReportOutput.Initialize(mockReporter.Object))
+        await using (var _ = _csvReportOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 3; i++)
             {

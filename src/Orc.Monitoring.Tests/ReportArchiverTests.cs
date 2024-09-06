@@ -3,9 +3,7 @@ namespace Orc.Monitoring.Tests;
 
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
-using Orc.Monitoring.IO;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using System;
+using Reporters.ReportOutputs;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;

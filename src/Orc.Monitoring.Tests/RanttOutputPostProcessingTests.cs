@@ -7,9 +7,9 @@ using System.IO;
 using System.Threading.Tasks;
 using Moq;
 using NUnit.Framework;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using MethodLifeCycleItems;
+using Reporters;
+using Reporters.ReportOutputs;
 using Microsoft.Extensions.Logging;
 
 [TestFixture]
@@ -41,7 +41,7 @@ public class RanttOutputPostProcessingTests
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();
         _mockPostProcessor = new Mock<IEnhancedDataPostProcessor>();
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _ranttOutput = InitializeRanttOutput();
         _reporterMock.Setup(r => r.FullName).Returns("TestReporter");
@@ -59,7 +59,7 @@ public class RanttOutputPostProcessingTests
             }
             catch (Exception ex)
             {
-                _logger.Log(LogLevel.Error, new EventId(), ex.Message, ex, (s, e) => s);
+                _logger.Log(LogLevel.Error, new EventId(), ex.Message, ex, (s, _) => s);
             }
         }
     }

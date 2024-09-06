@@ -1,12 +1,9 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using System;
 using System.Reflection;
-using Moq;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Filters;
+using Reporters.ReportOutputs;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -28,7 +25,7 @@ public class PerformanceMonitorTests
     {
         _logger = new TestLogger<PerformanceMonitorTests>();
         _loggerFactory = new TestLoggerFactory<PerformanceMonitorTests>(_logger);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
@@ -131,7 +128,7 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_ShouldEnableDefaultOutputTypes()
     {
-        _performanceMonitor.Configure(config => { });
+        _performanceMonitor.Configure(_ => { });
         Assert.That(_monitoringController.IsOutputTypeEnabled<RanttOutput>(), Is.True);
         Assert.That(_monitoringController.IsOutputTypeEnabled<TxtReportOutput>(), Is.True);
     }

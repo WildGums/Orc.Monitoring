@@ -12,42 +12,33 @@ using Reporters.ReportOutputs;
 using Reporters;
 using System.Linq;
 
-public class MonitoringController : IMonitoringController
+public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMonitoringController
 {
-    private readonly Func<EnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
     private readonly VersionManager _versionManager = new();
     private MonitoringVersion _currentVersion;
-    private int _isEnabled = 0;
+    private int _isEnabled;
     private readonly ConcurrentDictionary<Type, bool> _reporterTrueStates = new();
     private readonly ConcurrentDictionary<Type, bool> _filterTrueStates = new();
     private readonly ConcurrentDictionary<Type, bool> _reporterEffectiveStates = new();
     private readonly ConcurrentDictionary<Type, bool> _filterEffectiveStates = new();
     private readonly ConcurrentDictionary<Type, bool> _outputTypeStates = new();
     private readonly ReaderWriterLockSlim _stateLock = new(LockRecursionPolicy.SupportsRecursion);
-    private readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = new();
+    private readonly List<WeakReference<VersionedMonitoringContext>> _activeContexts = [];
     private readonly AsyncLocal<OperationContext?> _currentOperationContext = new();
 
-    private readonly ConcurrentDictionary<(MonitoringVersion, Type?, Type?, Type?, long), bool> _shouldTrackCache = new();
     private readonly ConcurrentDictionary<(Type ReporterType, Type FilterType), bool> _reporterSpecificFilterStates = new();
     private readonly ConcurrentDictionary<(string ReporterId, Type FilterType), bool> _reporterInstanceFilterStates = new();
 
-    private readonly ILogger _logger;
+    private readonly ILogger _logger = loggerFactory.CreateLogger(typeof(MonitoringController));
 
-    private long _cacheVersion = 0;
-    private int _isUpdating = 0;
+    private long _cacheVersion;
+    private int _isUpdating;
 
     private MonitoringConfiguration _configuration = new();
-    private EnhancedDataPostProcessor? _enhancedDataPostProcessor;
 
     public event EventHandler<VersionChangedEventArgs>? VersionChanged;
 
-    public MonitoringController(IMonitoringLoggerFactory loggerFactory, Func<EnhancedDataPostProcessor> enhancedDataPostProcessorFactory)
-    {
-        _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
-        _logger = loggerFactory.CreateLogger(typeof(MonitoringController));
-    }
-
-    public static IMonitoringController Instance { get; } = new MonitoringController(MonitoringLoggerFactory.Instance, () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance));
+    public static IMonitoringController Instance { get; } = new MonitoringController(MonitoringLoggerFactory.Instance);
 
     public MonitoringConfiguration Configuration
     {
@@ -71,27 +62,6 @@ public class MonitoringController : IMonitoringController
                 _stateLock.ExitWriteLock();
             }
         }
-    }
-
-    public EnhancedDataPostProcessor GetEnhancedDataPostProcessor()
-    {
-        if (_enhancedDataPostProcessor is not null)
-        {
-            return _enhancedDataPostProcessor;
-        }
-
-        _stateLock.EnterWriteLock();
-
-        try
-        {
-            _enhancedDataPostProcessor ??= _enhancedDataPostProcessorFactory();
-        }
-        finally
-        {
-            _stateLock.ExitWriteLock();
-        }
-
-        return _enhancedDataPostProcessor;
     }
 
     public void EnableFilterForReporterType(Type reporterType, Type filterType)
@@ -348,7 +318,6 @@ public class MonitoringController : IMonitoringController
     private void InvalidateShouldTrackCache()
     {
         Interlocked.Increment(ref _cacheVersion);
-        _shouldTrackCache.Clear();
     }
 
     public IDisposable BeginOperation(out MonitoringVersion operationVersion)
@@ -529,37 +498,23 @@ public class MonitoringController : IMonitoringController
         }
     }
 
-    private class OperationContext
+    private class OperationContext(MonitoringVersion operationVersion, OperationContext? parentContext)
     {
-        public MonitoringVersion OperationVersion { get; }
-        public OperationContext? ParentContext { get; }
-
-        public OperationContext(MonitoringVersion operationVersion, OperationContext? parentContext)
-        {
-            OperationVersion = operationVersion;
-            ParentContext = parentContext;
-        }
+        public MonitoringVersion OperationVersion { get; } = operationVersion;
+        public OperationContext? ParentContext { get; } = parentContext;
     }
 
-    private sealed class OperationScope : IDisposable
+    private sealed class OperationScope(MonitoringController monitoringController, OperationContext context) : IDisposable
     {
-        private readonly MonitoringController _monitoringController;
-        private readonly OperationContext _context;
         private bool _isDisposed;
-
-        public OperationScope(MonitoringController monitoringController, OperationContext context)
-        {
-            _monitoringController = monitoringController;
-            _context = context;
-        }
 
         public void Dispose()
         {
             if (!_isDisposed)
             {
-                _monitoringController._currentOperationContext.Value = _context.ParentContext;
+                monitoringController._currentOperationContext.Value = context.ParentContext;
                 _isDisposed = true;
-                _monitoringController._logger.LogDebug($"Operation ended with version: {_context.OperationVersion}");
+                monitoringController._logger.LogDebug($"Operation ended with version: {context.OperationVersion}");
             }
         }
     }
@@ -569,7 +524,6 @@ public class MonitoringController : IMonitoringController
         private readonly MonitoringComponentType _componentType;
         private readonly Type _type;
         private readonly bool _originalState;
-        private readonly MonitoringVersion _originalVersion;
         private readonly MonitoringController _controller;
 
         public TemporaryStateChange(MonitoringComponentType componentType, Type type, MonitoringController controller)
@@ -580,7 +534,6 @@ public class MonitoringController : IMonitoringController
             _originalState = componentType == MonitoringComponentType.Reporter
                 ? _controller.IsReporterEnabled(type)
                 : _controller.IsFilterEnabled(type);
-            _originalVersion = _controller.GetCurrentVersion();
 
             if (componentType == MonitoringComponentType.Reporter)
                 _controller.EnableReporter(type);

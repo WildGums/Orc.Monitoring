@@ -1,7 +1,7 @@
 ﻿// ReSharper disable InconsistentNaming
 namespace Orc.Monitoring.Reporters;
 
-using Orc.Monitoring.Filters;
+using Filters;
 using ReportOutputs;
 
 public interface IOutputContainer

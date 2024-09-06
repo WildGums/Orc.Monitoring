@@ -4,18 +4,10 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 
-public class TestLogger<T> : ILogger<T>
+public class TestLogger<T>(List<string> logMessages) : ILogger<T>
 {
-    private readonly List<string> _logMessages;
-
-    public TestLogger()
+    public TestLogger() : this([])
     {
-        _logMessages = new List<string>();
-    }
-
-    public TestLogger(List<string> logMessages)
-    {
-        _logMessages = logMessages;
     }
 
     public IDisposable BeginScope<TState>(TState state) => null;
@@ -26,18 +18,18 @@ public class TestLogger<T> : ILogger<T>
     {
         var message = formatter(state, exception);
 
-        _logMessages.Add(message);
+        logMessages.Add(message);
 
         Console.WriteLine($"[{logLevel}] {typeof(T).Name}: {message}");
     }
 
-    public IEnumerable<string> LogMessages => _logMessages;
+    public IEnumerable<string> LogMessages => logMessages;
 
-    public ILogger<T2> CreateLogger<T2>() => new TestLogger<T2>(_logMessages);
+    public ILogger<T2> CreateLogger<T2>() => new TestLogger<T2>(logMessages);
 
     public ILogger CreateLogger(Type type)
     {
         var loggerType = typeof(TestLogger<>).MakeGenericType(type);
-        return (ILogger)Activator.CreateInstance(loggerType, _logMessages);
+        return (ILogger)Activator.CreateInstance(loggerType, logMessages);
     }
 }

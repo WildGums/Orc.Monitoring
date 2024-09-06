@@ -1,13 +1,12 @@
 ﻿namespace Orc.Monitoring.IO;
 
-using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
 public class FileSystem : IFileSystem
 {
-    public static FileSystem Instance { get; } = new FileSystem();
+    public static FileSystem Instance { get; } = new();
     public bool FileExists(string path) => File.Exists(path);
 
     public void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);

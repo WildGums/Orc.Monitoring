@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 
 public class NullClassMonitor : IClassMonitor
 {
-    private readonly IMonitoringLoggerFactory _loggerFactory;
     private readonly MethodCallContextFactory _methodCallContextFactory;
     private readonly ILogger<NullClassMonitor> _logger;
 
@@ -16,7 +15,6 @@ public class NullClassMonitor : IClassMonitor
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(methodCallContextFactory);
 
-        _loggerFactory = loggerFactory;
         _methodCallContextFactory = methodCallContextFactory;
         _logger = loggerFactory.CreateLogger<NullClassMonitor>();
     }

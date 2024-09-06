@@ -85,7 +85,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     }
 
 
-    public string Name { get; } = "Workflow";
+    public string Name { get; }
     public string FullName => $"{Name} - {GetRootWorkflowItemName() ?? string.Empty}";
 
     private string? GetRootWorkflowItemName()
@@ -134,7 +134,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             disposable.DisposeAsync().AsTask().Wait(100);
         }
 
-        _disposables = new ();
+        _disposables = [];
 
         InitializeOutputs();
 

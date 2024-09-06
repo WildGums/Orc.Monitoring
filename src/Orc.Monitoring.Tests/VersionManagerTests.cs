@@ -44,7 +44,7 @@ public class VersionManagerTests
         int timeDifference = int.MaxValue;
 
         // Try multiple times to get versions close in time
-        for (int attempt = 0; attempt < maxAttempts && timeDifference > maxAllowedTimeDifference; attempt++)
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
             version1 = _versionManager.GetNextVersion();
             version2 = _versionManager.GetNextVersion();
@@ -70,7 +70,7 @@ public class VersionManagerTests
         Assert.That(timeDifference, Is.LessThanOrEqualTo(maxAllowedTimeDifference),
             $"Timestamps should be within {maxAllowedTimeDifference} milliseconds of each other");
 
-        if (version1.HasValue && version2.HasValue)
+        if (version1.HasValue)
         {
             if (version2.Value.Timestamp == version1.Value.Timestamp)
             {
@@ -173,7 +173,7 @@ public class VersionManagerTests
         // Simulate a scenario where the timestamp is about to overflow
         var highTimestamp = long.MaxValue - 1;
         var fieldInfo = typeof(VersionManager).GetField("_lastTimestamp", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        fieldInfo.SetValue(_versionManager, highTimestamp);
+        fieldInfo?.SetValue(_versionManager, highTimestamp);
 
         var version1 = _versionManager.GetNextVersion();
         var version2 = _versionManager.GetNextVersion();

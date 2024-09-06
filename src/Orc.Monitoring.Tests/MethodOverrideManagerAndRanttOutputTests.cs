@@ -2,9 +2,9 @@
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.MethodLifeCycleItems;
+using Reporters.ReportOutputs;
+using Reporters;
+using MethodLifeCycleItems;
 using Moq;
 using System;
 using System.Collections.Generic;
@@ -65,7 +65,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         mockReporter.Setup(r => r.FullName).Returns("TestReporter");
 
         // Act
-        await using (var disposable = ranttOutput.Initialize(mockReporter.Object))
+        await using (var _ = ranttOutput.Initialize(mockReporter.Object))
         {
             var item = CreateTestMethodLifeCycleItem("TestMethod", DateTime.Now);
             ranttOutput.WriteItem(item);
@@ -93,7 +93,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         mockReporter.Setup(r => r.FullName).Returns("TestReporter");
 
         // Act
-        await using (var disposable = ranttOutput.Initialize(mockReporter.Object))
+        await using (var _ = ranttOutput.Initialize(mockReporter.Object))
         {
             var item = CreateTestMethodLifeCycleItem("TestMethod", DateTime.Now, new Dictionary<string, string> { { "CustomColumn", "CustomValue" } });
             ranttOutput.WriteItem(item);
@@ -140,7 +140,7 @@ public class MethodOverrideManagerAndRanttOutputTests
 
     private void InitializeMonitoringController()
     {
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
     }
 

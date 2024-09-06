@@ -104,7 +104,7 @@ public class MonitoringDiagnosticsTests
         var time3 = DateTime.UtcNow;
 
         var history = MonitoringDiagnostics.GetVersionHistory().ToList();
-        _logger.LogInformation($"Version History:");
+        _logger.LogInformation("Version History:");
         foreach (var record in history)
         {
             _logger.LogInformation($"  {record.Timestamp}: {record.OldVersion} -> {record.NewVersion}");
@@ -141,7 +141,7 @@ public class MonitoringDiagnosticsTests
 
         for (int i = 0; i < maxSize + 100; i++)
         {
-            var oldVersion = new MonitoringVersion((long)i, 0, Guid.NewGuid());
+            var oldVersion = new MonitoringVersion(i, 0, Guid.NewGuid());
             var newVersion = new MonitoringVersion((long)i + 1, 0, Guid.NewGuid());
             MonitoringDiagnostics.LogVersionChange(oldVersion, newVersion);
         }

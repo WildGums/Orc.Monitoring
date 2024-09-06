@@ -2,7 +2,6 @@
 
 using NUnit.Framework;
 using Filters;
-using Reporters;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -18,7 +17,7 @@ public class MonitoringControllerHierarchicalTests
     {
         _logger = new TestLogger<MonitoringControllerHierarchicalTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringControllerHierarchicalTests>(_logger);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
     }
 
     [Test]

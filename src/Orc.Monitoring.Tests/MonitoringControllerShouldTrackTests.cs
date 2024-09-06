@@ -5,12 +5,10 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Reporters;
 
 [TestFixture]
 public class MonitoringControllerShouldTrackTests
 {
-    private MockReporter _mockReporter;
     private TestLogger<MonitoringControllerShouldTrackTests> _logger;
     private TestLoggerFactory<MonitoringControllerShouldTrackTests> _loggerFactory;
     private MonitoringController _monitoringController;
@@ -21,11 +19,9 @@ public class MonitoringControllerShouldTrackTests
         _logger = new TestLogger<MonitoringControllerShouldTrackTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringControllerShouldTrackTests>(_logger);
 
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));  
+        _monitoringController = new MonitoringController(_loggerFactory);  
 
         _monitoringController.Enable();
-        
-        _mockReporter = new MockReporter(_loggerFactory);
     }
 
     [Test]
@@ -66,18 +62,16 @@ public class MonitoringControllerShouldTrackTests
     public void ShouldTrack_WithReporterIds_ReturnsExpectedResult()
     {
         _monitoringController.Enable();
-        var reporter1 = new MockReporter(_loggerFactory) { Id = "Reporter1" };
-        var reporter2 = new MockReporter(_loggerFactory) { Id = "Reporter2" };
         _monitoringController.EnableReporter(typeof(MockReporter));
 
         var version = _monitoringController.GetCurrentVersion();
 
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter1" }), Is.True);
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter2" }), Is.True);
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter3" }), Is.True);
+        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter1"]), Is.True);
+        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter2"]), Is.True);
+        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter3"]), Is.True);
 
         _monitoringController.DisableReporter(typeof(MockReporter));
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: new[] { "Reporter1" }), Is.False);
+        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter1"]), Is.False);
     }
 
     [Test]

@@ -2,16 +2,13 @@
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Reporters;
 
 [TestFixture]
 public class MonitoringControllerOperationTests
 {
-    private MockReporter _mockReporter;
     private TestLogger<MonitoringControllerOperationTests> _logger;
     private TestLoggerFactory<MonitoringControllerOperationTests> _loggerFactory;
     private MonitoringController _monitoringController;
@@ -22,11 +19,9 @@ public class MonitoringControllerOperationTests
         _logger = new TestLogger<MonitoringControllerOperationTests>();
         _loggerFactory = new TestLoggerFactory<MonitoringControllerOperationTests>(_logger);
 
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
 
         _monitoringController.Enable();
-        
-        _mockReporter = new MockReporter(_loggerFactory);
     }
 
     [Test]

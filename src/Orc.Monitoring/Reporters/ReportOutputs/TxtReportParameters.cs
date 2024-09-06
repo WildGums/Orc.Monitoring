@@ -1,17 +1,8 @@
 ﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
-using System;
-
-public class TxtReportParameters
+public class TxtReportParameters(string folderPath, string displayNameParameter, OutputLimitOptions? limitOptions = null)
 {
-    public string FolderPath { get; }
-    public string DisplayNameParameter { get; }
-    public OutputLimitOptions LimitOptions { get; set; }
-
-    public TxtReportParameters(string folderPath, string displayNameParameter, OutputLimitOptions? limitOptions = null)
-    {
-        FolderPath = folderPath;
-        DisplayNameParameter = displayNameParameter;
-        LimitOptions = limitOptions ?? OutputLimitOptions.Unlimited;
-    }
+    public string FolderPath { get; } = folderPath;
+    public string DisplayNameParameter { get; } = displayNameParameter;
+    public OutputLimitOptions LimitOptions { get; set; } = limitOptions ?? OutputLimitOptions.Unlimited;
 }

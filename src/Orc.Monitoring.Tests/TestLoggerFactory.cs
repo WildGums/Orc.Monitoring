@@ -4,21 +4,15 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 
-public class TestLoggerFactory<TFixture> : IMonitoringLoggerFactory
+public class TestLoggerFactory<TFixture>(TestLogger<TFixture> fixtureLogger) : IMonitoringLoggerFactory
 {
-    private readonly TestLogger<TFixture> _fixtureLogger;
-    private readonly HashSet<Type> _enabledTypes = new HashSet<Type>();
-
-    public TestLoggerFactory(TestLogger<TFixture> fixtureLogger)
-    {
-        _fixtureLogger = fixtureLogger;
-    }
+    private readonly HashSet<Type> _enabledTypes = [];
 
     public ILogger<T> CreateLogger<T>()
     {
         if (_enabledTypes.Contains(typeof(T)))
         {
-            return _fixtureLogger.CreateLogger<T>();
+            return fixtureLogger.CreateLogger<T>();
         }
 
         return new DummyLogger<T>();
@@ -28,7 +22,7 @@ public class TestLoggerFactory<TFixture> : IMonitoringLoggerFactory
     {
         if (_enabledTypes.Contains(type))
         {
-            return _fixtureLogger.CreateLogger(type);
+            return fixtureLogger.CreateLogger(type);
         }
 
         return new DummyLogger();

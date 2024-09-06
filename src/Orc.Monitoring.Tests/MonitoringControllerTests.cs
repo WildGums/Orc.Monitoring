@@ -3,11 +3,9 @@
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 using Moq;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
+using Filters;
 using Microsoft.Extensions.Logging;
 
 [TestFixture]
@@ -15,7 +13,6 @@ public class MonitoringControllerTests
 {
     private Mock<IMonitoringLoggerFactory> _mockLoggerFactory;
     private Mock<ILogger<MonitoringController>> _mockLogger;
-    private Mock<EnhancedDataPostProcessor> _mockEnhancedDataPostProcessor;
     private MonitoringController _controller;
 
     [SetUp]
@@ -23,11 +20,10 @@ public class MonitoringControllerTests
     {
         _mockLoggerFactory = new Mock<IMonitoringLoggerFactory>();
         _mockLogger = new Mock<ILogger<MonitoringController>>();
-        _mockEnhancedDataPostProcessor = new Mock<EnhancedDataPostProcessor>();
 
         _mockLoggerFactory.Setup(f => f.CreateLogger(It.IsAny<Type>())).Returns(_mockLogger.Object);
 
-        _controller = new MonitoringController(_mockLoggerFactory.Object, () => _mockEnhancedDataPostProcessor.Object);
+        _controller = new MonitoringController(_mockLoggerFactory.Object);
     }
 
     [TearDown]
@@ -137,7 +133,7 @@ public class MonitoringControllerTests
 
         // Act
         var currentVersion = _controller.GetCurrentVersion(); // Get the current version before calling ShouldTrack
-        return _controller.ShouldTrack(currentVersion, reporterType, null, new[] { reporterId });
+        return _controller.ShouldTrack(currentVersion, reporterType, null, [reporterId]);
     }
 
     [Test]
@@ -150,7 +146,7 @@ public class MonitoringControllerTests
 
         // Act & Assert
         Assert.That(_controller.IsReporterEnabled(reporterType), Is.False);
-        using (var temp = _controller.TemporarilyEnableReporter<TestWorkflowReporter>())
+        using (var _ = _controller.TemporarilyEnableReporter<TestWorkflowReporter>())
         {
             Assert.That(_controller.IsReporterEnabled(reporterType), Is.True);
         }
@@ -220,13 +216,11 @@ public class MonitoringControllerTests
     {
         // Arrange
         var eventFired = false;
-        MonitoringVersion? oldVersion = null;
         MonitoringVersion? newVersion = null;
 
-        _controller.VersionChanged += (sender, args) =>
+        _controller.VersionChanged += (_, args) =>
         {
             eventFired = true;
-            oldVersion = args.OldVersion;
             newVersion = args.NewVersion;
         };
 

@@ -6,7 +6,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using Moq;
-using Reporters;
 
 [TestFixture]
 public class CallStackSimulationTests
@@ -26,13 +25,13 @@ public class CallStackSimulationTests
         _logger = new TestLogger<CallStackSimulationTests>();
         _loggerFactory = new TestLoggerFactory<CallStackSimulationTests>(_logger);
 
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
 
         _config = new MonitoringConfiguration();
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
-        _methodCalls = new List<MethodCallInfo>();
+        _methodCalls = [];
 
         _monitoringController.Enable();
     }
@@ -105,88 +104,67 @@ public class CallStackSimulationTests
         });
     }
 
-    private class SimulatedServiceA
+    private class SimulatedServiceA(CallStackSimulationTests testFixture)
     {
-        private readonly CallStackSimulationTests _testFixture;
-        private readonly SimulatedServiceB _serviceB;
-
-        public SimulatedServiceA(CallStackSimulationTests testFixture)
-        {
-            _testFixture = testFixture;
-            _serviceB = new SimulatedServiceB(testFixture);
-        }
+        private readonly SimulatedServiceB _serviceB = new(testFixture);
 
         public void MethodA1()
         {
-            var methodInfo = _testFixture.CreateMethodCallInfo(nameof(MethodA1), typeof(SimulatedServiceA));
-            _testFixture._callStack!.Push(methodInfo);
+            var methodInfo = testFixture.CreateMethodCallInfo(nameof(MethodA1), typeof(SimulatedServiceA));
+            testFixture._callStack!.Push(methodInfo);
 
             _serviceB.MethodB1();
 
-            _testFixture._callStack!.Pop(methodInfo);
+            testFixture._callStack!.Pop(methodInfo);
         }
     }
 
-    private class SimulatedServiceB
+    private class SimulatedServiceB(CallStackSimulationTests testFixture)
     {
-        private readonly CallStackSimulationTests _testFixture;
-        private readonly SimulatedServiceC _serviceC;
-
-        public SimulatedServiceB(CallStackSimulationTests testFixture)
-        {
-            _testFixture = testFixture;
-            _serviceC = new SimulatedServiceC(testFixture);
-        }
+        private readonly SimulatedServiceC _serviceC = new(testFixture);
 
         public void MethodB1()
         {
-            var methodInfo = _testFixture.CreateMethodCallInfo(nameof(MethodB1), typeof(SimulatedServiceB));
-            _testFixture._callStack!.Push(methodInfo);
+            var methodInfo = testFixture.CreateMethodCallInfo(nameof(MethodB1), typeof(SimulatedServiceB));
+            testFixture._callStack!.Push(methodInfo);
 
             _serviceC.MethodC1();
             MethodB2();
 
-            _testFixture._callStack!.Pop(methodInfo);
+            testFixture._callStack!.Pop(methodInfo);
         }
 
         public void MethodB2()
         {
-            var methodInfo = _testFixture.CreateMethodCallInfo(nameof(MethodB2), typeof(SimulatedServiceB));
-            _testFixture._callStack!.Push(methodInfo);
+            var methodInfo = testFixture.CreateMethodCallInfo(nameof(MethodB2), typeof(SimulatedServiceB));
+            testFixture._callStack!.Push(methodInfo);
 
             _serviceC.MethodC2();
 
-            _testFixture._callStack!.Pop(methodInfo);
+            testFixture._callStack!.Pop(methodInfo);
         }
     }
 
-    private class SimulatedServiceC
+    private class SimulatedServiceC(CallStackSimulationTests testFixture)
     {
-        private readonly CallStackSimulationTests _testFixture;
-
-        public SimulatedServiceC(CallStackSimulationTests testFixture)
-        {
-            _testFixture = testFixture;
-        }
-
         public void MethodC1()
         {
-            var methodInfo = _testFixture.CreateMethodCallInfo(nameof(MethodC1), typeof(SimulatedServiceC));
-            _testFixture._callStack!.Push(methodInfo);
+            var methodInfo = testFixture.CreateMethodCallInfo(nameof(MethodC1), typeof(SimulatedServiceC));
+            testFixture._callStack!.Push(methodInfo);
 
             // Some work here
 
-            _testFixture._callStack!.Pop(methodInfo);
+            testFixture._callStack!.Pop(methodInfo);
         }
 
         public void MethodC2()
         {
-            var methodInfo = _testFixture.CreateMethodCallInfo(nameof(MethodC2), typeof(SimulatedServiceC));
-            _testFixture._callStack!.Push(methodInfo);
+            var methodInfo = testFixture.CreateMethodCallInfo(nameof(MethodC2), typeof(SimulatedServiceC));
+            testFixture._callStack!.Push(methodInfo);
 
             // Some work here
 
-            _testFixture._callStack!.Pop(methodInfo);
+            testFixture._callStack!.Pop(methodInfo);
         }
     }
 }

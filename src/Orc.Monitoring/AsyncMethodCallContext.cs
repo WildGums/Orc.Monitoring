@@ -42,7 +42,7 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
 
     public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
         IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
-    : base(monitoringController)
+        : base(monitoringController)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
@@ -58,11 +58,8 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
         _stopwatch.Start();
 
         // Log the start of the method only if we have a valid MethodCallInfo
-        if (methodCallInfo is not null)
-        {
-            var startStatus = new MethodCallStart(methodCallInfo);
-            (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
-        }
+        var startStatus = new MethodCallStart(methodCallInfo);
+        (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
     }
 
     public void LogException(Exception exception)
@@ -100,17 +97,6 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
 
         var logEntry = new LogEntryItem(MethodCallInfo, category, data);
         (_classMonitor as ClassMonitor)?.LogStatus(logEntry);
-    }
-
-    public void SetParameter(string name, string value)
-    {
-        EnsureValidVersion();
-        if (MethodCallInfo is null || MethodCallInfo.Parameters is null)
-        {
-            return;
-        }
-
-        MethodCallInfo.Parameters[name] = value;
     }
 
     protected override void OnVersionUpdated()
@@ -174,8 +160,8 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
         if (obj is AsyncMethodCallContext other)
         {
             // Compare the properties that define equality for AsyncMethodCallContext
-            return this.MethodCallInfo == other.MethodCallInfo &&
-                   this.ReporterIds.SequenceEqual(other.ReporterIds);
+            return MethodCallInfo == other.MethodCallInfo &&
+                   ReporterIds.SequenceEqual(other.ReporterIds);
         }
         return false;
     }

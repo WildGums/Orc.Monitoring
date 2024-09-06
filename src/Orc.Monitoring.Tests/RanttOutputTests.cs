@@ -3,17 +3,15 @@
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters;
+using Reporters.ReportOutputs;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using IO;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.MethodLifeCycleItems;
+using MethodLifeCycleItems;
 
 [TestFixture]
 public class RanttOutputTests
@@ -34,8 +32,6 @@ public class RanttOutputTests
     private const string TestReporterName = "TestReporter";
     private const string RelationshipsFileName = "TestReporter_Relationships.csv";
     private const string CsvFileName = "TestReporter.csv";
-    private const string RanttFileName = "TestReporter.rprjx";
-    private const int ExpectedCsvLineCount = 3;
 
     [SetUp]
     public void Setup()
@@ -64,7 +60,7 @@ public class RanttOutputTests
 
     private void InitializeDependencies()
     {
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         _mockReporter = new MockReporter(_loggerFactory) { Name = TestReporterName, FullName = TestReporterName };
@@ -151,7 +147,7 @@ public class RanttOutputTests
 
         // Setup override file
         var overrideContent = "FullName,CustomColumn\nRanttOutputTests.Method1,CustomValue";
-        _fileSystem.WriteAllText(Path.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
+        await _fileSystem.WriteAllTextAsync(Path.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
 
         var disposable = _ranttOutput.Initialize(_mockReporter);
 
@@ -231,7 +227,7 @@ public class RanttOutputTests
         var methodName = "Method<with>Invalid&Xml\"Chars";
         var methodCallInfo = CreateMethodCallInfo(methodName, null);
 
-        await using (var disposable = _ranttOutput.Initialize(_mockReporter))
+        await using (var _ = _ranttOutput.Initialize(_mockReporter))
         {
             _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
             _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
@@ -287,7 +283,7 @@ public class RanttOutputTests
         _mockReporter.Initialize(new MonitoringConfiguration(), rootMethodInfo);
 
         // Act
-        await using (var disposable = _ranttOutput.Initialize(_mockReporter))
+        await using (var _ = _ranttOutput.Initialize(_mockReporter))
         {
             _ranttOutput.WriteItem(new MethodCallStart(rootMethodInfo));
             _ranttOutput.WriteItem(new MethodCallStart(childMethodInfo));

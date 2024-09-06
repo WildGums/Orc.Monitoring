@@ -4,11 +4,9 @@ using NUnit.Framework;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Reporters;
-using Orc.Monitoring.Filters;
+using Filters;
 using System.Collections.Generic;
 #pragma warning disable CL0002
 
@@ -29,7 +27,7 @@ public class MonitoringControllerConcurrencyTests
         _loggerFactory.EnableLoggingFor<MonitoringControllerConcurrencyTests>();
         _loggerFactory.EnableLoggingFor<MonitoringVersion>();
         _loggerFactory.EnableLoggingFor<VersionManager>();
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
     }
 
     [Test]
@@ -84,9 +82,10 @@ public class MonitoringControllerConcurrencyTests
 
         for (int i = 0; i < iterations; i++)
         {
+            var i1 = i;
             tasks[i] = Task.Run(() =>
             {
-                if (i % 2 == 0)
+                if (i1 % 2 == 0)
                     _monitoringController.EnableReporter(reporterType);
                 else
                     _monitoringController.DisableReporter(reporterType);
@@ -109,9 +108,10 @@ public class MonitoringControllerConcurrencyTests
 
         for (int i = 0; i < iterations; i++)
         {
+            var i1 = i;
             tasks[i] = Task.Run(() =>
             {
-                if (i % 2 == 0)
+                if (i1 % 2 == 0)
                     _monitoringController.EnableFilter(filterType);
                 else
                     _monitoringController.DisableFilter(filterType);
@@ -135,14 +135,15 @@ public class MonitoringControllerConcurrencyTests
 
         for (int i = 0; i < iterations; i++)
         {
+            var i1 = i;
             tasks[i] = Task.Run(() =>
             {
-                if (i % 3 == 0)
+                if (i1 % 3 == 0)
                 {
                     _monitoringController.EnableReporter(typeof(MockReporter));
                     operations.Add("EnableReporter");
                 }
-                else if (i % 3 == 1)
+                else if (i1 % 3 == 1)
                 {
                     _monitoringController.DisableReporter(typeof(MockReporter));
                     operations.Add("DisableReporter");
@@ -277,10 +278,8 @@ public class MonitoringControllerConcurrencyTests
 
         for (int i = 0; i < iterations; i++)
         {
-            MonitoringVersion currentVersion;
-
             _monitoringController.EnableReporter(typeof(MockReporter));
-            currentVersion = _monitoringController.GetCurrentVersion();
+            var currentVersion = _monitoringController.GetCurrentVersion();
 
             allVersions.Add(currentVersion);
             _logger.LogInformation($"New version: {currentVersion}");

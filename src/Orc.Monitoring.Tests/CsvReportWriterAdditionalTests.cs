@@ -2,11 +2,10 @@
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -31,7 +30,7 @@ public class CsvReportWriterAdditionalTests
 
         _stringWriter = new StringWriter();
         _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
-        _reportItems = new List<ReportItem>();
+        _reportItems = [];
     }
 
     [TearDown]
@@ -56,7 +55,7 @@ public class CsvReportWriterAdditionalTests
                 {"CustomColumn1", "Value1"},
                 {"CustomColumn2", "Value2"}
             },
-            AttributeParameters = new HashSet<string> { "CustomColumn1", "CustomColumn2" }
+            AttributeParameters = ["CustomColumn1", "CustomColumn2"]
         });
         _reportItems.Add(new ReportItem
         {
@@ -69,7 +68,7 @@ public class CsvReportWriterAdditionalTests
                 {"CustomColumn1", "Value3"},
                 {"CustomColumn3", "Value4"}
             },
-            AttributeParameters = new HashSet<string> { "CustomColumn1", "CustomColumn3" }
+            AttributeParameters = ["CustomColumn1", "CustomColumn3"]
         });
 
         _overrideManager.SaveOverrides(_reportItems);

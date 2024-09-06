@@ -6,7 +6,7 @@ public class VersionManager
 {
     private long _lastTimestamp;
     private int _counter;
-    private readonly object _lock = new object();
+    private readonly object _lock = new();
 
     public MonitoringVersion GetNextVersion()
     {

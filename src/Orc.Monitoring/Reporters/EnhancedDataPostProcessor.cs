@@ -2,18 +2,14 @@
 
 using System;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using ReportOutputs;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
-public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
+public class EnhancedDataPostProcessor(IMonitoringLoggerFactory loggerFactory) : IEnhancedDataPostProcessor
 {
-    private readonly ILogger<EnhancedDataPostProcessor> _logger;
-
-    public EnhancedDataPostProcessor(IMonitoringLoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger<EnhancedDataPostProcessor>();
-    }
+    private readonly ILogger<EnhancedDataPostProcessor> _logger = loggerFactory.CreateLogger<EnhancedDataPostProcessor>();
 
     public List<ReportItem> PostProcessData(List<ReportItem> items)
     {
@@ -73,7 +69,7 @@ public class EnhancedDataPostProcessor : IEnhancedDataPostProcessor
 
         var childItems = idMap.Values
             .Where(i => i.Parent == item.Id)
-            .OrderBy(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString()))
+            .OrderBy(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString(CultureInfo.InvariantCulture)))
             .ToList();
 
         _logger.LogDebug($"Found {childItems.Count} children for item {item.Id}");

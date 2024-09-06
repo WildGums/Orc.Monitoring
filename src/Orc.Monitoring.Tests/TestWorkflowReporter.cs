@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using MethodLifeCycleItems;
@@ -87,7 +86,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
         return this;
     }
 
-    public string Name { get; } = "Workflow";
+    public string Name { get; }
     public string FullName => $"{Name} - {GetRootWorkflowItemName() ?? string.Empty}";
 
     private string? GetRootWorkflowItemName()
@@ -139,7 +138,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             disposable.DisposeAsync().AsTask().Wait(100);
         }
 
-        _disposables = new();
+        _disposables = [];
 
         InitializeOutputs();
 

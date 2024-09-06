@@ -3,18 +3,11 @@
 using System;
 
 
-public readonly struct MonitoringVersion : IEquatable<MonitoringVersion>, IComparable<MonitoringVersion>
+public readonly struct MonitoringVersion(long timestamp, int counter, Guid changeId) : IEquatable<MonitoringVersion>, IComparable<MonitoringVersion>
 {
-    public long Timestamp { get; }
-    public int Counter { get; }
-    public Guid ChangeId { get; }
-
-    public MonitoringVersion(long timestamp, int counter, Guid changeId)
-    {
-        Timestamp = timestamp;
-        Counter = counter;
-        ChangeId = changeId;
-    }
+    public long Timestamp { get; } = timestamp;
+    public int Counter { get; } = counter;
+    public Guid ChangeId { get; } = changeId;
 
     public bool Equals(MonitoringVersion other) =>
         Timestamp == other.Timestamp && Counter == other.Counter && ChangeId.Equals(other.ChangeId);

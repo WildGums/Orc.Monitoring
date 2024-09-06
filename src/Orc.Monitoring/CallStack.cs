@@ -8,10 +8,9 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Orc.Monitoring.MethodLifeCycleItems;
+using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
 using System.Runtime;
-using Orc.Monitoring.Reporters;
 
 public class CallStack : IObservable<ICallStackItem>
 {
@@ -29,7 +28,7 @@ public class CallStack : IObservable<ICallStackItem>
 
     private MethodCallInfo? _rootParent;
     private int _idCounter;
-    private int _currentDepth = 0;
+    private int _currentDepth;
 
     public CallStack(IMonitoringController monitoringController,  MonitoringConfiguration? monitoringConfig, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
     {
@@ -57,7 +56,6 @@ public class CallStack : IObservable<ICallStackItem>
             .OfType<MethodCallParameterAttribute>()
             .ToDictionary(attr => attr.Name, attr => attr.Value);
 
-        var threadId = Environment.CurrentManagedThreadId;
         var id = GenerateId();
 
         var result = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, id, attributeParameters);
@@ -152,7 +150,7 @@ public class CallStack : IObservable<ICallStackItem>
 
                     if (poppedContext != methodCallInfo)
                     {
-                        _logger.LogWarning($"Thread CallStack mismatch: popped context is not the same as the method call info.");
+                        _logger.LogWarning("Thread CallStack mismatch: popped context is not the same as the method call info.");
                     }
 
                     if (threadStack.Count == 0)
@@ -211,7 +209,7 @@ public class CallStack : IObservable<ICallStackItem>
 
         ArgumentNullException.ThrowIfNull(status);
 
-        if (ShouldLogStatus(status, currentVersion))
+        if (ShouldLogStatus(status))
         {
             _logger.LogDebug($"Notifying observers: {status}");
             NotifyObservers(status, currentVersion);
@@ -228,7 +226,7 @@ public class CallStack : IObservable<ICallStackItem>
         }
     }
 
-    private bool ShouldLogStatus(IMethodLifeCycleItem status, MonitoringVersion currentVersion)
+    private bool ShouldLogStatus(IMethodLifeCycleItem status)
     {
         var methodInfo = status.MethodCallInfo.MethodInfo;
         if (methodInfo is null)
@@ -404,22 +402,13 @@ public class CallStack : IObservable<ICallStackItem>
         }
     }
 
-    private sealed class Unsubscriber<T> : IDisposable
+    private sealed class Unsubscriber<T>(List<IObserver<T>> observers, IObserver<T> observer) : IDisposable
     {
-        private readonly List<IObserver<T>> _observers;
-        private readonly IObserver<T> _observer;
-
-        public Unsubscriber(List<IObserver<T>> observers, IObserver<T> observer)
-        {
-            _observers = observers;
-            _observer = observer;
-        }
-
         public void Dispose()
         {
-            if (_observer is not null && _observers.Contains(_observer))
+            if (observers.Contains(observer))
             {
-                _observers.Remove(_observer);
+                observers.Remove(observer);
             }
         }
     }

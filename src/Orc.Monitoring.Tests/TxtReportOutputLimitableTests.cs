@@ -3,9 +3,9 @@ namespace Orc.Monitoring.Tests;
 
 using Moq;
 using NUnit.Framework;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using Orc.Monitoring.Reporters;
+using MethodLifeCycleItems;
+using Reporters.ReportOutputs;
+using Reporters;
 using System.Reflection;
 using System.Threading.Tasks;
 using System;
@@ -33,7 +33,7 @@ public class TxtReportOutputLimitableTests
         _loggerFactory.EnableLoggingFor<TxtReportOutput>();
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -82,7 +82,7 @@ public class TxtReportOutputLimitableTests
         var mockReporter = new Mock<IMethodCallReporter>();
         mockReporter.Setup(r => r.Name).Returns("TestReporter");
         mockReporter.Setup(r => r.RootMethod).Returns((MethodInfo)null);
-        await using (var disposable = _txtReportOutput.Initialize(mockReporter.Object))
+        await using (var _ = _txtReportOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 10; i++)
             {
@@ -102,7 +102,7 @@ public class TxtReportOutputLimitableTests
         var mockReporter = new Mock<IMethodCallReporter>();
         mockReporter.Setup(r => r.Name).Returns("TestReporter");
         mockReporter.Setup(r => r.RootMethod).Returns((MethodInfo)null);
-        await using (var disposable = _txtReportOutput.Initialize(mockReporter.Object))
+        await using (var _ = _txtReportOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 10; i++)
             {
@@ -122,7 +122,7 @@ public class TxtReportOutputLimitableTests
         var mockReporter = new Mock<IMethodCallReporter>();
         mockReporter.Setup(r => r.Name).Returns("TestReporter");
         mockReporter.Setup(r => r.RootMethod).Returns((MethodInfo)null);
-        await using (var disposable = _txtReportOutput.Initialize(mockReporter.Object))
+        await using (var _ = _txtReportOutput.Initialize(mockReporter.Object))
         {
             for (int i = 0; i < 3; i++)
             {

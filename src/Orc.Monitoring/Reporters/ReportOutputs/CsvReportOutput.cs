@@ -1,15 +1,16 @@
 ﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using IO;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
+using MethodLifeCycleItems;
+using Reporters;
 
-public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
+public sealed class CsvReportOutput : IReportOutput
 {
     private readonly ILogger<CsvReportOutput> _logger;
     private readonly ReportOutputHelper _helper;
@@ -162,7 +163,7 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
             _logger.LogInformation($"Number of report items: {_helper.ReportItems.Count}");
 
             var sortedItems = _helper.ReportItems
-                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString()))
+                .OrderByDescending(item => DateTime.Parse(item.StartTime ?? DateTime.MinValue.ToString(CultureInfo.InvariantCulture)))
                 .Take(_limitOptions.MaxItems ?? int.MaxValue)
                 .ToList();
 
@@ -217,12 +218,5 @@ public sealed class CsvReportOutput : IReportOutput, ILimitableOutput
     public OutputLimitOptions GetLimitOptions()
     {
         return _limitOptions;
-    }
-
-    public string GetDebugInfo() => _helper.GetDebugInfo();
-
-    public int GetReportItemsCount()
-    {
-        return _helper.ReportItems.Count;
     }
 }

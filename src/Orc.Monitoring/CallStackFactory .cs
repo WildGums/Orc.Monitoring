@@ -1,24 +1,13 @@
 ﻿namespace Orc.Monitoring;
 
-public class CallStackFactory : ICallStackFactory
+public class CallStackFactory(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory, MethodCallInfoPool methodCallInfoPool) : ICallStackFactory
 {
-    private readonly IMonitoringController _monitoringController;
-    private readonly IMonitoringLoggerFactory _loggerFactory;
-    private readonly MethodCallInfoPool _methodCallInfoPool;
-
-    public CallStackFactory(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory, MethodCallInfoPool methodCallInfoPool)
-    {
-        _monitoringController = monitoringController;
-        _loggerFactory = loggerFactory;
-        _methodCallInfoPool = methodCallInfoPool;
-    }
-
     public CallStack CreateCallStack(MonitoringConfiguration configuration)
     {
-        return new CallStack(_monitoringController, configuration, _methodCallInfoPool, _loggerFactory);
+        return new CallStack(monitoringController, configuration, methodCallInfoPool, loggerFactory);
     }
 
-    internal static CallStackFactory Instance { get; } = new CallStackFactory(
+    internal static CallStackFactory Instance { get; } = new(
         MonitoringController.Instance,
         MonitoringLoggerFactory.Instance,
         MethodCallInfoPool.Instance);

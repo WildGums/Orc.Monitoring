@@ -1,8 +1,8 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Orc.Monitoring.Filters;
-using Orc.Monitoring.Reporters;
+using Filters;
+using Reporters;
 using System.Collections.Generic;
 
 [TestFixture]

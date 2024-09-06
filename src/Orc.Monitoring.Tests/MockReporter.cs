@@ -15,7 +15,6 @@ public class MockReporter : IMethodCallReporter
 
     private int _callCount;
     private string _id;
-    private MonitoringConfiguration _monitoringConfiguration;
 
     public MockReporter(IMonitoringLoggerFactory loggerFactory)
     {
@@ -41,7 +40,7 @@ public class MockReporter : IMethodCallReporter
     public string Name { get; set; } = "MockReporter";
     public string FullName { get; set; } = "MockReporter";
     public int StartReportingCallCount { get; private set; }
-    public List<string> OperationSequence { get; } = new List<string>();
+    public List<string> OperationSequence { get; } = [];
     public string? RootMethodName { get; private set; }
     public int CallCount
     {
@@ -55,7 +54,6 @@ public class MockReporter : IMethodCallReporter
     public Action<IObservable<ICallStackItem>>? OnStartReporting { get; set; }
 
     private MethodInfo? _rootMethod;
-    private readonly List<Type> _filters = new();
 
     public MethodInfo RootMethod
     {
@@ -63,12 +61,9 @@ public class MockReporter : IMethodCallReporter
         set
         {
             _rootMethod = value;
-            if (value is not null)
-            {
-                _logger.LogInformation($"SetRootMethod called for {value.Name}");
-                OperationSequence.Add("SetRootMethod");
-                RootMethodName = value.Name;
-            }
+            _logger.LogInformation($"SetRootMethod called for {value.Name}");
+            OperationSequence.Add("SetRootMethod");
+            RootMethodName = value.Name;
         }
     }
 
@@ -88,7 +83,6 @@ public class MockReporter : IMethodCallReporter
 
     public void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod)
     {
-        _monitoringConfiguration = monitoringConfiguration;
         RootMethod = rootMethod.MethodInfo;
     }
 
@@ -108,15 +102,9 @@ public class MockReporter : IMethodCallReporter
 
     public IOutputContainer AddFilter<T>() where T : IMethodFilter
     {
-        _filters.Add(typeof(T));
         OperationSequence.Add($"AddFilter: {typeof(T).Name}");
 
         return this;
-    }
-
-    public void Initialize(MonitoringConfiguration monitoringConfiguration)
-    {
-        _monitoringConfiguration = monitoringConfiguration;
     }
 
     public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()

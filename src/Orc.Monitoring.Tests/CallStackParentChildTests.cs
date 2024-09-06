@@ -10,7 +10,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Moq;
-using Orc.Monitoring.Reporters;
 using Microsoft.Extensions.Logging;
 
 [TestFixture]
@@ -30,7 +29,7 @@ public class CallStackParentChildTests
         _logger = new TestLogger<CallStackParentChildTests>();
         _loggerFactory = new TestLoggerFactory<CallStackParentChildTests>(_logger);
         _config = new MonitoringConfiguration();
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
         _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
@@ -136,7 +135,7 @@ public class CallStackParentChildTests
             {
                 Assert.That(childInfo.Parent, Is.EqualTo(parentInfo), "Cross-thread child should have the parent as its parent");
                 Assert.That(childInfo.ParentThreadId, Is.EqualTo(parentInfo.ThreadId), "ParentThreadId should match the parent's thread ID");
-                Assert.That(childInfo.Level, Is.EqualTo(childInfo.Parent.Level + 1), "Child's level should be one more than the parent's level");
+                Assert.That(childInfo.Level, Is.EqualTo((childInfo.Parent?.Level??0) + 1), "Child's level should be one more than the parent's level");
             });
         }
     }
@@ -366,7 +365,7 @@ public class CallStackParentChildTests
     private ConcurrentDictionary<int, Stack<MethodCallInfo>> GetThreadCallStacks(CallStack callStack)
     {
         var field = callStack.GetType().GetField("_threadCallStacks", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (ConcurrentDictionary<int, Stack<MethodCallInfo>>)field.GetValue(callStack);
+        return (ConcurrentDictionary<int, Stack<MethodCallInfo>>)field?.GetValue(callStack) ?? [];
     }
 
     [Test]

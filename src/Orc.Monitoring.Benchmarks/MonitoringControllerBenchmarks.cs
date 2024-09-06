@@ -18,16 +18,11 @@ public class MonitoringControllerBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _monitoringController = new MonitoringController(LoggerFactory, EnhancedDataPostProcessorFactory);
+        _monitoringController = new MonitoringController(LoggerFactory);
         _monitoringController.Enable();
         _monitoringController.EnableReporter(ReporterType);
         _monitoringController.EnableFilter(FilterType);
         _testVersion = _monitoringController.GetCurrentVersion();
-    }
-
-    private EnhancedDataPostProcessor EnhancedDataPostProcessorFactory()
-    {
-        throw new NotImplementedException();
     }
 
     [Benchmark]

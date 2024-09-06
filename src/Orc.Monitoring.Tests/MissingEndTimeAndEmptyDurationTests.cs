@@ -6,14 +6,12 @@ using System;
 using System.Threading.Tasks;
 using System.Threading;
 using Moq;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Reporters;
+using MethodLifeCycleItems;
 
 [TestFixture]
 public class MissingEndTimeAndEmptyDurationTests
@@ -35,10 +33,10 @@ public class MissingEndTimeAndEmptyDurationTests
         _logger = new TestLogger<MissingEndTimeAndEmptyDurationTests>();
         _loggerFactory = new TestLoggerFactory<MissingEndTimeAndEmptyDurationTests>(_logger);
         _config = new MonitoringConfiguration();
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
-        _callStackItems = new List<ICallStackItem>();
+        _callStackItems = [];
 
         _callStackObserver = StartObservingCallStack();
 
@@ -74,7 +72,7 @@ public class MissingEndTimeAndEmptyDurationTests
 
         var reportItems = ProcessCallStackItems();
         Assert.That(reportItems, Has.Some.Matches<ReportItem>(item =>
-            item.MethodName.StartsWith("IncompleteMethod") && string.IsNullOrEmpty(item.EndTime)));
+            (item.MethodName??string.Empty).StartsWith("IncompleteMethod") && string.IsNullOrEmpty(item.EndTime)));
     }
 
     [Test]
@@ -95,7 +93,7 @@ public class MissingEndTimeAndEmptyDurationTests
 
         // Assert that the AsyncMethod is in the report items and has no EndTime
         Assert.That(reportItems, Has.Exactly(1).Matches<ReportItem>(item =>
-                item.MethodName.StartsWith("AsyncMethod") && string.IsNullOrEmpty(item.EndTime)),
+                (item.MethodName??string.Empty).StartsWith("AsyncMethod") && string.IsNullOrEmpty(item.EndTime)),
             $"AsyncMethod should be present exactly once with no EndTime. Actual items: {string.Join(", ", reportItems.Select(i => $"{i.MethodName}:{i.EndTime}"))}");
 
         // Now complete the async method
@@ -114,7 +112,7 @@ public class MissingEndTimeAndEmptyDurationTests
 
         // Assert that the AsyncMethod now has an EndTime
         Assert.That(reportItems, Has.Exactly(1).Matches<ReportItem>(item =>
-                item.MethodName.StartsWith("AsyncMethod") && !string.IsNullOrEmpty(item.EndTime)),
+                (item.MethodName??string.Empty).StartsWith("AsyncMethod") && !string.IsNullOrEmpty(item.EndTime)),
             $"AsyncMethod should be present exactly once with an EndTime. Actual items: {string.Join(", ", reportItems.Select(i => $"{i.MethodName}:{i.EndTime}"))}");
     }
 
@@ -166,7 +164,7 @@ public class MissingEndTimeAndEmptyDurationTests
         _callStack.Pop(methodInfo);
 
         var reportItems = ProcessCallStackItems();
-        var veryShortMethodReport = reportItems.FirstOrDefault(item => item.MethodName.StartsWith("VeryShortMethod"));
+        var veryShortMethodReport = reportItems.FirstOrDefault(item => (item.MethodName??string.Empty).StartsWith("VeryShortMethod"));
 
         Assert.That(veryShortMethodReport, Is.Not.Null, "VeryShortMethod should be present in the report items.");
         Assert.That(veryShortMethodReport.EndTime, Is.Not.Null, "VeryShortMethod should have an EndTime.");
@@ -217,9 +215,9 @@ public class MissingEndTimeAndEmptyDurationTests
         }
 
         Assert.That(reportItems, Has.Some.Matches<ReportItem>(item =>
-            item.MethodName.StartsWith("ConcurrentMethod1") && !string.IsNullOrEmpty(item.EndTime)));
+            (item.MethodName??string.Empty).StartsWith("ConcurrentMethod1") && !string.IsNullOrEmpty(item.EndTime)));
         Assert.That(reportItems, Has.Some.Matches<ReportItem>(item =>
-            item.MethodName.StartsWith("ConcurrentMethod2") && !string.IsNullOrEmpty(item.EndTime)));
+            (item.MethodName??string.Empty).StartsWith("ConcurrentMethod2") && !string.IsNullOrEmpty(item.EndTime)));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName)

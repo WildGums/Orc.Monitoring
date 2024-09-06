@@ -1,13 +1,10 @@
 ﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
-using Filters;
 using MethodLifeCycleItems;
-using Reporters;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -33,7 +30,7 @@ public class MonitoringIntegrationTests
         _loggerFactory.EnableLoggingFor<MockReporter>();
         _loggerFactory.EnableLoggingFor<TestWorkflowReporter>();
         _loggerFactory.EnableLoggingFor<MonitoringController>();
-        _monitoringController = new MonitoringController(_loggerFactory, () => new EnhancedDataPostProcessor(_loggerFactory));
+        _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
@@ -125,7 +122,7 @@ public class MonitoringIntegrationTests
         _mockReporter.Reset();
 
         // Test synchronous method
-        using (var context = monitor.Start(builder => builder.AddReporter(_mockReporter)))
+        using (var _ = monitor.Start(builder => builder.AddReporter(_mockReporter)))
         {
             await Task.Delay(10);
         }
@@ -137,7 +134,7 @@ public class MonitoringIntegrationTests
         _mockReporter.Reset();
 
         // Test asynchronous method
-        await using (var context = monitor.AsyncStart(builder => builder.AddReporter(_mockReporter)))
+        await using (var _ = monitor.AsyncStart(builder => builder.AddReporter(_mockReporter)))
         {
             await Task.Delay(10);
         }
@@ -248,7 +245,7 @@ public class MonitoringIntegrationTests
 
     private class TestObserver : IObserver<ICallStackItem>
     {
-        public List<ICallStackItem> ReceivedItems { get; } = new List<ICallStackItem>();
+        public List<ICallStackItem> ReceivedItems { get; } = [];
 
         public void OnCompleted() { }
         public void OnError(Exception error) { }

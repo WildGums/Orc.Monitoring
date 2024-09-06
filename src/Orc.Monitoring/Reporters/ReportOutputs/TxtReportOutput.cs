@@ -8,13 +8,13 @@ using System.Text;
 using System.Threading.Tasks;
 using IO;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.MethodLifeCycleItems;
-using Orc.Monitoring.Reporters;
+using MethodLifeCycleItems;
+using Reporters;
 
 /// <summary>
 /// Provides functionality to output report data in TXT format.
 /// </summary>
-public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
+public sealed class TxtReportOutput : IReportOutput
 {
     private readonly ILogger<TxtReportOutput> _logger;
     private readonly ReportOutputHelper _helper;
@@ -309,12 +309,6 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
         return entries;
     }
 
-    /// <summary>
-    /// Gets debug information about the current state of the TXT report output.
-    /// </summary>
-    /// <returns>A string containing debug information.</returns>
-    public string GetDebugInfo() => _helper.GetDebugInfo();
-
     private void ProcessMethodLifeCycleItem(ICallStackItem callStackItem, string? message,
         IMethodLifeCycleItem methodLifeCycleItem)
     {
@@ -359,7 +353,6 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
 
     private void ProcessGap(CallGap gap)
     {
-        var endTimestamp = gap.TimeStamp + gap.Elapsed;
         AddLogEntry(new LogEntry(gap.TimeStamp, "Gap", $"Duration: {gap.Elapsed.TotalMilliseconds:F2} ms"));
 
         // Add gap parameters
@@ -372,17 +365,10 @@ public sealed class TxtReportOutput : IReportOutput, ILimitableOutput
         }
     }
 
-    private class LogEntry
+    private class LogEntry(DateTime timestamp, string category, string message)
     {
-        public DateTime Timestamp { get; }
-        public string Category { get; }
-        public string Message { get; }
-
-        public LogEntry(DateTime timestamp, string category, string message)
-        {
-            Timestamp = timestamp;
-            Category = category;
-            Message = message;
-        }
+        public DateTime Timestamp { get; } = timestamp;
+        public string Category { get; } = category;
+        public string Message { get; } = message;
     }
 }
