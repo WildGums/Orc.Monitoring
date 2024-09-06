@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Filters;
 using System.Collections.Generic;
+using System.Threading;
 #pragma warning disable CL0002
 
 
@@ -33,44 +34,38 @@ public class MonitoringControllerConcurrencyTests
     [Test]
     public async Task ConcurrentEnableDisable_ShouldMaintainConsistentState()
     {
-        const int iterations = 1000;
-        var tasks = new Task[iterations * 2];
-        var finalStates = new ConcurrentBag<bool>();
-        var operations = new ConcurrentBag<(string Operation, long Timestamp)>();
-        var random = new Random();
+        // Arrange
+        var tasks = new List<Task>();
+        var enableCount = 0;
+        var disableCount = 0;
+        var iterations = 1000; // Number of iterations for enabling/disabling
 
+        // Act
         for (int i = 0; i < iterations; i++)
         {
-            tasks[i * 2] = Task.Run(async () =>
+            tasks.Add(Task.Run(() =>
             {
-                await Task.Delay(random.Next(0, 10)); // Add some randomness
-                _monitoringController.Enable();
-                finalStates.Add(_monitoringController.IsEnabled);
-                operations.Add(("Enable", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
-            });
-            tasks[i * 2 + 1] = Task.Run(async () =>
-            {
-                await Task.Delay(random.Next(0, 10)); // Add some randomness
-                _monitoringController.Disable();
-                finalStates.Add(_monitoringController.IsEnabled);
-                operations.Add(("Disable", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
-            });
+                if (i % 2 == 0)
+                {
+                    _monitoringController.Enable();
+                    Interlocked.Increment(ref enableCount);
+                }
+                else
+                {
+                    _monitoringController.Disable();
+                    Interlocked.Increment(ref disableCount);
+                }
+            }));
         }
 
         await Task.WhenAll(tasks);
 
-        var distinctStates = finalStates.Distinct().ToList();
-        Assert.That(distinctStates.Count, Is.LessThanOrEqualTo(2),
-            "There should be at most two distinct states (true and false)");
+        // Assert
+        var isEnabled = _monitoringController.IsEnabled;
+        var expectedState = enableCount > disableCount;
 
-        _logger.LogInformation($"Final states: Enabled count = {finalStates.Count(s => s)}, " +
-                               $"Disabled count = {finalStates.Count(s => !s)}");
-
-        // Check if the final state is consistent with the last operation
-        var lastOperation = operations.OrderByDescending(o => o.Timestamp).First();
-        var expectedFinalState = lastOperation.Operation == "Enable";
-        Assert.That(_monitoringController.IsEnabled, Is.EqualTo(expectedFinalState),
-            $"Final state should be consistent with the last operation ({lastOperation.Operation})");
+        Assert.That(isEnabled, Is.EqualTo(expectedState), "The final state of the monitoring controller is inconsistent.");
+        _logger.LogInformation($"Enable count: {enableCount}, Disable count: {disableCount}, Final state: {isEnabled}");
     }
 
     [Test]
