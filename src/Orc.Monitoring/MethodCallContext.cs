@@ -112,6 +112,17 @@ public sealed class MethodCallContext : VersionedMonitoringContext, IDisposable
         }
     }
 
+    public void SetParameter(string name, string value)
+    {
+        EnsureValidVersion();
+        if (MethodCallInfo?.Parameters is null)
+        {
+            return;
+        }
+
+        MethodCallInfo.Parameters[name] = value;
+    }
+
     protected override void OnVersionUpdated()
     {
         // Handle version update if necessary

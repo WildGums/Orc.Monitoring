@@ -99,6 +99,17 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
         (_classMonitor as ClassMonitor)?.LogStatus(logEntry);
     }
 
+    public void SetParameter(string name, string value)
+    {
+        EnsureValidVersion();
+        if (MethodCallInfo is null || MethodCallInfo.Parameters is null)
+        {
+            return;
+        }
+
+        MethodCallInfo.Parameters[name] = value;
+    }
+
     protected override void OnVersionUpdated()
     {
         // Handle version update if necessary
