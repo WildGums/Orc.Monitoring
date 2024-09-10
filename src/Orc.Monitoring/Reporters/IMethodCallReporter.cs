@@ -23,7 +23,7 @@ public interface IMethodCallReporter : IOutputContainer
     /// <summary>
     /// Gets the root method for this reporter.
     /// </summary>
-    MethodInfo RootMethod { get; }
+    MethodInfo? RootMethod { get; }
 
     /// <summary>
     /// Gets or sets the unique identifier for this reporter instance.
