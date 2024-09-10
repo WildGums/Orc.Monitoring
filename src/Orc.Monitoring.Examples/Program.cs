@@ -1,70 +1,70 @@
-﻿using System;
+﻿namespace Orc.Monitoring.Examples;
+
+using System;
 using System.Threading.Tasks;
-using Orc.Monitoring;
-using Orc.Monitoring.Examples.MonitoredClasses;
-using Orc.Monitoring.Examples.CustomComponents;
-using Orc.Monitoring.Reporters.ReportOutputs;
-using System.ComponentModel;
+using Monitoring;
+using MonitoredClasses;
+using Reporters.ReportOutputs;
+using Orc.Monitoring.Filters;
+using Orc.Monitoring.Reporters;
 
-namespace Orc.Monitoring.Examples
+class Program
 {
-    class Program
+    static async Task Main(string[] args)
     {
-        static async Task Main(string[] args)
+        Console.WriteLine("Orc.Monitoring Example Application");
+        Console.WriteLine("----------------------------------");
+
+        // Configure PerformanceMonitor
+        Performance.Monitor.Configure(conf =>
         {
-            Console.WriteLine("Orc.Monitoring Example Application");
-            Console.WriteLine("----------------------------------");
+            conf.AddReporterType<WorkflowReporter>()
+                .AddFilter<WorkflowItemFilter>()
+                .AddFilter(new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
+                .TrackAssembly(typeof(ComplexWorkflow).Assembly);
+        });
 
-            // Configure PerformanceMonitor
-            Performance.Configure(config =>
-            {
-                config.AddReporterType<CsvReportOutput>()
-                      .AddReporterType<TxtReportOutput>()
-                      .AddReporterType<RanttOutput>()
-                      .AddReporterType<CustomReporter>()
-                      .AddFilter<CustomFilter>()
-                      .SetGlobalState(true);
+        Performance.Controller.Enable();
 
-                // Set output folder for reports
-                var outputFolder = Path.Combine(Environment.CurrentDirectory, "MonitoringOutput");
-                config.SetOutputTypeState<CsvReportOutput>(true);
-                config.SetOutputTypeState<TxtReportOutput>(true);
-                config.SetOutputTypeState<RanttOutput>(true);
+        Performance.Controller.EnableFilter(typeof(WorkflowItemFilter));
+        Performance.Controller.EnableFilter(typeof(WorkflowItemGranularityFilter));
 
-                var csvParams = CsvReportOutput.CreateParameters(outputFolder, "ExampleReport");
-                var txtParams = TxtReportOutput.CreateParameters(outputFolder, "WorkflowName");
-                var ranttParams = RanttOutput.CreateParameters(outputFolder);
-            });
+        Performance.Controller.EnableFilterForReporterType(typeof(WorkflowReporter), typeof(WorkflowItemFilter));
+        Performance.Controller.EnableFilterForReporterType(typeof(WorkflowReporter), typeof(WorkflowItemGranularityFilter));
 
-            Console.WriteLine("Monitoring configured. Starting demonstrations...");
+        Performance.Controller.EnableOutputType<CsvReportOutput>();
+        Performance.Controller.EnableOutputType<TxtReportOutput>();
 
-            // Simple monitoring
-            Console.WriteLine("\nDemonstrating Simple Class Monitoring:");
-            var simpleClass = new SimpleClass();
-            simpleClass.MonitoredMethod();
-            simpleClass.MonitoredMethodWithParameters(42, "test");
-            try
-            {
-                simpleClass.MonitoredMethodWithException();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Caught expected exception: {ex.Message}");
-            }
+        Performance.Controller.EnableReporter(typeof(WorkflowReporter));
 
-            // Complex workflow
-            Console.WriteLine("\nDemonstrating Complex Workflow Monitoring:");
-            var complexWorkflow = new ComplexWorkflow();
-            await complexWorkflow.ExecuteWorkflowAsync();
+        Console.WriteLine("Monitoring configured. Starting demonstrations...");
 
-            // Async operations
-            Console.WriteLine("\nDemonstrating Async Operations Monitoring:");
-            var asyncOps = new AsyncOperations();
-            await asyncOps.MonitoredAsyncMethodAsync();
-            await asyncOps.MonitoredParallelOperationsAsync();
-
-            Console.WriteLine("\nMonitoring demonstration completed.");
-            Console.WriteLine("Check the MonitoringOutput folder for generated reports.");
+        // Simple monitoring
+        Console.WriteLine("\nDemonstrating Simple Class Monitoring:");
+        var simpleClass = new SimpleClass();
+        simpleClass.MonitoredMethod();
+        simpleClass.MonitoredMethodWithParameters(42, "test");
+        try
+        {
+            simpleClass.MonitoredMethodWithException();
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Caught expected exception: {ex.Message}");
+        }
+
+        // Complex workflow
+        Console.WriteLine("\nDemonstrating Complex Workflow Monitoring:");
+        var complexWorkflow = new ComplexWorkflow();
+        await complexWorkflow.ExecuteWorkflowAsync();
+
+        // Async operations
+        Console.WriteLine("\nDemonstrating Async Operations Monitoring:");
+        var asyncOps = new AsyncOperations();
+        await asyncOps.MonitoredAsyncMethodAsync();
+        await asyncOps.MonitoredParallelOperationsAsync();
+
+        Console.WriteLine("\nMonitoring demonstration completed.");
+        Console.WriteLine("Check the MonitoringOutput folder for generated reports.");
     }
 }
