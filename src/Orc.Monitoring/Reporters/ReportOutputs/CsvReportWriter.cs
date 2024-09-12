@@ -156,14 +156,15 @@ public class CsvReportWriter
         var overrides = _overrideManager.GetOverridesForMethod(fullName);
         var parameters = new Dictionary<string, string>(item.Parameters);
 
-        foreach (var kvp in overrides)
+        foreach (var kvp in parameters)
         {
-            parameters[kvp.Key] = kvp.Value;
+            string paramKey = item.IsStaticParameter(kvp.Key) ? $"Static_{kvp.Key}" : $"Dynamic_{kvp.Key}";
+            result[paramKey] = kvp.Value;
         }
 
-        foreach (var param in parameters)
+        foreach (var kvp in overrides)
         {
-            result[param.Key] = param.Value;
+            result[$"Static_{kvp.Key}"] = kvp.Value;
         }
 
         return result;

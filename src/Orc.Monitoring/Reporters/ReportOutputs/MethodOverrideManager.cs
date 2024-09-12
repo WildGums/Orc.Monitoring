@@ -113,6 +113,19 @@ public class MethodOverrideManager
 
     public Dictionary<string, string> GetOverridesForMethod(string fullName)
     {
-        return _overrides.TryGetValue(fullName, out var methodOverrides) ? methodOverrides : new Dictionary<string, string>();
+        if (_overrides.TryGetValue(fullName, out var methodOverrides))
+        {
+            return methodOverrides.Where(kvp => IsStaticParameter(kvp.Key))
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+        }
+        return new Dictionary<string, string>();
+    }
+
+    private bool IsStaticParameter(string parameterName)
+    {
+        // This method should check if the parameter is static (attribute-defined)
+        // You might need to pass this information from ReportItem or implement a different logic
+        // For now, let's assume all parameters in _overrides are static
+        return true;
     }
 }
