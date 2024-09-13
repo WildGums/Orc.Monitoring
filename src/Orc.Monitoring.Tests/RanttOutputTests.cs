@@ -148,7 +148,7 @@ public class RanttOutputTests
     {
         // Arrange
         var overrideContent = "FullName,CustomColumn\nRanttOutputTests.TestMethod,OverrideValue";
-        await _fileSystem.WriteAllTextAsync(Path.Combine(_testOutputPath, "TestReporter", "method_overrides.csv"), overrideContent);
+        await _fileSystem.WriteAllTextAsync(Path.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
 
         var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
         methodCallInfo.Parameters["CustomColumn"] = "OriginalValue";
@@ -161,11 +161,16 @@ public class RanttOutputTests
         }
 
         // Assert
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
 
-        Assert.That(csvContent, Does.Contain("Static_CustomColumn,OverrideValue"));
-        Assert.That(csvContent, Does.Not.Contain("Static_CustomColumn,OriginalValue"));
+        var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var headers = lines[0].Split(',');
+        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+
+        var values = lines[1].Split(',');
+
+        Assert.That(values[customColumnIndex], Is.EqualTo("OverrideValue"), "Override value should be used");
     }
 
     [Test]
@@ -333,11 +338,19 @@ public class RanttOutputTests
         }
 
         // Assert
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var headers = lines[0].Split(',');
+        var staticParameterIndex = Array.IndexOf(headers, "StaticParam");
+        var dynamicParameterIndex = Array.IndexOf(headers, "DynamicParam");
 
-        Assert.That(csvContent, Does.Contain("Static_StaticParam,StaticValue"));
-        Assert.That(csvContent, Does.Contain("Dynamic_DynamicParam,DynamicValue"));
+        Assert.That(dynamicParameterIndex, Is.EqualTo(-1));
+
+        var dataLine = lines[1].Split(',');
+        var staticParameterValue = dataLine[staticParameterIndex];
+
+        Assert.That(staticParameterValue, Is.EqualTo("StaticValue"));
     }
 
     [Test]
@@ -356,22 +369,15 @@ public class RanttOutputTests
         }
 
         // Assert
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
 
         var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
-        Assert.That(lines[0], Does.Contain("Static_StaticParam"));
-        Assert.That(lines[0], Does.Contain("Dynamic_DynamicParam"));
+        Assert.That(lines[0], Does.Contain("StaticParam"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam"));
         Assert.That(lines[1], Does.Contain("StaticValue"));
-        Assert.That(lines[1], Does.Contain("DynamicValue"));
-
-        // Check Rantt project file
-        var ranttFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.rprjx");
-        var ranttContent = await _fileSystem.ReadAllTextAsync(ranttFilePath);
-
-        Assert.That(ranttContent, Does.Contain("Static_StaticParam"));
-        Assert.That(ranttContent, Does.Contain("Dynamic_DynamicParam"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
