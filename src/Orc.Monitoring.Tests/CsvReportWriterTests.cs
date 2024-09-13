@@ -28,6 +28,8 @@ public class CsvReportWriterTests
     {
         _logger = new TestLogger<CsvReportWriterTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportWriterTests>(_logger);
+        _loggerFactory.EnableLoggingFor<CsvReportWriter>();
+        _loggerFactory.EnableLoggingFor<MethodOverrideManager>();
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
 
@@ -106,7 +108,8 @@ public class CsvReportWriterTests
     {
         // Arrange
         var overrideContent = "FullName,CustomColumn\nTestClass.Method1,OverrideValue";
-        await _fileSystem.WriteAllTextAsync(_overrideFilePath, overrideContent);
+        var overrideFilePath = Path.Combine(_overrideFilePath, "method_overrides.csv");
+        await _fileSystem.WriteAllTextAsync(overrideFilePath, overrideContent);
         _overrideManager.ReadOverrides();
 
         _reportItems.Add(new ReportItem
@@ -119,13 +122,14 @@ public class CsvReportWriterTests
             AttributeParameters = new HashSet<string> { "CustomColumn" }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
         var content = _stringWriter.ToString();
+        _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
