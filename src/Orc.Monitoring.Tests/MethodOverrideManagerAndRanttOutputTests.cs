@@ -27,6 +27,8 @@ public class MethodOverrideManagerAndRanttOutputTests
 #pragma warning restore IDISP006
     private ReportArchiver _reportArchiver;
     private CsvUtils _csvUtils;
+    private RanttOutput _ranttOutput;
+    private MockReporter _mockReporter;
 
     [SetUp]
     public void Setup()
@@ -35,6 +37,9 @@ public class MethodOverrideManagerAndRanttOutputTests
         InitializeFileSystem();
         InitializeMonitoringController();
         InitializePaths();
+
+        _ranttOutput = CreateRanttOutput();
+        _mockReporter = new MockReporter(_loggerFactory);
 
         _monitoringController.Enable();
     }
@@ -53,32 +58,27 @@ public class MethodOverrideManagerAndRanttOutputTests
     public async Task RanttOutput_WithOverrides_ShouldUseOverridesFromCsvFile()
     {
         // Arrange
-        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.TestMethod(),OverrideValue";
+        var csvContent = "FullName,CustomColumn\nRanttOutputTests.TestMethod,OverrideValue";
         await _fileSystem.WriteAllTextAsync(_overrideFilePath, csvContent);
-        _logger.LogInformation($"Override file content: {csvContent}");
 
-        var ranttOutput = CreateRanttOutput();
-        var parameters = RanttOutput.CreateParameters(_testOutputPath);
-        ranttOutput.SetParameters(parameters);
+        var disposable = _ranttOutput.Initialize(_mockReporter);
 
-        var mockReporter = new Mock<IMethodCallReporter>();
-        mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+        var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
+        methodCallInfo.Parameters["CustomColumn"] = "OriginalValue";
+        methodCallInfo.AttributeParameters.Add("CustomColumn");
 
         // Act
-        await using (var _ = ranttOutput.Initialize(mockReporter.Object))
-        {
-            var item = CreateTestMethodLifeCycleItem("TestMethod", DateTime.Now);
-            ranttOutput.WriteItem(item);
-        }
+        _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
+        _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+
+        await disposable.DisposeAsync();
 
         // Assert
-        var csvOutputPath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
-        Assert.That(_fileSystem.FileExists(csvOutputPath), Is.True, "CSV output file should be created");
+        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
 
-        var csvOutputContent = await _fileSystem.ReadAllTextAsync(csvOutputPath);
-        _logger.LogInformation($"CSV output content: {csvOutputContent}");
-
-        Assert.That(csvOutputContent, Does.Contain("OverrideValue"), "CSV output should contain the override value");
+        Assert.That(csvContent, Does.Contain("Static_CustomColumn,OverrideValue"));
+        Assert.That(csvContent, Does.Not.Contain("Static_CustomColumn,OriginalValue"));
     }
 
     [Test]
@@ -180,5 +180,30 @@ public class MethodOverrideManagerAndRanttOutputTests
 
         var mockMethodLifeCycleItem = new Mock<MethodCallStart>(methodCallInfo);
         return mockMethodLifeCycleItem.Object;
+    }
+
+    private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
+    {
+        var methodInfo = new TestMethodInfo(methodName, typeof(MethodOverrideManagerAndRanttOutputTests));
+        var id = Guid.NewGuid().ToString();
+        var methodCallInfo = _methodCallInfoPool.Rent(
+            null,
+            typeof(MethodOverrideManagerAndRanttOutputTests),
+            methodInfo,
+            Array.Empty<Type>(),
+            id,
+            new Dictionary<string, string>()
+        );
+        methodCallInfo.Parent = parent;
+        methodCallInfo.MethodName = methodName;
+        methodCallInfo.Id = id;
+        methodCallInfo.StartTime = DateTime.Now;
+
+        // If you need to set any default parameters or attribute parameters, do it here
+        // For example:
+        // methodCallInfo.Parameters["SomeParam"] = "SomeValue";
+        // methodCallInfo.AttributeParameters.Add("SomeAttributeParam");
+
+        return methodCallInfo;
     }
 }

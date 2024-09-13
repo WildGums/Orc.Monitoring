@@ -52,11 +52,12 @@ public class CsvReportWriterSpecialCharactersTests
             StartTime = "2023-01-01 00:00:00.000",
             EndTime = "2023-01-01 00:00:01.000",
             Parameters = new Dictionary<string, string>
-        {
-            {"Param_With_Comma", "Value,With,Commas"},
-            {"Param_With_Quotes", "Value \"With\" Quotes"},
-            {"Param_With_Newline", "Value\nWith\nNewlines"}
-        }
+            {
+                {"Param_With_Comma", "Value,With,Commas"},
+                {"Param_With_Quotes", "Value \"With\" Quotes"},
+                {"Param_With_Newline", "Value\nWith\nNewlines"}
+            },
+            AttributeParameters = new HashSet<string> { "Param_With_Comma", "Param_With_Quotes" }
         });
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
@@ -69,25 +70,11 @@ public class CsvReportWriterSpecialCharactersTests
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
-
-        var dataLine = lines[1];
-        _logger.LogInformation($"Data line: {dataLine}");
-
-        Assert.That(dataLine, Does.Contain("\"Method,With,Commas\""), "Method name with commas should be quoted");
-        Assert.That(dataLine, Does.Contain("\"Class.Method,With,Commas\""), "Full name with commas should be quoted");
-        Assert.That(dataLine, Does.Contain("\"Value,With,Commas\""), "Parameter value with commas should be quoted");
-        Assert.That(dataLine, Does.Contain("\"Value \"\"With\"\" Quotes\""), "Parameter value with quotes should be escaped and quoted");
-        Assert.That(dataLine, Does.Contain("\"Value\nWith\nNewlines\""), "Parameter value with newlines should be quoted");
-
-        // Verify that the CSV can be parsed correctly
-        var parsedCsv = ParseCsvString(content);
-        var parsedItem = parsedCsv.First();
-
-        Assert.That(parsedItem["MethodName"], Is.EqualTo("Method,With,Commas"));
-        Assert.That(parsedItem["FullName"], Is.EqualTo("Class.Method,With,Commas"));
-        Assert.That(parsedItem["Param_With_Comma"], Is.EqualTo("Value,With,Commas"));
-        Assert.That(parsedItem["Param_With_Quotes"], Is.EqualTo("Value \"With\" Quotes"));
-        Assert.That(parsedItem["Param_With_Newline"], Is.EqualTo("Value\nWith\nNewlines"));
+        Assert.That(lines[1], Does.Contain("\"Method,With,Commas\""));
+        Assert.That(lines[1], Does.Contain("\"Class.Method,With,Commas\""));
+        Assert.That(lines[1], Does.Contain("\"Static_Param_With_Comma\",\"Value,With,Commas\""));
+        Assert.That(lines[1], Does.Contain("\"Static_Param_With_Quotes\",\"Value \"\"With\"\" Quotes\""));
+        Assert.That(lines[1], Does.Contain("\"Dynamic_Param_With_Newline\",\"Value\nWith\nNewlines\""));
     }
 
     private List<Dictionary<string, string>> ParseCsvString(string csvContent)

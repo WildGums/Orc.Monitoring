@@ -248,4 +248,54 @@ public class MethodOverrideManagerTests
         Assert.That(overrides.Any(r => r["FullName"] == "Method1" && r["CustomParam"] == "Value1"), Is.True, "Should contain Method1");
         Assert.That(overrides.Any(r => r["FullName"] == "Method2" && r["CustomParam"] == "Value2"), Is.True, "Should contain Method2");
     }
+
+    [Test]
+    public void GetOverridesForMethod_OnlyConsidersStaticParameters()
+    {
+        // Arrange
+        var overrideContent = "FullName,StaticParam,DynamicParam\nTestClass.TestMethod,StaticValue,DynamicValue";
+        _fileSystem.WriteAllText(_overrideFilePath, overrideContent);
+        _overrideManager.ReadOverrides();
+
+        // Act
+        var overrides = _overrideManager.GetOverridesForMethod("TestClass.TestMethod");
+
+        // Assert
+        Assert.That(overrides, Does.ContainKey("StaticParam"));
+        Assert.That(overrides, Does.Not.ContainKey("DynamicParam"));
+    }
+
+    [Test]
+    public void MethodOverrideManager_ShouldOnlyOverrideStaticParameters()
+    {
+        // Arrange
+        var overrideContent = "FullName,StaticParam,DynamicParam\nTestClass.TestMethod,StaticOverride,DynamicOverride";
+        _fileSystem.WriteAllText(_overrideFilePath, overrideContent);
+        _overrideManager.ReadOverrides();
+
+        var reportItem = new ReportItem
+        {
+            FullName = "TestClass.TestMethod",
+            Parameters = new Dictionary<string, string>
+            {
+                { "StaticParam", "OriginalStatic" },
+                { "DynamicParam", "OriginalDynamic" }
+            },
+            AttributeParameters = new HashSet<string> { "StaticParam" }
+        };
+
+        // Act
+        var overrides = _overrideManager.GetOverridesForMethod(reportItem.FullName);
+        foreach (var kvp in overrides)
+        {
+            if (reportItem.IsStaticParameter(kvp.Key))
+            {
+                ((Dictionary<string, string>)overrides).Add(kvp.Key, kvp.Value);
+            }
+        }
+
+        // Assert
+        Assert.That(reportItem.Parameters["StaticParam"], Is.EqualTo("StaticOverride"));
+        Assert.That(reportItem.Parameters["DynamicParam"], Is.EqualTo("OriginalDynamic"));
+    }
 }

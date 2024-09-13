@@ -55,7 +55,7 @@ public class CsvReportWriterAdditionalTests
                 {"CustomColumn1", "Value1"},
                 {"CustomColumn2", "Value2"}
             },
-            AttributeParameters = ["CustomColumn1", "CustomColumn2"]
+            AttributeParameters = new HashSet<string> { "CustomColumn1" }
         });
         _reportItems.Add(new ReportItem
         {
@@ -68,10 +68,9 @@ public class CsvReportWriterAdditionalTests
                 {"CustomColumn1", "Value3"},
                 {"CustomColumn3", "Value4"}
             },
-            AttributeParameters = ["CustomColumn1", "CustomColumn3"]
+            AttributeParameters = new HashSet<string> { "CustomColumn1", "CustomColumn3" }
         });
 
-        _overrideManager.SaveOverrides(_reportItems);
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
 
         // Act
@@ -79,33 +78,17 @@ public class CsvReportWriterAdditionalTests
 
         // Assert
         var content = _stringWriter.ToString();
-        _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        _logger.LogInformation($"Number of lines: {lines.Length}");
 
-        Assert.That(lines.Length, Is.GreaterThanOrEqualTo(3), "Should have at least header and two data lines");
+        Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
+        Assert.That(lines[0], Does.Contain("Static_CustomColumn1"));
+        Assert.That(lines[0], Does.Contain("Dynamic_CustomColumn2"));
+        Assert.That(lines[0], Does.Contain("Static_CustomColumn3"));
 
-        if (lines.Length >= 3)
-        {
-            Assert.That(lines[0], Does.Contain("CustomColumn1"));
-            Assert.That(lines[0], Does.Contain("CustomColumn2"));
-            Assert.That(lines[0], Does.Contain("CustomColumn3"));
-
-            var dataLine1 = lines[1].Split(',');
-            var dataLine2 = lines[2].Split(',');
-
-            _logger.LogInformation($"Data line 1: {lines[1]}");
-            _logger.LogInformation($"Data line 2: {lines[2]}");
-
-            Assert.That(dataLine1, Does.Contain("Value1"));
-            Assert.That(dataLine1, Does.Contain("Value2"));
-            Assert.That(dataLine2, Does.Contain("Value3"));
-            Assert.That(dataLine2, Does.Contain("Value4"));
-        }
-        else
-        {
-            Assert.Fail("Not enough lines in the CSV output");
-        }
+        Assert.That(lines[1], Does.Contain("Value1"));
+        Assert.That(lines[1], Does.Contain("Value2"));
+        Assert.That(lines[2], Does.Contain("Value3"));
+        Assert.That(lines[2], Does.Contain("Value4"));
     }
 
     [Test]
