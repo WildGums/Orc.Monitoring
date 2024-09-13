@@ -100,7 +100,7 @@ public class CsvReportWriterTests
         Assert.That(lines[1], Does.Contain("2023-01-01 00:00:01.000"));
         Assert.That(lines[1], Does.Contain("1000"));
         Assert.That(lines[1], Does.Contain("StaticValue"));
-        Assert.That(lines[1], Does.Contain("DynamicValue"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
     }
 
     [Test]
@@ -173,10 +173,10 @@ public class CsvReportWriterTests
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
-        Assert.That(lines[0], Does.Contain("Static_Param1"));
-        Assert.That(lines[0], Does.Contain("Dynamic_Param2"));
+        Assert.That(lines[0], Does.Contain("Param1"));
+        Assert.That(lines[0], Does.Not.Contain("Param2"));
         Assert.That(lines[1], Does.Contain("Value1"));
-        Assert.That(lines[2], Does.Contain("Value2"));
+        Assert.That(lines[2], Does.Not.Contain("Value2"));
     }
 
 
@@ -275,10 +275,10 @@ public class CsvReportWriterTests
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
-        Assert.That(lines[0], Does.Contain("Static_StaticParam"));
-        Assert.That(lines[0], Does.Contain("Dynamic_DynamicParam"));
+        Assert.That(lines[0], Does.Contain("StaticParam"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam"));
         Assert.That(lines[1], Does.Contain("StaticValue"));
-        Assert.That(lines[1], Does.Contain("DynamicValue"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
     }
 
     [Test]
@@ -309,14 +309,14 @@ public class CsvReportWriterTests
         var content = _stringWriter.ToString();
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
-        Assert.That(lines[0], Does.Contain("Static_StaticParam1"));
-        Assert.That(lines[0], Does.Contain("Static_StaticParam2"));
-        Assert.That(lines[0], Does.Contain("Dynamic_DynamicParam1"));
-        Assert.That(lines[0], Does.Contain("Dynamic_DynamicParam2"));
+        Assert.That(lines[0], Does.Contain("StaticParam1"));
+        Assert.That(lines[0], Does.Contain("StaticParam2"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam1"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam2"));
 
         Assert.That(lines[1], Does.Contain("StaticValue1"));
         Assert.That(lines[1], Does.Contain("StaticValue2"));
-        Assert.That(lines[1], Does.Contain("DynamicValue1"));
-        Assert.That(lines[1], Does.Contain("DynamicValue2"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue1"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue2"));
     }
 }
