@@ -37,11 +37,11 @@ public class CsvReportWriter
     public void WriteReportItemsCsv()
     {
         var headers = GetReportItemHeaders();
-        _csvUtils.WriteCsvLine(_writer, headers.Cast<string?>().ToArray());
+        _csvUtils.WriteCsvLine(_writer, headers.Select(EscapeCsvContent).ToArray());
 
         foreach (var item in PrepareReportItems())
         {
-            var values = headers.Select(h => item.GetValueOrDefault(h)).ToArray();
+            var values = headers.Select(h => EscapeCsvContent(item.GetValueOrDefault(h, string.Empty))).ToArray();
             _csvUtils.WriteCsvLine(_writer, values);
         }
 
@@ -56,7 +56,7 @@ public class CsvReportWriter
         }
 
         content = content.Replace("\"", "\"\"");
-        if (content.Contains(",") || content.Contains("\"") || content.Contains("\n") || content.Contains("<") || content.Contains(">") || content.Contains("&"))
+        if (content.Contains(',') || content.Contains('"') || content.Contains('\n') || content.Contains('\r'))
         {
             return $"\"{content}\"";
         }
@@ -114,21 +114,7 @@ public class CsvReportWriter
 
     private IEnumerable<Dictionary<string, string>> PrepareReportItems()
     {
-        var rootItem = _reportItems.FirstOrDefault(item => item.IsRoot);
-        var nonRootItems = _reportItems
-            .Where(item => !item.IsRoot && !string.IsNullOrEmpty(item.StartTime))
-            .OrderBy(item => DateTime.Parse(item.StartTime ?? string.Empty))
-            .ThenBy(item => item.ThreadId)
-            .ThenBy(item => item.Level);
-
-        var allItems = new List<ReportItem>();
-        if (rootItem is not null)
-        {
-            allItems.Add(rootItem);
-        }
-        allItems.AddRange(nonRootItems);
-
-        return allItems.Select(PrepareReportItem);
+        return _reportItems.Select(PrepareReportItem);
     }
 
     private Dictionary<string, string> PrepareReportItem(ReportItem item)
@@ -154,9 +140,8 @@ public class CsvReportWriter
 
         var fullName = item.FullName ?? string.Empty;
         var overrides = _overrideManager.GetOverridesForMethod(fullName);
-        var parameters = new Dictionary<string, string>(item.Parameters);
 
-        foreach (var kvp in parameters)
+        foreach (var kvp in item.Parameters)
         {
             string paramKey = item.AttributeParameters.Contains(kvp.Key) ? $"Static_{kvp.Key}" : $"Dynamic_{kvp.Key}";
             result[paramKey] = kvp.Value;
