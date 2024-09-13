@@ -143,8 +143,12 @@ public class CsvReportWriter
 
         foreach (var kvp in item.Parameters)
         {
-            var paramKey = item.AttributeParameters.Contains(kvp.Key) ? $"Static_{kvp.Key}" : $"Dynamic_{kvp.Key}";
-            result[paramKey] = overrides.TryGetValue(kvp.Key, out var overrideValue) ? overrideValue : kvp.Value;
+            if (!item.AttributeParameters.Contains(kvp.Key))
+            {
+                continue;
+            }
+
+            result[kvp.Key] = overrides.TryGetValue(kvp.Key, out var overrideValue) ? overrideValue : kvp.Value;
         }
 
         return result;
@@ -153,9 +157,9 @@ public class CsvReportWriter
     private string[] GetReportItemHeaders()
     {
         var baseHeaders = new[] { "Id", "ParentId", "StartTime", "EndTime", "Report", "ClassName", "MethodName", "FullName", "Duration", "ThreadId", "ParentThreadId", "NestingLevel", "IsStatic", "IsGeneric", "IsExtension" };
-        var staticParameterHeaders = _reportItems.SelectMany(r => r.AttributeParameters).Distinct().Select(p => $"Static_{p}");
-        var dynamicParameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys.Where(k => !r.AttributeParameters.Contains(k))).Distinct().Select(p => $"Dynamic_{p}");
-        return baseHeaders.Concat(staticParameterHeaders).Concat(dynamicParameterHeaders).ToArray();
+        var staticParameter = _reportItems.SelectMany(r => r.AttributeParameters).Distinct();
+        var dynamicParameter = _reportItems.SelectMany(r => r.Parameters.Keys.Where(k => !r.AttributeParameters.Contains(k))).Distinct();
+        return baseHeaders.Concat(staticParameter).Except(dynamicParameter).ToArray();
     }
 
     private string DetermineRelationType(ReportItem item)

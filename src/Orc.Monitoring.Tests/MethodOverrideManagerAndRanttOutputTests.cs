@@ -58,10 +58,16 @@ public class MethodOverrideManagerAndRanttOutputTests
     public async Task RanttOutput_WithOverrides_ShouldUseOverridesFromCsvFile()
     {
         // Arrange
-        var csvContent = "FullName,CustomColumn\nRanttOutputTests.TestMethod,OverrideValue";
+        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.TestMethod,OverrideValue";
         await _fileSystem.WriteAllTextAsync(_overrideFilePath, csvContent);
 
-        var disposable = _ranttOutput.Initialize(_mockReporter);
+        _ranttOutput = CreateRanttOutput();
+        var parameters = RanttOutput.CreateParameters(_testOutputPath);
+        _ranttOutput.SetParameters(parameters);
+
+        var mockReporter = new Mock<IMethodCallReporter>();
+        mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+        var disposable = _ranttOutput.Initialize(mockReporter.Object);
 
         var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
         methodCallInfo.Parameters["CustomColumn"] = "OriginalValue";
@@ -75,10 +81,19 @@ public class MethodOverrideManagerAndRanttOutputTests
 
         // Assert
         var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
-        csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, "CSV file should exist");
+        var content = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(csvFilePath);
 
-        Assert.That(csvContent, Does.Contain("Static_CustomColumn,OverrideValue"));
-        Assert.That(csvContent, Does.Not.Contain("Static_CustomColumn,OriginalValue"));
+        var headers = lines[0].Split(',');
+        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+        
+        var values = lines[1].Split(',');
+        var customColumnValue = values[customColumnIndex];
+
+        _logger.LogInformation($"CSV content:\n{content}");
+
+        Assert.That(customColumnValue, Is.EqualTo("OverrideValue"), "Override value should be used");
     }
 
     [Test]
@@ -100,22 +115,31 @@ public class MethodOverrideManagerAndRanttOutputTests
         }
 
         // Assert
-        Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var lines = await _fileSystem.ReadAllLinesAsync(_overrideTemplateFilePath);
+        Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, $"Template file should be created at {_overrideTemplateFilePath}");
 
-        var headerLine = lines[0];
-        var headers = headerLine.Split(',');
-        var fullNameIndex = Array.IndexOf(headers, "FullName");
-        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+        if (_fileSystem.FileExists(_overrideTemplateFilePath))
+        {
+            var lines = await _fileSystem.ReadAllLinesAsync(_overrideTemplateFilePath);
 
-        // assert header
-        Assert.That(fullNameIndex, Is.GreaterThanOrEqualTo(0), "FullName column should be present");
-        Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), "CustomColumn column should be present");
+            _logger.LogInformation($"Template file contents:\n{string.Join("\n", lines)}");
 
-        // assert values
-        var values = lines[1].Split(',');
-        Assert.That(values[fullNameIndex], Is.EqualTo($"{nameof(MethodOverrideManagerAndRanttOutputTests)}.TestMethod()"), "FullName value should be Test.Method");
-        Assert.That(values[customColumnIndex], Is.EqualTo("CustomValue"), "CustomColumn value should be CustomValue");
+            Assert.That(lines.Length, Is.GreaterThanOrEqualTo(2), "Template file should have at least a header and one data line");
+
+            var headerLine = lines[0];
+            var headers = headerLine.Split(',');
+            var fullNameIndex = Array.IndexOf(headers, "FullName");
+            var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+
+            Assert.That(fullNameIndex, Is.GreaterThanOrEqualTo(0), "FullName column should be present");
+            Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), "CustomColumn column should be present");
+
+            if (lines.Length > 1)
+            {
+                var values = lines[1].Split(',');
+                Assert.That(values[fullNameIndex], Is.EqualTo("MethodOverrideManagerAndRanttOutputTests.TestMethod()"), "FullName value should be correct");
+                Assert.That(values[customColumnIndex], Is.EqualTo("CustomValue"), "CustomColumn value should be correct");
+            }
+        }
     }
 
     private void InitializeFileSystem()

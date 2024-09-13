@@ -39,6 +39,9 @@ public class MethodOverrideManager
             return;
         }
 
+        var content = _fileSystem.ReadAllText(_overrideFilePath);
+        _logger.LogInformation($"Override file content:\n{content}");
+
         var overrides = _csvUtils.ReadCsv(_overrideFilePath);
         if (!overrides.Any())
         {
@@ -70,6 +73,10 @@ public class MethodOverrideManager
         }
 
         _logger.LogInformation($"Loaded {_overrides.Count} method overrides from {_overrideFilePath}");
+        foreach (var kvp in _overrides)
+        {
+            _logger.LogInformation($"Override for {kvp.Key}: {string.Join(", ", kvp.Value.Select(x => $"{x.Key}={x.Value}"))}");
+        }
     }
 
     public void SaveOverrides(ICollection<ReportItem> reportItems)
@@ -118,11 +125,12 @@ public class MethodOverrideManager
 
     public Dictionary<string, string> GetOverridesForMethod(string fullName)
     {
-        if (_overrides.TryGetValue(fullName, out var methodOverrides))
+        if (_overrides.TryGetValue(fullName, out var methodOverrides) ||
+            _overrides.TryGetValue(fullName.ToLowerInvariant(), out methodOverrides))
         {
-            return methodOverrides.Where(kvp => IsStaticParameter(kvp.Key))
-                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            return methodOverrides;
         }
+
         return new Dictionary<string, string>();
     }
 

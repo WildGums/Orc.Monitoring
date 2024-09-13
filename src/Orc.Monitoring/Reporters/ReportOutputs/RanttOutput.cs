@@ -239,10 +239,15 @@ public sealed class RanttOutput : IReportOutput
             {
                 var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
                 var overrides = _overrideManager.GetOverridesForMethod(fullName);
+                _logger.LogInformation($"Applying overrides for {fullName}: {string.Join(", ", overrides.Select(x => $"{x.Key}={x.Value}"))}");
                 var newParameters = new Dictionary<string, string>(item.Parameters, StringComparer.OrdinalIgnoreCase);
                 foreach (var kvp in overrides)
                 {
-                    newParameters[kvp.Key] = kvp.Value;
+                    if (item.IsStaticParameter(kvp.Key))
+                    {
+                        newParameters[kvp.Key] = kvp.Value;
+                        _logger.LogInformation($"Applied override: {kvp.Key}={kvp.Value}");
+                    }
                 }
                 return new ReportItem
                 {
@@ -260,7 +265,7 @@ public sealed class RanttOutput : IReportOutput
                     Parent = item.Parent,
                     ParentThreadId = item.ParentThreadId,
                     Parameters = newParameters,
-                    AttributeParameters = [..item.AttributeParameters]
+                    AttributeParameters = new HashSet<string>(item.AttributeParameters)
                 };
             }).ToList();
 
