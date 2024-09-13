@@ -49,7 +49,12 @@ public class MethodOverrideManager
         _overrides.Clear();
         foreach (var row in overrides)
         {
-            var fullName = row["FullName"];
+            if (!row.TryGetValue("FullName", out var fullName))
+            {
+                _logger.LogWarning("Row in override file is missing FullName column");
+                continue;
+            }
+
             var methodOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in row.Keys.Where(h => h != "FullName"))
             {

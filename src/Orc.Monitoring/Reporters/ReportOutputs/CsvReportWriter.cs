@@ -143,13 +143,8 @@ public class CsvReportWriter
 
         foreach (var kvp in item.Parameters)
         {
-            string paramKey = item.AttributeParameters.Contains(kvp.Key) ? $"Static_{kvp.Key}" : $"Dynamic_{kvp.Key}";
-            result[paramKey] = kvp.Value;
-        }
-
-        foreach (var kvp in overrides)
-        {
-            result[$"Static_{kvp.Key}"] = kvp.Value;
+            var paramKey = item.AttributeParameters.Contains(kvp.Key) ? $"Static_{kvp.Key}" : $"Dynamic_{kvp.Key}";
+            result[paramKey] = overrides.TryGetValue(kvp.Key, out var overrideValue) ? overrideValue : kvp.Value;
         }
 
         return result;
