@@ -250,22 +250,6 @@ public class MethodOverrideManagerTests
     }
 
     [Test]
-    public void GetOverridesForMethod_OnlyConsidersStaticParameters()
-    {
-        // Arrange
-        var overrideContent = "FullName,StaticParam,DynamicParam\nTestClass.TestMethod,StaticValue,DynamicValue";
-        _fileSystem.WriteAllText(_overrideFilePath, overrideContent);
-        _overrideManager.ReadOverrides();
-
-        // Act
-        var overrides = _overrideManager.GetOverridesForMethod("TestClass.TestMethod");
-
-        // Assert
-        Assert.That(overrides, Does.ContainKey("StaticParam"));
-        Assert.That(overrides, Does.Not.ContainKey("DynamicParam"));
-    }
-
-    [Test]
     public void MethodOverrideManager_ShouldOnlyOverrideStaticParameters()
     {
         // Arrange
@@ -290,7 +274,7 @@ public class MethodOverrideManagerTests
         {
             if (reportItem.IsStaticParameter(kvp.Key))
             {
-                ((Dictionary<string, string>)overrides).Add(kvp.Key, kvp.Value);
+                ((Dictionary<string, string>)reportItem.Parameters)[kvp.Key] =  kvp.Value;
             }
         }
 

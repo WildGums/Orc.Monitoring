@@ -133,12 +133,4 @@ public class MethodOverrideManager
 
         return new Dictionary<string, string>();
     }
-
-    private bool IsStaticParameter(string parameterName)
-    {
-        // This method should check if the parameter is static (attribute-defined)
-        // You might need to pass this information from ReportItem or implement a different logic
-        // For now, let's assume all parameters in _overrides are static
-        return true;
-    }
 }
