@@ -158,7 +158,7 @@ public class CsvReportWriter
 
         foreach (var kvp in parameters)
         {
-            string paramKey = item.IsStaticParameter(kvp.Key) ? $"Static_{kvp.Key}" : $"Dynamic_{kvp.Key}";
+            string paramKey = item.AttributeParameters.Contains(kvp.Key) ? $"Static_{kvp.Key}" : $"Dynamic_{kvp.Key}";
             result[paramKey] = kvp.Value;
         }
 
@@ -173,8 +173,9 @@ public class CsvReportWriter
     private string[] GetReportItemHeaders()
     {
         var baseHeaders = new[] { "Id", "ParentId", "StartTime", "EndTime", "Report", "ClassName", "MethodName", "FullName", "Duration", "ThreadId", "ParentThreadId", "NestingLevel", "IsStatic", "IsGeneric", "IsExtension" };
-        var parameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys).Distinct();
-        return baseHeaders.Concat(parameterHeaders).ToArray();
+        var staticParameterHeaders = _reportItems.SelectMany(r => r.AttributeParameters).Distinct().Select(p => $"Static_{p}");
+        var dynamicParameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys.Where(k => !r.AttributeParameters.Contains(k))).Distinct().Select(p => $"Dynamic_{p}");
+        return baseHeaders.Concat(staticParameterHeaders).Concat(dynamicParameterHeaders).ToArray();
     }
 
     private string DetermineRelationType(ReportItem item)
