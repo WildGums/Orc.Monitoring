@@ -27,6 +27,8 @@ public class MethodOverrideManagerAndRanttOutputTests
 #pragma warning restore IDISP006
     private ReportArchiver _reportArchiver;
     private CsvUtils _csvUtils;
+    private RanttOutput _ranttOutput;
+    private MockReporter _mockReporter;
 
     [SetUp]
     public void Setup()
@@ -35,6 +37,9 @@ public class MethodOverrideManagerAndRanttOutputTests
         InitializeFileSystem();
         InitializeMonitoringController();
         InitializePaths();
+
+        _ranttOutput = CreateRanttOutput();
+        _mockReporter = new MockReporter(_loggerFactory);
 
         _monitoringController.Enable();
     }
@@ -53,32 +58,42 @@ public class MethodOverrideManagerAndRanttOutputTests
     public async Task RanttOutput_WithOverrides_ShouldUseOverridesFromCsvFile()
     {
         // Arrange
-        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.TestMethod(),OverrideValue";
+        var csvContent = "FullName,CustomColumn\nMethodOverrideManagerAndRanttOutputTests.TestMethod,OverrideValue";
         await _fileSystem.WriteAllTextAsync(_overrideFilePath, csvContent);
-        _logger.LogInformation($"Override file content: {csvContent}");
 
-        var ranttOutput = CreateRanttOutput();
+        _ranttOutput = CreateRanttOutput();
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
-        ranttOutput.SetParameters(parameters);
+        _ranttOutput.SetParameters(parameters);
 
         var mockReporter = new Mock<IMethodCallReporter>();
         mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+        var disposable = _ranttOutput.Initialize(mockReporter.Object);
+
+        var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
+        methodCallInfo.Parameters["CustomColumn"] = "OriginalValue";
+        methodCallInfo.AttributeParameters.Add("CustomColumn");
 
         // Act
-        await using (var _ = ranttOutput.Initialize(mockReporter.Object))
-        {
-            var item = CreateTestMethodLifeCycleItem("TestMethod", DateTime.Now);
-            ranttOutput.WriteItem(item);
-        }
+        _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
+        _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+
+        await disposable.DisposeAsync();
 
         // Assert
-        var csvOutputPath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
-        Assert.That(_fileSystem.FileExists(csvOutputPath), Is.True, "CSV output file should be created");
+        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, "CSV file should exist");
+        var content = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        var lines = await _fileSystem.ReadAllLinesAsync(csvFilePath);
 
-        var csvOutputContent = await _fileSystem.ReadAllTextAsync(csvOutputPath);
-        _logger.LogInformation($"CSV output content: {csvOutputContent}");
+        var headers = lines[0].Split(',');
+        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+        
+        var values = lines[1].Split(',');
+        var customColumnValue = values[customColumnIndex];
 
-        Assert.That(csvOutputContent, Does.Contain("OverrideValue"), "CSV output should contain the override value");
+        _logger.LogInformation($"CSV content:\n{content}");
+
+        Assert.That(customColumnValue, Is.EqualTo("OverrideValue"), "Override value should be used");
     }
 
     [Test]
@@ -100,22 +115,31 @@ public class MethodOverrideManagerAndRanttOutputTests
         }
 
         // Assert
-        Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var lines = await _fileSystem.ReadAllLinesAsync(_overrideTemplateFilePath);
+        Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, $"Template file should be created at {_overrideTemplateFilePath}");
 
-        var headerLine = lines[0];
-        var headers = headerLine.Split(',');
-        var fullNameIndex = Array.IndexOf(headers, "FullName");
-        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+        if (_fileSystem.FileExists(_overrideTemplateFilePath))
+        {
+            var lines = await _fileSystem.ReadAllLinesAsync(_overrideTemplateFilePath);
 
-        // assert header
-        Assert.That(fullNameIndex, Is.GreaterThanOrEqualTo(0), "FullName column should be present");
-        Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), "CustomColumn column should be present");
+            _logger.LogInformation($"Template file contents:\n{string.Join("\n", lines)}");
 
-        // assert values
-        var values = lines[1].Split(',');
-        Assert.That(values[fullNameIndex], Is.EqualTo($"{nameof(MethodOverrideManagerAndRanttOutputTests)}.TestMethod()"), "FullName value should be Test.Method");
-        Assert.That(values[customColumnIndex], Is.EqualTo("CustomValue"), "CustomColumn value should be CustomValue");
+            Assert.That(lines.Length, Is.GreaterThanOrEqualTo(2), "Template file should have at least a header and one data line");
+
+            var headerLine = lines[0];
+            var headers = headerLine.Split(',');
+            var fullNameIndex = Array.IndexOf(headers, "FullName");
+            var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+
+            Assert.That(fullNameIndex, Is.GreaterThanOrEqualTo(0), "FullName column should be present");
+            Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), "CustomColumn column should be present");
+
+            if (lines.Length > 1)
+            {
+                var values = lines[1].Split(',');
+                Assert.That(values[fullNameIndex], Is.EqualTo("MethodOverrideManagerAndRanttOutputTests.TestMethod()"), "FullName value should be correct");
+                Assert.That(values[customColumnIndex], Is.EqualTo("CustomValue"), "CustomColumn value should be correct");
+            }
+        }
     }
 
     private void InitializeFileSystem()
@@ -180,5 +204,30 @@ public class MethodOverrideManagerAndRanttOutputTests
 
         var mockMethodLifeCycleItem = new Mock<MethodCallStart>(methodCallInfo);
         return mockMethodLifeCycleItem.Object;
+    }
+
+    private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
+    {
+        var methodInfo = new TestMethodInfo(methodName, typeof(MethodOverrideManagerAndRanttOutputTests));
+        var id = Guid.NewGuid().ToString();
+        var methodCallInfo = _methodCallInfoPool.Rent(
+            null,
+            typeof(MethodOverrideManagerAndRanttOutputTests),
+            methodInfo,
+            Array.Empty<Type>(),
+            id,
+            new Dictionary<string, string>()
+        );
+        methodCallInfo.Parent = parent;
+        methodCallInfo.MethodName = methodName;
+        methodCallInfo.Id = id;
+        methodCallInfo.StartTime = DateTime.Now;
+
+        // If you need to set any default parameters or attribute parameters, do it here
+        // For example:
+        // methodCallInfo.Parameters["SomeParam"] = "SomeValue";
+        // methodCallInfo.AttributeParameters.Add("SomeAttributeParam");
+
+        return methodCallInfo;
     }
 }

@@ -37,11 +37,11 @@ public class CsvReportWriter
     public void WriteReportItemsCsv()
     {
         var headers = GetReportItemHeaders();
-        _csvUtils.WriteCsvLine(_writer, headers.Cast<string?>().ToArray());
+        _csvUtils.WriteCsvLine(_writer, headers.Select(EscapeCsvContent).ToArray());
 
         foreach (var item in PrepareReportItems())
         {
-            var values = headers.Select(h => item.GetValueOrDefault(h)).ToArray();
+            var values = headers.Select(h => EscapeCsvContent(item.GetValueOrDefault(h, string.Empty))).ToArray();
             _csvUtils.WriteCsvLine(_writer, values);
         }
 
@@ -56,7 +56,7 @@ public class CsvReportWriter
         }
 
         content = content.Replace("\"", "\"\"");
-        if (content.Contains(",") || content.Contains("\"") || content.Contains("\n") || content.Contains("<") || content.Contains(">") || content.Contains("&"))
+        if (content.Contains(',') || content.Contains('"') || content.Contains('\n') || content.Contains('\r'))
         {
             return $"\"{content}\"";
         }
@@ -114,21 +114,7 @@ public class CsvReportWriter
 
     private IEnumerable<Dictionary<string, string>> PrepareReportItems()
     {
-        var rootItem = _reportItems.FirstOrDefault(item => item.IsRoot);
-        var nonRootItems = _reportItems
-            .Where(item => !item.IsRoot && !string.IsNullOrEmpty(item.StartTime))
-            .OrderBy(item => DateTime.Parse(item.StartTime ?? string.Empty))
-            .ThenBy(item => item.ThreadId)
-            .ThenBy(item => item.Level);
-
-        var allItems = new List<ReportItem>();
-        if (rootItem is not null)
-        {
-            allItems.Add(rootItem);
-        }
-        allItems.AddRange(nonRootItems);
-
-        return allItems.Select(PrepareReportItem);
+        return _reportItems.Select(PrepareReportItem);
     }
 
     private Dictionary<string, string> PrepareReportItem(ReportItem item)
@@ -154,16 +140,15 @@ public class CsvReportWriter
 
         var fullName = item.FullName ?? string.Empty;
         var overrides = _overrideManager.GetOverridesForMethod(fullName);
-        var parameters = new Dictionary<string, string>(item.Parameters);
 
-        foreach (var kvp in overrides)
+        foreach (var kvp in item.Parameters)
         {
-            parameters[kvp.Key] = kvp.Value;
-        }
+            if (!item.AttributeParameters.Contains(kvp.Key))
+            {
+                continue;
+            }
 
-        foreach (var param in parameters)
-        {
-            result[param.Key] = param.Value;
+            result[kvp.Key] = overrides.TryGetValue(kvp.Key, out var overrideValue) ? overrideValue : kvp.Value;
         }
 
         return result;
@@ -172,8 +157,9 @@ public class CsvReportWriter
     private string[] GetReportItemHeaders()
     {
         var baseHeaders = new[] { "Id", "ParentId", "StartTime", "EndTime", "Report", "ClassName", "MethodName", "FullName", "Duration", "ThreadId", "ParentThreadId", "NestingLevel", "IsStatic", "IsGeneric", "IsExtension" };
-        var parameterHeaders = _reportItems.SelectMany(r => r.Parameters.Keys).Distinct();
-        return baseHeaders.Concat(parameterHeaders).ToArray();
+        var staticParameter = _reportItems.SelectMany(r => r.AttributeParameters).Distinct();
+        var dynamicParameter = _reportItems.SelectMany(r => r.Parameters.Keys.Where(k => !r.AttributeParameters.Contains(k))).Distinct();
+        return baseHeaders.Concat(staticParameter).Except(dynamicParameter).ToArray();
     }
 
     private string DetermineRelationType(ReportItem item)

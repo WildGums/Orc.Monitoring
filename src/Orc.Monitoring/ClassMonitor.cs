@@ -117,8 +117,24 @@ public class ClassMonitor : IClassMonitor
             return GetDummyContext(async);
         }
 
+        PopulateAttributeParameters(methodCallInfo);
+
         _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
         return CreateMethodCallContext(async, methodCallInfo, disposables, enabledReporterIds);
+    }
+
+
+    private void PopulateAttributeParameters(MethodCallInfo methodCallInfo)
+    {
+        var attributes = methodCallInfo.MethodInfo?.GetCustomAttributes<MethodCallParameterAttribute>(false);
+        if (attributes is not null)
+        {
+            foreach (var attr in attributes)
+            {
+                methodCallInfo.AttributeParameters!.Add(attr.Name);
+                methodCallInfo.Parameters![attr.Name] = attr.Value;
+            }
+        }
     }
 
     private void HandleSpecialMethodTypes(MethodInfo methodInfo, MethodCallInfo methodCallInfo)

@@ -39,6 +39,9 @@ public class MethodOverrideManager
             return;
         }
 
+        var content = _fileSystem.ReadAllText(_overrideFilePath);
+        _logger.LogInformation($"Override file content:\n{content}");
+
         var overrides = _csvUtils.ReadCsv(_overrideFilePath);
         if (!overrides.Any())
         {
@@ -49,7 +52,12 @@ public class MethodOverrideManager
         _overrides.Clear();
         foreach (var row in overrides)
         {
-            var fullName = row["FullName"];
+            if (!row.TryGetValue("FullName", out var fullName))
+            {
+                _logger.LogWarning("Row in override file is missing FullName column");
+                continue;
+            }
+
             var methodOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var header in row.Keys.Where(h => h != "FullName"))
             {
@@ -65,6 +73,10 @@ public class MethodOverrideManager
         }
 
         _logger.LogInformation($"Loaded {_overrides.Count} method overrides from {_overrideFilePath}");
+        foreach (var kvp in _overrides)
+        {
+            _logger.LogInformation($"Override for {kvp.Key}: {string.Join(", ", kvp.Value.Select(x => $"{x.Key}={x.Value}"))}");
+        }
     }
 
     public void SaveOverrides(ICollection<ReportItem> reportItems)
@@ -113,6 +125,12 @@ public class MethodOverrideManager
 
     public Dictionary<string, string> GetOverridesForMethod(string fullName)
     {
-        return _overrides.TryGetValue(fullName, out var methodOverrides) ? methodOverrides : new Dictionary<string, string>();
+        if (_overrides.TryGetValue(fullName, out var methodOverrides) ||
+            _overrides.TryGetValue(fullName.ToLowerInvariant(), out methodOverrides))
+        {
+            return methodOverrides;
+        }
+
+        return new Dictionary<string, string>();
     }
 }

@@ -20,4 +20,5 @@ public class ReportItem
     public IReadOnlyDictionary<string, string> Parameters { get; set; } = new Dictionary<string, string>();
     public HashSet<string> AttributeParameters { get; set; } = [];
     public bool IsRoot { get; set; }
+    public bool IsStaticParameter(string parameterName) => AttributeParameters.Contains(parameterName);
 }

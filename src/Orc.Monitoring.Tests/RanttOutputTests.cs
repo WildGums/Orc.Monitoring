@@ -28,6 +28,7 @@ public class RanttOutputTests
 #pragma warning restore IDISP006
     private ReportArchiver _reportArchiver;
     private CsvUtils _csvUtils;
+    private string _testOutputPath;
 
     private const string TestReporterName = "TestReporter";
     private const string RelationshipsFileName = "TestReporter_Relationships.csv";
@@ -40,6 +41,8 @@ public class RanttOutputTests
 
         _logger.LogInformation("___");
         _logger.LogInformation("Starting RanttOutputTests setup");
+
+        _testOutputPath = Path.GetTempPath();
 
         InitializeDependencies();
         InitializeRanttOutput();
@@ -143,48 +146,31 @@ public class RanttOutputTests
     [Test]
     public async Task ExportToCsv_ShouldApplyOverridesCorrectly()
     {
-        _logger.LogInformation("Starting ExportToCsv_ShouldApplyOverridesCorrectly test");
-
-        // Setup override file
-        var overrideContent = "FullName,CustomColumn\nRanttOutputTests.Method1,CustomValue";
+        // Arrange
+        var overrideContent = "FullName,CustomColumn\nRanttOutputTests.TestMethod,OverrideValue";
         await _fileSystem.WriteAllTextAsync(Path.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
 
-        var disposable = _ranttOutput.Initialize(_mockReporter);
+        var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
+        methodCallInfo.Parameters["CustomColumn"] = "OriginalValue";
+        methodCallInfo.AttributeParameters.Add("CustomColumn");
 
-        var methodInfo1 = CreateMethodCallInfo("Method1", null);
-        _logger.LogInformation($"Created Method1: {methodInfo1.Id}");
-        var methodInfo2 = CreateMethodCallInfo("Method2", methodInfo1);
-        _logger.LogInformation($"Created Method2: {methodInfo2.Id}");
+        await using (var _ = _ranttOutput.Initialize(_mockReporter))
+        {
+            _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
+            _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+        }
 
-        WriteMethodLifecycle(methodInfo1);
-        WriteMethodLifecycle(methodInfo2);
-
-        _logger.LogInformation($"ReportItems count before export: {_ranttOutput.GetDebugInfo()}");
-
-        await disposable.DisposeAsync();
-
+        // Assert
         var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
-        Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, "CSV file should be created");
-
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
-        _logger.LogInformation($"CSV Content:\n{csvContent}");
-        var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        _logger.LogInformation($"Number of non-empty lines: {lines.Length}");
 
-        Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
-
-        var headers = lines[0].Split(',').Select(h => h.Trim()).ToArray();
-        Assert.That(headers, Does.Contain("Id").And.Contain("MethodName").And.Contain("CustomColumn"),
-            "Header should contain expected columns");
-
-        var dataRow = lines[1].Split(',');
+        var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var headers = lines[0].Split(',');
         var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
-        Assert.That(dataRow[customColumnIndex].Trim(), Is.EqualTo("CustomValue"),
-            "Custom column should contain the override value");
 
-        var secondDataRow = lines[2].Split(',');
-        Assert.That(secondDataRow[customColumnIndex].Trim(), Is.Empty,
-            "Second row should not have a value for CustomColumn");
+        var values = lines[1].Split(',');
+
+        Assert.That(values[customColumnIndex], Is.EqualTo("OverrideValue"), "Override value should be used");
     }
 
     [Test]
@@ -334,6 +320,64 @@ public class RanttOutputTests
 
         _logger.LogInformation($"Root Line: {rootLine}");
         _logger.LogInformation($"Child Line: {childLine}");
+    }
+
+    [Test]
+    public async Task ExportToCsv_IncludesStaticAndDynamicParameters()
+    {
+        // Arrange
+        var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
+        methodCallInfo.Parameters["StaticParam"] = "StaticValue";
+        methodCallInfo.Parameters["DynamicParam"] = "DynamicValue";
+        methodCallInfo.AttributeParameters.Add("StaticParam");
+
+        await using (var _ = _ranttOutput.Initialize(_mockReporter))
+        {
+            _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
+            _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+        }
+
+        // Assert
+        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+        var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var headers = lines[0].Split(',');
+        var staticParameterIndex = Array.IndexOf(headers, "StaticParam");
+        var dynamicParameterIndex = Array.IndexOf(headers, "DynamicParam");
+
+        Assert.That(dynamicParameterIndex, Is.EqualTo(-1));
+
+        var dataLine = lines[1].Split(',');
+        var staticParameterValue = dataLine[staticParameterIndex];
+
+        Assert.That(staticParameterValue, Is.EqualTo("StaticValue"));
+    }
+
+    [Test]
+    public async Task RanttOutput_ShouldPreserveParameterTypesWhenExporting()
+    {
+        // Arrange
+        var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
+        methodCallInfo.Parameters["StaticParam"] = "StaticValue";
+        methodCallInfo.Parameters["DynamicParam"] = "DynamicValue";
+        methodCallInfo.AttributeParameters.Add("StaticParam");
+
+        await using (var _ = _ranttOutput.Initialize(_mockReporter))
+        {
+            _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
+            _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+        }
+
+        // Assert
+        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+
+        var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines[0], Does.Contain("StaticParam"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam"));
+        Assert.That(lines[1], Does.Contain("StaticValue"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)

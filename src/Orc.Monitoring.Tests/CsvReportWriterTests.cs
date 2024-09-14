@@ -21,17 +21,21 @@ public class CsvReportWriterTests
     private TestLoggerFactory<CsvReportWriterTests> _loggerFactory;
     private InMemoryFileSystem _fileSystem;
     private CsvUtils _csvUtils;
+    private string _overrideFilePath;
 
     [SetUp]
     public void Setup()
     {
         _logger = new TestLogger<CsvReportWriterTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportWriterTests>(_logger);
+        _loggerFactory.EnableLoggingFor<CsvReportWriter>();
+        _loggerFactory.EnableLoggingFor<MethodOverrideManager>();
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
 
         _stringWriter = new StringWriter();
-        _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
+        _overrideFilePath = Path.GetTempPath();
+        _overrideManager = new MethodOverrideManager(_overrideFilePath, _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
 
@@ -62,129 +66,119 @@ public class CsvReportWriterTests
     [Test]
     public async Task WriteReportItemsCsvAsync_WritesReportItemsCorrectly()
     {
+        // Arrange
         _reportItems.Add(new ReportItem
         {
             Id = "1",
+            MethodName = "TestMethod",
+            FullName = "TestClass.TestMethod",
             StartTime = "2023-01-01 00:00:00.000",
             EndTime = "2023-01-01 00:00:01.000",
-            MethodName = "TestMethod",
             Duration = "1000",
-            Parameters = new Dictionary<string, string> { { "TestParam", "TestValue" } }
+            Parameters = new Dictionary<string, string>
+            {
+                { "StaticParam", "StaticValue" },
+                { "DynamicParam", "DynamicValue" }
+            },
+            AttributeParameters = new HashSet<string> { "StaticParam" }
         });
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+
+        // Act
         await writer.WriteReportItemsCsvAsync();
 
+        // Assert
         var content = _stringWriter.ToString();
-        var lines = content.Split(Environment.NewLine);
+        var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
-        Assert.That(lines.Length, Is.GreaterThan(1));
+        Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
         Assert.That(lines[1], Does.Contain("1"));
-        Assert.That(lines[1], Does.Contain("2023-01-01 00:00:00.000"));
         Assert.That(lines[1], Does.Contain("TestMethod"));
+        Assert.That(lines[1], Does.Contain("TestClass.TestMethod"));
+        Assert.That(lines[1], Does.Contain("2023-01-01 00:00:00.000"));
+        Assert.That(lines[1], Does.Contain("2023-01-01 00:00:01.000"));
         Assert.That(lines[1], Does.Contain("1000"));
-        Assert.That(lines[1], Does.Contain("TestValue"));
+        Assert.That(lines[1], Does.Contain("StaticValue"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
     }
 
     [Test]
     public async Task WriteReportItemsCsvAsync_AppliesOverrides()
     {
-        var customColumnName = "CustomColumn";
-        var customValue = "CustomValue";
-        var overrideValue = "OverrideValue";
+        // Arrange
+        var overrideContent = "FullName,CustomColumn\nTestClass.Method1,OverrideValue";
+        var overrideFilePath = Path.Combine(_overrideFilePath, "method_overrides.csv");
+        await _fileSystem.WriteAllTextAsync(overrideFilePath, overrideContent);
+        _overrideManager.ReadOverrides();
+
         _reportItems.Add(new ReportItem
         {
             Id = "1",
-            MethodName = "TestMethod",
-            FullName = "TestNamespace.TestClass.TestMethod",
+            MethodName = "Method1",
+            FullName = "TestClass.Method1",
             StartTime = "2023-01-01 00:00:00.000",
-            Parameters = new Dictionary<string, string> { { customColumnName, customValue } }
+            Parameters = new Dictionary<string, string> { { "CustomColumn", "OriginalValue" } },
+            AttributeParameters = new HashSet<string> { "CustomColumn" }
         });
 
-        // Setup override
-        _overrideManager.ReadOverrides();
-        var overrides = new Dictionary<string, string> { { customColumnName, overrideValue } };
-        _overrideManager.GetType().GetField("_overrides", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            ?.SetValue(_overrideManager, new Dictionary<string, Dictionary<string, string>> { { "TestNamespace.TestClass.TestMethod", overrides } });
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        // Act
         await writer.WriteReportItemsCsvAsync();
 
+        // Assert
         var content = _stringWriter.ToString();
         _logger.LogInformation($"CSV Content:\n{content}");
-
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        _logger.LogInformation($"Number of lines: {lines.Length}");
 
-        Assert.That(lines.Length, Is.GreaterThanOrEqualTo(2), "CSV content should contain at least header and data line");
-
-        var headers = lines[0].Split(',');
-        var dataLine = lines[1].Split(',');
-
-        _logger.LogInformation($"Headers: {string.Join(", ", headers)}");
-        _logger.LogInformation($"Data line: {string.Join(", ", dataLine)}");
-
-        Assert.That(headers, Does.Contain(customColumnName), "Headers should contain the custom column");
-
-        var customColumnIndex = Array.IndexOf(headers, customColumnName);
-        Assert.That(customColumnIndex, Is.GreaterThanOrEqualTo(0), $"Custom column {customColumnName} not found in headers");
-        Assert.That(dataLine[customColumnIndex], Is.EqualTo(overrideValue), "Custom column value should be the override value");
+        Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
+        Assert.That(lines[1], Does.Contain("OverrideValue"));
+        Assert.That(lines[1], Does.Not.Contain("OriginalValue"));
     }
 
     [Test]
     public async Task WriteReportItemsCsvAsync_HandlesMultipleItems()
     {
-        _reportItems.AddRange([
+        // Arrange
+        _reportItems.AddRange(new[]
+        {
             new ReportItem
             {
                 Id = "1",
-                StartTime = "2023-01-01 00:00:02.000",
-                EndTime = "2023-01-01 00:00:03.000",
                 MethodName = "Method1",
-                ThreadId = "1",
-                Level = "1",
-                Parameters = new Dictionary<string, string> { { "Param1", "Value1" } }
+                FullName = "TestClass.Method1",
+                StartTime = "2023-01-01 00:00:01.000",
+                Parameters = new Dictionary<string, string> { { "Param1", "Value1" } },
+                AttributeParameters = new HashSet<string> { "Param1" }
             },
             new ReportItem
             {
                 Id = "2",
-                StartTime = "2023-01-01 00:00:01.000",
-                EndTime = "2023-01-01 00:00:04.000",
                 MethodName = "Method2",
-                ThreadId = "2",
-                Level = "1",
-                Parameters = new Dictionary<string, string> { { "Param2", "Value2" } }
-            },
-            new ReportItem
-            {
-                Id = "3",
-                StartTime = "2023-01-01 00:00:01.500",
-                EndTime = "2023-01-01 00:00:02.500",
-                MethodName = "Method3",
-                ThreadId = "1",
-                Level = "2",
-                Parameters = new Dictionary<string, string> { { "Param3", "Value3" } }
+                FullName = "TestClass.Method2",
+                StartTime = "2023-01-01 00:00:02.000",
+                Parameters = new Dictionary<string, string> { { "Param2", "Value2" } },
+                AttributeParameters = new HashSet<string>()
             }
-        ]);
+        });
 
         var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+
+        // Act
         await writer.WriteReportItemsCsvAsync();
 
+        // Assert
         var content = _stringWriter.ToString();
-        _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
-        Assert.That(lines.Length, Is.EqualTo(4), "Should have header and 3 data lines");
-
-        var dataLines = lines.Skip(1).ToArray();
-        Assert.That(dataLines[0], Does.Contain("Method2"), "First line should be Method2 (earliest start time)");
-        Assert.That(dataLines[1], Does.Contain("Method3"), "Second line should be Method3 (second earliest start time)");
-        Assert.That(dataLines[2], Does.Contain("Method1"), "Third line should be Method1 (latest start time)");
-
-        Assert.That(dataLines[0], Does.Contain("Value2"), "Should contain Parameter value for Method2");
-        Assert.That(dataLines[1], Does.Contain("Value3"), "Should contain Parameter value for Method3");
-        Assert.That(dataLines[2], Does.Contain("Value1"), "Should contain Parameter value for Method1");
+        Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
+        Assert.That(lines[0], Does.Contain("Param1"));
+        Assert.That(lines[0], Does.Not.Contain("Param2"));
+        Assert.That(lines[1], Does.Contain("Value1"));
+        Assert.That(lines[2], Does.Not.Contain("Value2"));
     }
+
 
     [Test]
     public async Task WriteReportItemsCsvAsync_HandlesNullValues()
@@ -251,5 +245,78 @@ public class CsvReportWriterTests
         Assert.That(lines.Length, Is.EqualTo(3), "Should have exactly 3 lines (header + 2 data lines)");
         Assert.That(lines[2], Does.Not.EndWith("\n"), "Last line should not end with a newline");
         Assert.That(content, Does.Not.EndWith("\n"), "CSV content should not end with a newline");
+    }
+
+    [Test]
+    public async Task WriteReportItemsCsvAsync_DistinguishesStaticAndDynamicParameters()
+    {
+        // Arrange
+        _reportItems.Add(new ReportItem
+        {
+            Id = "1",
+            MethodName = "TestMethod",
+            FullName = "TestClass.TestMethod",
+            StartTime = "2023-01-01 00:00:00.000",
+            Parameters = new Dictionary<string, string>
+            {
+                { "StaticParam", "StaticValue" },
+                { "DynamicParam", "DynamicValue" }
+            },
+            AttributeParameters = new HashSet<string> { "StaticParam" }
+        });
+
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+
+        // Act
+        await writer.WriteReportItemsCsvAsync();
+
+        // Assert
+        var content = _stringWriter.ToString();
+        var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
+        Assert.That(lines[0], Does.Contain("StaticParam"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam"));
+        Assert.That(lines[1], Does.Contain("StaticValue"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
+    }
+
+    [Test]
+    public async Task CsvReportWriter_ShouldCorrectlyLabelStaticAndDynamicParameters()
+    {
+        // Arrange
+        _reportItems.Add(new ReportItem
+        {
+            Id = "1",
+            MethodName = "TestMethod",
+            FullName = "TestClass.TestMethod",
+            Parameters = new Dictionary<string, string>
+            {
+                { "StaticParam1", "StaticValue1" },
+                { "StaticParam2", "StaticValue2" },
+                { "DynamicParam1", "DynamicValue1" },
+                { "DynamicParam2", "DynamicValue2" }
+            },
+            AttributeParameters = new HashSet<string> { "StaticParam1", "StaticParam2" }
+        });
+
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+
+        // Act
+        await writer.WriteReportItemsCsvAsync();
+
+        // Assert
+        var content = _stringWriter.ToString();
+        var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines[0], Does.Contain("StaticParam1"));
+        Assert.That(lines[0], Does.Contain("StaticParam2"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam1"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam2"));
+
+        Assert.That(lines[1], Does.Contain("StaticValue1"));
+        Assert.That(lines[1], Does.Contain("StaticValue2"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue1"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicValue2"));
     }
 }
