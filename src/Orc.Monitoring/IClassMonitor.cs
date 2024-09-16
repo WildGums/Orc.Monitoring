@@ -6,7 +6,7 @@ using MethodLifeCycleItems;
 
 public interface IClassMonitor
 {
-    AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "");
-    MethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "");
+    IMethodCallContext StartAsyncMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "");
+    IMethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "");
     void LogStatus(IMethodLifeCycleItem status);
 }

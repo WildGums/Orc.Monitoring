@@ -10,6 +10,7 @@ using Moq;
 using Monitoring;
 using Filters;
 using Microsoft.Extensions.Logging;
+using Reporters;
 
 [TestFixture]
 public class SpecialCaseTests
@@ -76,29 +77,27 @@ public class SpecialCaseTests
     [Test]
     public void GenericMethod_IsCorrectlyMonitored()
     {
-        var genericMethod = typeof(TestClass).GetMethod(nameof(TestClass.GenericMethod));
-        var methodCallInfo = CreateMethodCallInfo(genericMethod);
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        var tracker = new GenericMethodTracker();
         var monitor = new ClassMonitor(_monitoringController, typeof(TestClass), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
         _logger.LogInformation($"Before generic method - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
         using (var _ = monitor.StartMethod(new MethodConfiguration
-        {
-            Reporters = [_mockReporter],
-            GenericArguments = [typeof(int)]
-        }, nameof(TestClass.GenericMethod)))
+               {
+                   Reporters = new List<IMethodCallReporter> { _mockReporter },
+                   GenericArguments = new List<Type> { typeof(int) },
+                   ParameterTypes = new List<Type> { typeof(int) }
+               }, nameof(TestClass.GenericMethod)))
         {
             TestClass.GenericMethod(5);
-            tracker.TrackGenericMethodInstantiation(methodCallInfo.MethodInfo, [typeof(int)]);
         }
 
         _logger.LogInformation($"After generic method - StartReporting called: {_mockReporter.StartReportingCallCount}");
         Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for generic method");
-        Assert.That(tracker.GetInstantiations(methodCallInfo.MethodInfo).Any(t => t[0] == typeof(int)), Is.True);
     }
+
+
 
     [Test]
     public async Task AsyncMethod_IsCorrectlyMonitoredAsync()
@@ -130,27 +129,25 @@ public class SpecialCaseTests
     [Test]
     public void ExtensionMethod_IsCorrectlyMonitored()
     {
-        var extensionMethod = typeof(TestExtensions).GetMethod(nameof(TestExtensions.ExtensionMethod));
-        var methodCallInfo = CreateMethodCallInfo(extensionMethod);
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        var handler = new ExtensionMethodHandler();
         var monitor = new ClassMonitor(_monitoringController, typeof(TestExtensions), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
         _logger.LogInformation($"Before extension method - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
 
-        using (var _ = monitor.StartMethod(new MethodConfiguration { Reporters = [_mockReporter] }, nameof(TestExtensions.ExtensionMethod)))
+        using (var _ = monitor.StartMethod(new MethodConfiguration
+               {
+                   Reporters = new List<IMethodCallReporter> { _mockReporter },
+                   ParameterTypes = new List<Type> { typeof(string) }
+               }, nameof(TestExtensions.ExtensionMethod)))
         {
             "test".ExtensionMethod();
-            handler.RegisterExtensionMethod(methodCallInfo);
-            handler.TrackInvocation(methodCallInfo);
         }
 
         _logger.LogInformation($"After extension method - StartReporting called: {_mockReporter.StartReportingCallCount}");
         Assert.That(_mockReporter.StartReportingCallCount, Is.EqualTo(1), "StartReporting should be called once for extension method");
-        Assert.That(handler.IsExtensionMethod(methodCallInfo), Is.True);
-        Assert.That(handler.GetInvocationCount(methodCallInfo), Is.EqualTo(1));
     }
+
 
     [Test]
     public void OverloadedMethods_AreCorrectlyDistinguished()

@@ -19,13 +19,13 @@ public class NullClassMonitor : IClassMonitor
         _logger = loggerFactory.CreateLogger<NullClassMonitor>();
     }
 
-    public AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
+    public IMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
     {
         _logger.LogDebug($"NullClassMonitor.StartAsyncMethod called for {callerMethod}");
         return _methodCallContextFactory.GetDummyAsyncMethodCallContext();
     }
 
-    public MethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
+    public IMethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
     {
         _logger.LogDebug($"NullClassMonitor.StartMethod called for {callerMethod}");
         return _methodCallContextFactory.GetDummyMethodCallContext();

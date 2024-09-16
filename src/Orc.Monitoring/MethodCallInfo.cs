@@ -49,7 +49,7 @@ public class MethodCallInfo
     public IReadOnlyCollection<IMethodCallReporter> AssociatedReporters => _associatedReporters;
 
     public bool ReadyToReturn { get; set; }
-    public int UsageCounter { get; set; }
+    public int UsageCounter;
 
     public void Reset(IMonitoringController monitoringController, IClassMonitor? classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters)

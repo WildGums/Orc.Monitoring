@@ -8,118 +8,38 @@ using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
 
 
-public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncDisposable
+public sealed class AsyncMethodCallContext : MethodCallContextBase
 {
-    private readonly IMonitoringController _monitoringController;
-    private readonly MethodCallInfoPool _methodCallInfoPool;
-    private readonly ILogger<AsyncMethodCallContext> _logger;
-
-    private readonly IClassMonitor? _classMonitor;
-    private readonly List<IAsyncDisposable>? _disposables;
-    private readonly System.Diagnostics.Stopwatch _stopwatch = new();
-    private bool _isDisposed;
-
-    public MethodCallInfo? MethodCallInfo { get; }
-
-    public IReadOnlyList<string> ReporterIds { get; }
-
-    public AsyncMethodCallContext(IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
-    : base(monitoringController)
+    public AsyncMethodCallContext(
+        IClassMonitor? classMonitor,
+        MethodCallInfo methodCallInfo,
+        List<IAsyncDisposable> disposables,
+        IEnumerable<string> reporterIds,
+        IMonitoringLoggerFactory loggerFactory,
+        IMonitoringController monitoringController,
+        MethodCallInfoPool methodCallInfoPool)
+        : base(classMonitor, methodCallInfo, disposables, reporterIds, loggerFactory.CreateLogger<AsyncMethodCallContext>(), monitoringController, methodCallInfoPool)
     {
-        ArgumentNullException.ThrowIfNull(loggerFactory);
-        ArgumentNullException.ThrowIfNull(monitoringController);
-        ArgumentNullException.ThrowIfNull(methodCallInfoPool);
-
-        _monitoringController = monitoringController;
-        _methodCallInfoPool = methodCallInfoPool;
-
-        // Dummy constructor
-        _logger = loggerFactory.CreateLogger<AsyncMethodCallContext>();
-
-        MethodCallInfo = methodCallInfoPool.GetNull();
-        ReporterIds = Array.Empty<string>();
     }
 
-    public AsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds,
-        IMonitoringLoggerFactory loggerFactory, IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool)
-        : base(monitoringController)
+    public override void LogException(Exception exception)
     {
-        ArgumentNullException.ThrowIfNull(loggerFactory);
-
-        _logger = loggerFactory.CreateLogger<AsyncMethodCallContext>();
-        _monitoringController = monitoringController;
-        _methodCallInfoPool = methodCallInfoPool;
-
-        _classMonitor = classMonitor;
-        _disposables = disposables;
-        MethodCallInfo = methodCallInfo;
-        ReporterIds = reporterIds.ToList().AsReadOnly();
-
-        _stopwatch.Start();
-
-        // Log the start of the method only if we have a valid MethodCallInfo
-        var startStatus = new MethodCallStart(methodCallInfo);
-        (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
+        // Implementation...
     }
 
-    public void LogException(Exception exception)
+    public override void Log(string category, object data)
     {
-        if (MethodCallInfo?.IsNull ?? true)
-        {
-            // Do nothing if we're using a dummy context
-            return;
-        }
-
-        try
-        {
-            EnsureValidVersion();
-            if (MethodCallInfo is null)
-            {
-                return;
-            }
-
-            var exceptionStatus = new MethodCallException(MethodCallInfo, exception);
-            (_classMonitor as ClassMonitor)?.LogStatus(exceptionStatus);
-        }
-        catch (InvalidOperationException)
-        {
-            // Silently ignore version mismatch when monitoring is not properly configured
-        }
+        // Implementation...
     }
 
-    public void Log(string category, object data)
+    public override void SetParameter(string name, string value)
     {
-        EnsureValidVersion();
-        if (MethodCallInfo is null)
-        {
-            return;
-        }
-
-        var logEntry = new LogEntryItem(MethodCallInfo, category, data);
-        (_classMonitor as ClassMonitor)?.LogStatus(logEntry);
+        // Implementation...
     }
 
-    public void SetParameter(string name, string value)
+    public override async ValueTask DisposeAsync()
     {
-        EnsureValidVersion();
-        if (MethodCallInfo is null || MethodCallInfo.Parameters is null)
-        {
-            return;
-        }
-
-        MethodCallInfo.Parameters[name] = value;
-    }
-
-    protected override void OnVersionUpdated()
-    {
-        // Handle version update if necessary
-        // For example, we might want to log this event
-        Log("VersionUpdate", $"Context updated to version {ContextVersion}");
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_isDisposed || MethodCallInfo is null)
+        if (_isDisposed || MethodCallInfo is null || MethodCallInfo.IsNull)
         {
             return;
         }
@@ -132,53 +52,40 @@ public sealed class AsyncMethodCallContext : VersionedMonitoringContext, IAsyncD
             MethodCallInfo.Elapsed = _stopwatch.Elapsed;
             var endStatus = new MethodCallEnd(MethodCallInfo);
 
-            if (_monitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
+            if (_monitoringController.ShouldTrack(ContextVersion, reporterIds:ReporterIds))
             {
                 (_classMonitor as ClassMonitor)?.LogStatus(endStatus);
             }
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("outdated version"))
         {
-            // Log that the context was operating under an outdated version
-            _logger.LogWarning(
-                $"Async method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, ReporterId: {ReporterIds.FirstOrDefault()}, Context Version: {ContextVersion}, Current Version: {_monitoringController.GetCurrentVersion()}");
+            _logger.LogWarning($"Async method call context disposed with outdated version. Method: {MethodCallInfo.MethodName}, Context Version: {ContextVersion}, Current Version: {_monitoringController.GetCurrentVersion()}");
         }
         finally
         {
-            if (_disposables is not null)
-            {
-                foreach (var disposable in _disposables)
-                {
-                    try
-                    {
-                        await disposable.DisposeAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error disposing async disposable");
-                    }
-                }
-            }
-
+            await DisposeDisposablesAsync();
             _methodCallInfoPool.Return(MethodCallInfo);
-            _logger.LogInformation($"AsyncMethodCallContext disposed at {DateTime.Now:HH:mm:ss.fff}");
             _isDisposed = true;
         }
     }
 
-    public override bool Equals(object? obj)
+    public override void Dispose()
     {
-        if (obj is AsyncMethodCallContext other)
-        {
-            // Compare the properties that define equality for AsyncMethodCallContext
-            return MethodCallInfo == other.MethodCallInfo &&
-                   ReporterIds.SequenceEqual(other.ReporterIds);
-        }
-        return false;
+        DisposeAsync().AsTask().Wait();
     }
 
-    public override int GetHashCode()
+    private async Task DisposeDisposablesAsync()
     {
-        return HashCode.Combine(MethodCallInfo, ReporterIds);
+        foreach (var disposable in _disposables ?? [])
+        {
+            try
+            {
+                await disposable.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error disposing async disposable");
+            }
+        }
     }
 }

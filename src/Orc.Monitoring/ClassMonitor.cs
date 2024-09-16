@@ -3,12 +3,15 @@ namespace Orc.Monitoring;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using MethodLifeCycleItems;
-using System.Linq;
-using System.Reflection;
 
+/// <summary>
+/// Monitors method calls within a class and reports them based on the monitoring configuration.
+/// </summary>
 public class ClassMonitor : IClassMonitor
 {
     private readonly IMonitoringController _monitoringController;
@@ -19,11 +22,12 @@ public class ClassMonitor : IClassMonitor
     private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ILogger<ClassMonitor> _logger;
 
-    private HashSet<string>? _trackedMethodNames;
+    private readonly HashSet<string> _trackedMethodNames;
 
-    public ClassMonitor(IMonitoringController monitoringController, 
+    public ClassMonitor(
+        IMonitoringController monitoringController,
         Type classType,
-        CallStack? callStack, 
+        CallStack callStack,
         MonitoringConfiguration monitoringConfig,
         IMonitoringLoggerFactory loggerFactory,
         IMethodCallContextFactory methodCallContextFactory,
@@ -35,6 +39,7 @@ public class ClassMonitor : IClassMonitor
         ArgumentNullException.ThrowIfNull(monitoringConfig);
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(methodCallContextFactory);
+        ArgumentNullException.ThrowIfNull(methodCallInfoPool);
 
         _monitoringController = monitoringController;
         _classType = classType;
@@ -44,85 +49,106 @@ public class ClassMonitor : IClassMonitor
         _methodCallInfoPool = methodCallInfoPool;
         _logger = loggerFactory.CreateLogger<ClassMonitor>();
         _logger.LogInformation($"ClassMonitor created for {classType.Name}");
+
+        _trackedMethodNames = GetAllMethodNames();
     }
 
-    public AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
+    /// <summary>
+    /// Starts monitoring an asynchronous method.
+    /// </summary>
+    /// <param name="config">The method configuration.</param>
+    /// <param name="callerMethod">The name of the caller method.</param>
+    /// <returns>An <see cref="IMethodCallContext"/> representing the method call.</returns>
+    public IMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
     {
-        return (AsyncMethodCallContext)StartMethodInternal(config, callerMethod, async: true);
+        return StartMethodInternal(config, callerMethod, async: true);
     }
 
-    public MethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
+    /// <summary>
+    /// Starts monitoring a synchronous method.
+    /// </summary>
+    /// <param name="config">The method configuration.</param>
+    /// <param name="callerMethod">The name of the caller method.</param>
+    /// <returns>An <see cref="IMethodCallContext"/> representing the method call.</returns>
+    public IMethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
     {
-        return (MethodCallContext)StartMethodInternal(config, callerMethod, async: false);
+        return StartMethodInternal(config, callerMethod, async: false);
     }
 
-    private object StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
+    private IMethodCallContext StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
     {
-        var currentVersion = _monitoringController.GetCurrentVersion();
-        _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {_monitoringController.IsEnabled}, Version: {currentVersion}");
-
-        if (!IsMonitoringEnabled(callerMethod, currentVersion))
+        try
         {
-            _logger.LogDebug($"Monitoring not enabled for {callerMethod}, returning Dummy context");
-            return GetDummyContext(async);
-        }
+            var currentVersion = _monitoringController.GetCurrentVersion();
+            _logger.LogDebug($"StartMethodInternal called for {callerMethod}. Async: {async}, Monitoring enabled: {_monitoringController.IsEnabled}, Version: {currentVersion}");
 
-        using var operation = _monitoringController.BeginOperation(out var operationVersion);
-
-        var methodCallInfo = CreateMethodCallInfo(config, callerMethod);
-        if (methodCallInfo.IsNull)
-        {
-            _logger.LogDebug("MethodCallInfo is null, returning Dummy context");
-            return GetDummyContext(async);
-        }
-
-        var methodInfo = methodCallInfo.MethodInfo;
-        if (methodInfo is null)
-        {
-            _logger.LogDebug("MethodInfo is null, returning Dummy context");
-            return GetDummyContext(async);
-        }
-
-        // Handle static, generic, and extension methods
-        HandleSpecialMethodTypes(methodInfo, methodCallInfo);
-
-        var disposables = new List<IAsyncDisposable>();
-        var enabledReporterIds = new List<string>();
-
-        foreach (var reporter in config.Reporters)
-        {
-            reporter.Initialize(_monitoringConfig, methodCallInfo);
-
-            methodCallInfo.AddAssociatedReporter(reporter);
-
-            if (_monitoringController.IsReporterEnabled(reporter.GetType()))
+            if (!IsMonitoringEnabled(callerMethod, currentVersion))
             {
-                _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
-                var reporterDisposable = reporter.StartReporting(_callStack);
-                disposables.Add(reporterDisposable);
-                enabledReporterIds.Add(reporter.Id);
-                _logger.LogDebug($"Reporter started: {reporter.GetType().Name} (Id: {reporter.Id})");
+                _logger.LogDebug($"Monitoring not enabled for {callerMethod}, returning Dummy context");
+                return GetDummyContext(async);
             }
-            else
+
+            using var operation = _monitoringController.BeginOperation(out var operationVersion);
+
+            var methodCallInfo = CreateMethodCallInfo(config, callerMethod);
+            if (methodCallInfo is null || methodCallInfo.IsNull)
             {
-                _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name} (Id: {reporter.Id})");
+                _logger.LogDebug("MethodCallInfo is null, returning Dummy context");
+                return GetDummyContext(async);
             }
+
+            var methodInfo = methodCallInfo.MethodInfo;
+            if (methodInfo is null)
+            {
+                _logger.LogDebug("MethodInfo is null, returning Dummy context");
+                return GetDummyContext(async);
+            }
+
+            // Handle static, generic, and extension methods
+            HandleSpecialMethodTypes(methodInfo, methodCallInfo);
+
+            var disposables = new List<IAsyncDisposable>();
+            var enabledReporterIds = new List<string>();
+
+            foreach (var reporter in config.Reporters)
+            {
+                reporter.Initialize(_monitoringConfig, methodCallInfo);
+
+                methodCallInfo.AddAssociatedReporter(reporter);
+
+                if (_monitoringController.IsReporterEnabled(reporter.GetType()))
+                {
+                    _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
+                    var reporterDisposable = reporter.StartReporting(_callStack);
+                    disposables.Add(reporterDisposable);
+                    enabledReporterIds.Add(reporter.Id);
+                    _logger.LogDebug($"Reporter started: {reporter.GetType().Name} (Id: {reporter.Id})");
+                }
+                else
+                {
+                    _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name} (Id: {reporter.Id})");
+                }
+            }
+
+            _callStack.Push(methodCallInfo);
+
+            if (!ShouldTrackMethod(methodCallInfo, operationVersion, enabledReporterIds))
+            {
+                _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}, Filters: {string.Join(", ", _monitoringConfig.Filters.Select(f => f.GetType().Name))}");
+                return GetDummyContext(async);
+            }
+
+            PopulateAttributeParameters(methodCallInfo);
+
+            _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
+            return CreateMethodCallContext(async, methodCallInfo, disposables, enabledReporterIds);
         }
-
-        _callStack.Push(methodCallInfo);
-
-        if (!ShouldTrackMethod(methodCallInfo, operationVersion, enabledReporterIds))
+        catch (Exception ex)
         {
-            _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}, Filters: {string.Join(", ", _monitoringConfig.Filters.Select(f => f.GetType().Name))}");
+            _logger.LogError(ex, $"Exception in StartMethodInternal for {callerMethod}");
             return GetDummyContext(async);
         }
-
-        PopulateAttributeParameters(methodCallInfo);
-
-        _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
-        return CreateMethodCallContext(async, methodCallInfo, disposables, enabledReporterIds);
     }
-
 
     private void PopulateAttributeParameters(MethodCallInfo methodCallInfo)
     {
@@ -131,8 +157,28 @@ public class ClassMonitor : IClassMonitor
         {
             foreach (var attr in attributes)
             {
-                methodCallInfo.AttributeParameters!.Add(attr.Name);
-                methodCallInfo.Parameters![attr.Name] = attr.Value;
+                if (methodCallInfo.AttributeParameters?.Add(attr.Name) ?? false)
+                {
+                    var parameters = methodCallInfo.Parameters;
+                    if (parameters is null)
+                    {
+                        parameters = new Dictionary<string, string>();
+                        methodCallInfo.Parameters = parameters;
+                    }
+
+                    if (!parameters.ContainsKey(attr.Name))
+                    {
+                        parameters[attr.Name] = attr.Value;
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"Parameter '{attr.Name}' already exists in method parameters. Skipping attribute parameter.");
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning($"Attribute parameter '{attr.Name}' is already added. Skipping duplicate.");
+                }
             }
         }
     }
@@ -159,13 +205,13 @@ public class ClassMonitor : IClassMonitor
         }
     }
 
-    private MethodCallInfo CreateMethodCallInfo(MethodConfiguration config, string callerMethod)
+    private MethodCallInfo? CreateMethodCallInfo(MethodConfiguration config, string callerMethod)
     {
         var methodInfo = FindMethod(callerMethod, config);
         if (methodInfo is null)
         {
             _logger.LogWarning($"Method not found: {callerMethod}");
-            return _methodCallInfoPool.GetNull();
+            return null;
         }
 
         return _callStack.CreateMethodCallInfo(this, _classType, new MethodCallContextConfig
@@ -185,34 +231,62 @@ public class ClassMonitor : IClassMonitor
 
         if (methods.Count == 0)
         {
+            _logger.LogWarning($"No methods found with name '{methodName}' in class '{_classType.Name}'.");
             return null;
         }
 
-        if (methods.Count == 1)
-        {
-            return methods[0];
-        }
+        var matchingMethods = new List<MethodInfo>();
 
-        // If we have multiple methods with the same name, try to match based on parameter types
-        var matchedMethod = methods.FirstOrDefault(m => ParametersMatch(m.GetParameters(), config.ParameterTypes));
-        if (matchedMethod is not null)
+        foreach (var method in methods)
         {
-            return matchedMethod;
-        }
+            MethodInfo methodToCompare = method;
 
-        // If we still can't determine, and it's a generic method, try to match based on generic arguments
-        if (config.GenericArguments.Any())
-        {
-            matchedMethod = methods.FirstOrDefault(m => GenericArgumentsMatch(m, config.GenericArguments));
-            if (matchedMethod is not null)
+            if (method.IsGenericMethodDefinition)
             {
-                return matchedMethod;
+                if (config.GenericArguments.Any() && method.GetGenericArguments().Length == config.GenericArguments.Count)
+                {
+                    try
+                    {
+                        methodToCompare = method.MakeGenericMethod(config.GenericArguments.ToArray());
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        _logger.LogWarning($"Failed to make generic method '{method.Name}' with specified generic arguments: {ex.Message}");
+                        continue;
+                    }
+                }
+                else
+                {
+                    // Generic argument count does not match; skip this method
+                    continue;
+                }
+            }
+            else if (config.GenericArguments.Any())
+            {
+                // Method is not generic but config specifies generic arguments; skip this method
+                continue;
+            }
+
+            if (ParametersMatch(methodToCompare.GetParameters(), config.ParameterTypes))
+            {
+                matchingMethods.Add(methodToCompare);
             }
         }
 
-        // If we still can't determine, log a warning and return the first method
-        _logger.LogWarning($"Multiple methods found with name {methodName}, unable to determine exact match. Using first method.");
-        return methods[0];
+        if (matchingMethods.Count == 1)
+        {
+            return matchingMethods[0];
+        }
+        else if (matchingMethods.Count > 1)
+        {
+            // Ambiguous match
+            throw new InvalidOperationException($"Ambiguous method match for '{methodName}' in class '{_classType.Name}' with the specified configuration.");
+        }
+        else
+        {
+            _logger.LogWarning($"Method '{methodName}' not found in class '{_classType.Name}' with specified configuration.");
+            return null;
+        }
     }
 
     private bool ParametersMatch(ParameterInfo[] methodParams, List<Type> configParams)
@@ -224,7 +298,7 @@ public class ClassMonitor : IClassMonitor
 
         for (int i = 0; i < methodParams.Length; i++)
         {
-            if (!methodParams[i].ParameterType.IsAssignableFrom(configParams[i]))
+            if (methodParams[i].ParameterType != configParams[i])
             {
                 return false;
             }
@@ -241,32 +315,26 @@ public class ClassMonitor : IClassMonitor
         }
 
         var genericArgs = method.GetGenericArguments();
-        return genericArgs.Length == configGenericArgs.Count;
+        if (genericArgs.Length != configGenericArgs.Count)
+        {
+            return false;
+        }
+
+        // Further comparison could be added here if necessary
+
+        return true;
     }
 
     private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
     {
-        EnsureMethodsLoaded();
-
-        if (_trackedMethodNames is null)
+        if (!_monitoringController.ShouldTrack(currentVersion))
         {
-            _logger.LogWarning($"_trackedMethodNames is null for {callerMethod}");
             return false;
         }
 
-        var isEnabled = _monitoringController.ShouldTrack(currentVersion) && _trackedMethodNames.Contains(callerMethod);
-        _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}. ShouldTrack: {_monitoringController.ShouldTrack(currentVersion)}, Contains: {_trackedMethodNames.Contains(callerMethod)}");
+        var isEnabled = _trackedMethodNames.Contains(callerMethod);
+        _logger.LogDebug($"IsMonitoringEnabled: {isEnabled} for {callerMethod}");
         return isEnabled;
-    }
-
-    private void EnsureMethodsLoaded()
-    {
-        if (_trackedMethodNames is not null)
-        {
-            return;
-        }
-
-        _trackedMethodNames = GetAllMethodNames();
     }
 
     private HashSet<string> GetAllMethodNames()
@@ -276,7 +344,7 @@ public class ClassMonitor : IClassMonitor
             .ToHashSet();
     }
 
-    private object GetDummyContext(bool async)
+    private IMethodCallContext GetDummyContext(bool async)
     {
         _logger.LogDebug("Returning Dummy context");
         return async
@@ -284,7 +352,7 @@ public class ClassMonitor : IClassMonitor
             : _methodCallContextFactory.GetDummyMethodCallContext();
     }
 
-    private object CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
+    private IMethodCallContext CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
     {
         return async
             ? _methodCallContextFactory.CreateAsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds)
@@ -306,6 +374,10 @@ public class ClassMonitor : IClassMonitor
         return false;
     }
 
+    /// <summary>
+    /// Logs the status of a method lifecycle event.
+    /// </summary>
+    /// <param name="status">The lifecycle event to log.</param>
     public void LogStatus(IMethodLifeCycleItem status)
     {
         _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
@@ -318,7 +390,7 @@ public class ClassMonitor : IClassMonitor
 
         ArgumentNullException.ThrowIfNull(status);
 
-        if (status is MethodCallEnd { MethodCallInfo.IsNull: false } endStatus)
+        if (status is MethodCallEnd endStatus && !endStatus.MethodCallInfo.IsNull)
         {
             _logger.LogDebug($"Popping MethodCallInfo for {endStatus.MethodCallInfo}");
             _callStack.Pop(endStatus.MethodCallInfo);

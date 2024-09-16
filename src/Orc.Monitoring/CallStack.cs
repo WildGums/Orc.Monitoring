@@ -358,8 +358,24 @@ public class CallStack : IObservable<ICallStackItem>
         }
 
         var genericArgs = method.GetGenericArguments();
-        return genericArgs.Length == configGenericArgs.Count;
+        if (genericArgs.Length != configGenericArgs.Count)
+        {
+            return false;
+        }
+
+        // Compare each generic argument type
+        var methodGenericArgs = method.GetGenericMethodDefinition().GetGenericArguments();
+        for (int i = 0; i < genericArgs.Length; i++)
+        {
+            if (genericArgs[i].Name != methodGenericArgs[i].Name)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
+
 
     private bool IsEmpty()
     {
