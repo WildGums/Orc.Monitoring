@@ -75,6 +75,109 @@ public class ClassMonitor : IClassMonitor
         return StartMethodInternal(config, callerMethod, async: false);
     }
 
+    /// <summary>
+    /// Starts monitoring an external method call.
+    /// </summary>
+    /// <param name="config">The method configuration.</param>
+    /// <param name="externalMethodName">The name of the external method.</param>
+    /// <param name="externalType">The external type.</param>
+    /// <param name="async">Whether the external method is asynchronous.</param>
+    /// <returns>An <see cref="IMethodCallContext"/> representing the external method call.</returns>
+    public IMethodCallContext StartExternalMethod(MethodConfiguration config, Type externalType, string externalMethodName, bool async = false)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(externalType);
+        ArgumentException.ThrowIfNullOrEmpty(externalMethodName);
+
+        try
+        {
+            var currentVersion = _monitoringController.GetCurrentVersion();
+            _logger.LogDebug($"StartExternalMethod called for {externalMethodName} in {externalType.Name}. Async: {async}, Monitoring enabled: {_monitoringController.IsEnabled}, Version: {currentVersion}");
+
+            if (!_monitoringController.IsEnabled)
+            {
+                _logger.LogDebug($"Monitoring not enabled for external method {externalMethodName}, returning Dummy context");
+                return GetDummyContext(async);
+            }
+
+            using var operation = _monitoringController.BeginOperation(out var operationVersion);
+
+            var methodCallInfo = CreateMethodCallInfo(config, externalMethodName, externalType);
+            if (methodCallInfo is null || methodCallInfo.IsNull)
+            {
+                _logger.LogDebug("MethodCallInfo is null, returning Dummy context");
+                return GetDummyContext(async);
+            }
+
+            var disposables = new List<IAsyncDisposable>();
+            var enabledReporterIds = new List<string>();
+
+            foreach (var reporter in config.Reporters)
+            {
+                reporter.Initialize(_monitoringConfig, methodCallInfo);
+
+                methodCallInfo.AddAssociatedReporter(reporter);
+
+                if (_monitoringController.IsReporterEnabled(reporter.GetType()))
+                {
+                    _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
+                    var reporterDisposable = reporter.StartReporting(_callStack);
+                    disposables.Add(reporterDisposable);
+                    enabledReporterIds.Add(reporter.Id);
+                    _logger.LogDebug($"Reporter started: {reporter.GetType().Name} (Id: {reporter.Id})");
+                }
+                else
+                {
+                    _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name} (Id: {reporter.Id})");
+                }
+            }
+
+            _callStack.Push(methodCallInfo);
+
+            if (!ShouldTrackMethod(methodCallInfo, operationVersion, enabledReporterIds))
+            {
+                _logger.LogDebug($"External method filtered out, returning Dummy context. Method: {externalMethodName}, Filters: {string.Join(", ", _monitoringConfig.Filters.Select(f => f.GetType().Name))}");
+                return GetDummyContext(async);
+            }
+
+            _logger.LogDebug($"Returning {(async ? "async" : "sync")} context for external method");
+            return CreateMethodCallContext(async, methodCallInfo, disposables, enabledReporterIds);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Exception in StartExternalMethod for {externalMethodName} in {externalType.Name}");
+            return GetDummyContext(async);
+        }
+    }
+
+    private MethodCallInfo CreateMethodCallInfo(MethodConfiguration config, string methodName, Type? externalType = null)
+    {
+        var isExternalCall = externalType is not null;
+        MethodInfo? methodInfo = null;
+        if (!isExternalCall)
+        {
+            methodInfo = FindMethod(methodName, config);
+            if (methodInfo is null)
+            {
+                _logger.LogWarning($"Method not found: {methodName}");
+                return _methodCallInfoPool.GetNull();
+            }
+        }
+
+        return _callStack.CreateMethodCallInfo(
+            this,
+            externalType ?? _classType,
+            new MethodCallContextConfig
+            {
+                ClassType = isExternalCall ? null : _classType,
+                CallerMethodName = methodName,
+                GenericArguments = config.GenericArguments,
+                ParameterTypes = config.ParameterTypes
+            },
+            methodInfo
+        );
+    }
+
     private IMethodCallContext StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
     {
         try
@@ -149,7 +252,6 @@ public class ClassMonitor : IClassMonitor
             return GetDummyContext(async);
         }
     }
-
     private void PopulateAttributeParameters(MethodCallInfo methodCallInfo)
     {
         var attributes = methodCallInfo.MethodInfo?.GetCustomAttributes<MethodCallParameterAttribute>(false);
