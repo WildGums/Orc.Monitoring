@@ -5,9 +5,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Reporters;
+
 
 /// <summary>
 /// Provides a pool of <see cref="MethodCallInfo"/> instances to optimize performance by reusing objects.
@@ -40,6 +40,8 @@ public class MethodCallInfoPool
     /// <param name="genericArguments">The generic arguments.</param>
     /// <param name="id">The identifier.</param>
     /// <param name="attributeParameters">The attribute parameters.</param>
+    /// <param name="isExternalCall">Indicates whether this is an external method call.</param>
+    /// <param name="externalTypeName">The name of the external type for external calls.</param>
     /// <returns>A <see cref="MethodCallInfo"/> instance.</returns>
     public MethodCallInfo Rent(
         IClassMonitor? classMonitor,
@@ -47,7 +49,9 @@ public class MethodCallInfoPool
         MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments,
         string id,
-        Dictionary<string, string> attributeParameters)
+        Dictionary<string, string> attributeParameters,
+        bool isExternalCall = false,
+        string? externalTypeName = null)
     {
         if (!_monitoringController.IsEnabled)
         {
@@ -60,7 +64,7 @@ public class MethodCallInfoPool
             item = new MethodCallInfo();
         }
 
-        item.Reset(_monitoringController, classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters);
+        item.Reset(_monitoringController, classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters, isExternalCall, externalTypeName);
         return item;
     }
 
