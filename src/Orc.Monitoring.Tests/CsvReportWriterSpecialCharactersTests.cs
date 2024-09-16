@@ -75,15 +75,15 @@ public class CsvReportWriterSpecialCharactersTests
         Assert.That(lines[1], Does.Contain("\"Method,With,Commas\""));
         Assert.That(lines[1], Does.Contain("\"Class.Method,With,Commas\""));
         Assert.That(lines[1], Does.Contain("\"Value,With,Commas\""));
-        Assert.That(lines[1], Does.Contain("\"Value \"\"\"\"With\"\"\"\" Quotes\""));
+        Assert.That(lines[1], Does.Contain("\"Value \"\"With\"\" Quotes\""));
 
         // Parse the CSV content
         var parsedItems = ParseCsvString(content);
         Assert.That(parsedItems, Has.Count.EqualTo(1));
         var parsedItem = parsedItems[0];
 
-        Assert.That(parsedItem["Param_With_Comma"], Is.EqualTo("\"Value,With,Commas\""));
-        Assert.That(parsedItem["Param_With_Quotes"], Is.EqualTo("\"Value \"\"With\"\" Quotes\""));
+        Assert.That(parsedItem["Param_With_Comma"], Is.EqualTo("Value,With,Commas"));
+        Assert.That(parsedItem["Param_With_Quotes"], Is.EqualTo("Value \"With\" Quotes"));
     }
     
     private List<Dictionary<string, string>> ParseCsvString(string csvContent)
