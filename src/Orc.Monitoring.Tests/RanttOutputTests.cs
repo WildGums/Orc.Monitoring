@@ -151,7 +151,7 @@ public class RanttOutputTests
         await _fileSystem.WriteAllTextAsync(Path.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
 
         var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
-        methodCallInfo.Parameters["CustomColumn"] = "OriginalValue";
+        methodCallInfo.AddParameter("CustomColumn", "OriginalValue");
         methodCallInfo.AttributeParameters.Add("CustomColumn");
 
         await using (var _ = _ranttOutput.Initialize(_mockReporter))
@@ -327,8 +327,8 @@ public class RanttOutputTests
     {
         // Arrange
         var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
-        methodCallInfo.Parameters["StaticParam"] = "StaticValue";
-        methodCallInfo.Parameters["DynamicParam"] = "DynamicValue";
+        methodCallInfo.AddParameter("StaticParam", "StaticValue");
+        methodCallInfo.AddParameter("DynamicParam", "DynamicValue");
         methodCallInfo.AttributeParameters.Add("StaticParam");
 
         await using (var _ = _ranttOutput.Initialize(_mockReporter))
@@ -358,8 +358,8 @@ public class RanttOutputTests
     {
         // Arrange
         var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
-        methodCallInfo.Parameters["StaticParam"] = "StaticValue";
-        methodCallInfo.Parameters["DynamicParam"] = "DynamicValue";
+        methodCallInfo.AddParameter("StaticParam", "StaticValue");
+        methodCallInfo.AddParameter("DynamicParam", "DynamicValue");
         methodCallInfo.AttributeParameters.Add("StaticParam");
 
         await using (var _ = _ranttOutput.Initialize(_mockReporter))

@@ -13,9 +13,16 @@ public class MethodCallInfo
 {
     private MethodCallInfo? _parent;
     private readonly HashSet<IMethodCallReporter> _associatedReporters = [];
+    private Dictionary<string, string>? _parameters;
 
     public bool IsNull { get; init; }
-    public Dictionary<string, string>? Parameters { get; set; }
+
+    public IReadOnlyDictionary<string, string>? Parameters
+    {
+        get => _parameters;
+        set => _parameters = value is null ? null : new Dictionary<string, string>(value);
+    }
+
     public MethodInfo? MethodInfo { get; set; }
     public Type? ClassType { get; set; }
     public string? MethodName { get; set; }
@@ -103,7 +110,7 @@ public class MethodCallInfo
         Level = 0;
         Id = null;
         ThreadId = 0;
-        Parameters?.Clear();
+        _parameters?.Clear();
         Parameters = null;
         AttributeParameters?.Clear();
         AttributeParameters = null;
@@ -243,5 +250,15 @@ public class MethodCallInfo
     public void AddAssociatedReporter(IMethodCallReporter reporter)
     {
         _associatedReporters.Add(reporter);
+    }
+
+    public void AddParameter(string attrName, string attrValue)
+    {
+        if (_parameters is null)
+        {
+            _parameters = new Dictionary<string, string>();
+        }
+
+        _parameters[attrName] = attrValue;
     }
 }

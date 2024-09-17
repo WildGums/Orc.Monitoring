@@ -270,7 +270,7 @@ public class ClassMonitor : IClassMonitor
 
                     if (!parameters.ContainsKey(attr.Name))
                     {
-                        parameters[attr.Name] = attr.Value;
+                        methodCallInfo.AddParameter(attr.Name, attr.Value);
                     }
                     else
                     {
