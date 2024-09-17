@@ -125,11 +125,11 @@ public class CallStack : IObservable<ICallStackItem>
 
             _logger.LogDebug("Pushed: {MethodCallInfo}", methodCallInfo);
 
-            var currentVersion = _monitoringController.GetCurrentVersion();
-            if (_monitoringController.ShouldTrack(currentVersion))
-            {
-                NotifyObservers(new MethodCallStart(methodCallInfo), currentVersion);
-            }
+            //var currentVersion = _monitoringController.GetCurrentVersion();
+            //if (_monitoringController.ShouldTrack(currentVersion))
+            //{
+            //    NotifyObservers(new MethodCallStart(methodCallInfo), currentVersion);
+            //}
         }
     }
 
@@ -161,11 +161,11 @@ public class CallStack : IObservable<ICallStackItem>
 
                     _logger.LogDebug("Popped: {MethodCallInfo}", methodCallInfo);
 
-                    var currentVersion = _monitoringController.GetCurrentVersion();
-                    if (_monitoringController.ShouldTrack(currentVersion))
-                    {
-                        NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
-                    }
+                    //var currentVersion = _monitoringController.GetCurrentVersion();
+                    //if (_monitoringController.ShouldTrack(currentVersion))
+                    //{
+                    //    NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
+                    //}
                 }
                 else
                 {

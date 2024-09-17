@@ -41,6 +41,12 @@ public abstract class MethodCallContextBase : VersionedMonitoringContext, IMetho
         if (MethodCallInfo is not null && !MethodCallInfo.IsNull)
         {
             _stopwatch.Start();
+
+            if (_monitoringController.ShouldTrack(ContextVersion))
+            {
+                var startStatus = new MethodCallStart(MethodCallInfo);
+                (_classMonitor as ClassMonitor)?.LogStatus(startStatus);
+            }
         }
     }
 

@@ -370,7 +370,7 @@ public class ClassMonitor : IClassMonitor
                 continue;
             }
 
-            if (ParametersMatch(methodToCompare.GetParameters(), config.ParameterTypes))
+            if (!config.ParameterTypes.Any() || ParametersMatch(methodToCompare.GetParameters(), config.ParameterTypes))
             {
                 matchingMethods.Add(methodToCompare);
             }
