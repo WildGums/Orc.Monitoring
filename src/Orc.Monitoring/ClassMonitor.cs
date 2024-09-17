@@ -169,7 +169,7 @@ public class ClassMonitor : IClassMonitor
             externalType ?? _classType,
             new MethodCallContextConfig
             {
-                ClassType = isExternalCall ? null : _classType,
+                ClassType = isExternalCall ? externalType : _classType,
                 CallerMethodName = methodName,
                 GenericArguments = config.GenericArguments,
                 ParameterTypes = config.ParameterTypes

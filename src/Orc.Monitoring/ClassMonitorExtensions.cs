@@ -20,4 +20,20 @@ public static class ClassMonitorExtensions
         var config = builder.Build();
         return monitor.StartMethod(config, callerMethod);
     }
+
+    public static IMethodCallContext StartExternal(this IClassMonitor monitor, Action<MethodConfigurationBuilder> configAction, Type externalType, [CallerMemberName] string callerMethod = "")
+    {
+        var builder = new MethodConfigurationBuilder();
+        configAction(builder);
+        var config = builder.Build();
+        return monitor.StartExternalMethod(config, externalType, callerMethod, false);
+    }
+
+    public static IMethodCallContext AsyncStartExternal(this IClassMonitor monitor, Action<MethodConfigurationBuilder> configAction, Type externalType, [CallerMemberName] string callerMethod = "")
+    {
+        var builder = new MethodConfigurationBuilder();
+        configAction(builder);
+        var config = builder.Build();
+        return monitor.StartExternalMethod(config, externalType, callerMethod, true);
+    }
 }
