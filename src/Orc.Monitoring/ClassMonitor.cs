@@ -59,7 +59,7 @@ public class ClassMonitor : IClassMonitor
     /// <param name="config">The method configuration.</param>
     /// <param name="callerMethod">The name of the caller method.</param>
     /// <returns>An <see cref="IMethodCallContext"/> representing the method call.</returns>
-    public IMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
+    public IMethodCallContext StartAsyncMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
     {
         return StartMethodInternal(config, callerMethod, async: true);
     }
@@ -156,7 +156,7 @@ public class ClassMonitor : IClassMonitor
         MethodInfo? methodInfo = null;
         if (!isExternalCall)
         {
-            methodInfo = FindMethod(methodName, config);
+            methodInfo = FindMethod(methodName, config, externalType);
             if (methodInfo is null)
             {
                 _logger.LogWarning($"Method not found: {methodName}");
@@ -325,15 +325,16 @@ public class ClassMonitor : IClassMonitor
         });
     }
 
-    private MethodInfo? FindMethod(string methodName, MethodConfiguration config)
+    private MethodInfo? FindMethod(string methodName, MethodConfiguration config, Type? externalType = null)
     {
-        var methods = _classType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
+        var type = externalType ?? _classType;
+        var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
             .Where(m => m.Name == methodName)
             .ToList();
 
         if (methods.Count == 0)
         {
-            _logger.LogWarning($"No methods found with name '{methodName}' in class '{_classType.Name}'.");
+            _logger.LogWarning($"No methods found with name '{methodName}' in class '{type.Name}'.");
             return null;
         }
 
@@ -382,11 +383,11 @@ public class ClassMonitor : IClassMonitor
         else if (matchingMethods.Count > 1)
         {
             // Ambiguous match
-            throw new InvalidOperationException($"Ambiguous method match for '{methodName}' in class '{_classType.Name}' with the specified configuration.");
+            throw new InvalidOperationException($"Ambiguous method match for '{methodName}' in class '{type.Name}' with the specified configuration.");
         }
         else
         {
-            _logger.LogWarning($"Method '{methodName}' not found in class '{_classType.Name}' with specified configuration.");
+            _logger.LogWarning($"Method '{methodName}' not found in class '{type.Name}' with specified configuration.");
             return null;
         }
     }

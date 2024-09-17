@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Moq;
 using Microsoft.Extensions.Logging;
 
-
 [TestFixture]
 public class CallStackExternalMethodTests
 {

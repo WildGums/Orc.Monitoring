@@ -225,7 +225,13 @@ public class CallStack : IObservable<ICallStackItem>
 
     private bool ShouldLogStatus(IMethodLifeCycleItem status)
     {
-        var methodInfo = status.MethodCallInfo.MethodInfo;
+        var methodCallInfo = status.MethodCallInfo;
+        if(methodCallInfo is null)
+        {
+            return false;
+        }
+
+        var methodInfo = methodCallInfo.MethodInfo;
         if (methodInfo is null)
         {
             return false;
@@ -242,7 +248,7 @@ public class CallStack : IObservable<ICallStackItem>
         {
             if (_monitoringController.IsFilterEnabled(filter.GetType()))
             {
-                return filter.ShouldInclude(status.MethodCallInfo);
+                return filter.ShouldInclude(methodCallInfo);
             }
             return false;
         });
