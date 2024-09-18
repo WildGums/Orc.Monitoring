@@ -41,7 +41,6 @@ public class MethodCallInfoPool
     /// <param name="id">The identifier.</param>
     /// <param name="attributeParameters">The attribute parameters.</param>
     /// <param name="isExternalCall">Indicates whether this is an external method call.</param>
-    /// <param name="externalTypeName">The name of the external type for external calls.</param>
     /// <returns>A <see cref="MethodCallInfo"/> instance.</returns>
     public MethodCallInfo Rent(
         IClassMonitor? classMonitor,
@@ -50,8 +49,7 @@ public class MethodCallInfoPool
         IReadOnlyCollection<Type> genericArguments,
         string id,
         Dictionary<string, string> attributeParameters,
-        bool isExternalCall = false,
-        string? externalTypeName = null)
+        bool isExternalCall = false)
     {
         if (!_monitoringController.IsEnabled)
         {
@@ -64,7 +62,7 @@ public class MethodCallInfoPool
             item = new MethodCallInfo();
         }
 
-        item.Reset(_monitoringController, classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters, isExternalCall, externalTypeName);
+        item.Reset(_monitoringController, classMonitor, callerType, methodInfo, genericArguments, id, attributeParameters, isExternalCall);
         return item;
     }
 

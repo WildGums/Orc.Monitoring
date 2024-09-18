@@ -54,7 +54,6 @@ public class MethodCallInfo
 
     // New properties for external method calls
     public bool IsExternalCall { get; set; }
-    public string? ExternalTypeName { get; set; }
 
     public IReadOnlyCollection<IMethodCallReporter> AssociatedReporters => _associatedReporters;
 
@@ -63,7 +62,7 @@ public class MethodCallInfo
 
     public void Reset(IMonitoringController monitoringController, IClassMonitor? classMonitor, Type classType, MethodInfo methodInfo,
         IReadOnlyCollection<Type> genericArguments, string id, Dictionary<string, string> attributeParameters,
-        bool isExternalCall = false, string? externalTypeName = null)
+        bool isExternalCall = false)
     {
         if (IsNull)
         {
@@ -92,7 +91,6 @@ public class MethodCallInfo
 
         // Set properties for external method calls
         IsExternalCall = isExternalCall;
-        ExternalTypeName = externalTypeName;
     }
 
     public void Clear()
@@ -128,7 +126,6 @@ public class MethodCallInfo
 
         // Clear properties for external method calls
         IsExternalCall = false;
-        ExternalTypeName = null;
     }
 
     public void SetGenericArguments(Type[] genericArguments)
@@ -140,7 +137,7 @@ public class MethodCallInfo
     public override string ToString()
     {
         if (IsNull) return "Null MethodCallInfo";
-        var classTypeName = IsExternalCall ? ExternalTypeName : ClassType?.Name ?? string.Empty;
+        var classTypeName = ClassType?.Name ?? string.Empty;
         var methodType = IsStatic ? "Static" : IsExtensionMethod ? "Extension" : "Instance";
         var genericInfo = IsGenericMethod ? $"<{string.Join(", ", GenericArguments?.Select(t => t.Name) ?? Array.Empty<string>())}>" : string.Empty;
         var externalInfo = IsExternalCall ? " (External)" : string.Empty;
@@ -197,8 +194,7 @@ public class MethodCallInfo
                IsStatic == other.IsStatic &&
                IsGenericMethod == other.IsGenericMethod &&
                IsExtensionMethod == other.IsExtensionMethod &&
-               IsExternalCall == other.IsExternalCall &&
-               ExternalTypeName == other.ExternalTypeName;
+               IsExternalCall == other.IsExternalCall;
     }
 
     public override int GetHashCode()
@@ -220,7 +216,6 @@ public class MethodCallInfo
             hash = hash * 23 + IsGenericMethod.GetHashCode();
             hash = hash * 23 + IsExtensionMethod.GetHashCode();
             hash = hash * 23 + IsExternalCall.GetHashCode();
-            hash = hash * 23 + (ExternalTypeName?.GetHashCode() ?? 0);
             return hash;
         }
     }

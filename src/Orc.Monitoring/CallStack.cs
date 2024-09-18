@@ -43,7 +43,7 @@ public class CallStack : IObservable<ICallStackItem>
         _logger = loggerFactory.CreateLogger<CallStack>();
     }
 
-    public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null, bool isExternalCall = false, string? externalTypeName = null)
+    public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null, bool isExternalCall = false)
     {
         methodInfo ??= FindMatchingMethod(config);
         if (methodInfo is null)
@@ -58,7 +58,7 @@ public class CallStack : IObservable<ICallStackItem>
 
         var id = GenerateId();
 
-        var result = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, id, attributeParameters, isExternalCall, externalTypeName);
+        var result = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, id, attributeParameters, isExternalCall);
 
         if (result.IsNull)
         {

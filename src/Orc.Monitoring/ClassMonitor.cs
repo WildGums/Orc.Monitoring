@@ -174,8 +174,8 @@ public class ClassMonitor : IClassMonitor
                 GenericArguments = config.GenericArguments,
                 ParameterTypes = config.ParameterTypes
             },
-            methodInfo
-        );
+            methodInfo,
+            externalType is not null);
     }
 
     private IMethodCallContext StartMethodInternal(MethodConfiguration config, string callerMethod, bool async)
@@ -493,7 +493,7 @@ public class ClassMonitor : IClassMonitor
 
         ArgumentNullException.ThrowIfNull(status);
 
-        if (status is MethodCallEnd endStatus && !endStatus.MethodCallInfo.IsNull)
+        if (status is MethodCallEnd { MethodCallInfo.IsNull: false } endStatus)
         {
             _logger.LogDebug($"Popping MethodCallInfo for {endStatus.MethodCallInfo}");
             _callStack.Pop(endStatus.MethodCallInfo);
