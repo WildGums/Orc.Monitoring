@@ -26,7 +26,27 @@ public sealed class AsyncMethodCallContext : MethodCallContextBase
     /// <param name="exception">The exception to log.</param>
     public override void LogException(Exception exception)
     {
-        // Implementation...
+        if (MethodCallInfo?.IsNull ?? true)
+        {
+            // Do nothing if we're using a dummy context
+            return;
+        }
+
+        try
+        {
+            EnsureValidVersion();
+            if (MethodCallInfo is null)
+            {
+                return;
+            }
+
+            var exceptionStatus = new MethodCallException(MethodCallInfo, exception);
+            (_classMonitor as ClassMonitor)?.LogStatus(exceptionStatus);
+        }
+        catch (InvalidOperationException)
+        {
+            // Silently ignore version mismatch when monitoring is not properly configured
+        }
     }
 
     /// <summary>
@@ -36,7 +56,14 @@ public sealed class AsyncMethodCallContext : MethodCallContextBase
     /// <param name="data">The data to log.</param>
     public override void Log(string category, object data)
     {
-        // Implementation...
+        EnsureValidVersion();
+        if (MethodCallInfo is null)
+        {
+            return;
+        }
+
+        var logEntry = new LogEntryItem(MethodCallInfo, category, data);
+        (_classMonitor as ClassMonitor)?.LogStatus(logEntry);
     }
 
     /// <summary>
@@ -46,7 +73,18 @@ public sealed class AsyncMethodCallContext : MethodCallContextBase
     /// <param name="value">The value of the parameter.</param>
     public override void SetParameter(string name, string value)
     {
-        // Implementation...
+        EnsureValidVersion();
+        if (MethodCallInfo is null || MethodCallInfo.Parameters is null)
+        {
+            return;
+        }
+
+        MethodCallInfo.AddParameter(name, value);
+    }
+
+    protected override void OnVersionUpdated()
+    {
+
     }
 
     /// <summary>

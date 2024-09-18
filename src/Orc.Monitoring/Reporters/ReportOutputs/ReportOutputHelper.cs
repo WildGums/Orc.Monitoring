@@ -122,6 +122,7 @@ public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
     private ReportItem ProcessEnd(MethodCallEnd end)
     {
         var methodCallInfo = end.MethodCallInfo;
+
         var id = methodCallInfo.Id;
 
         if (string.IsNullOrEmpty(id))

@@ -56,6 +56,11 @@ public class CallStack : IObservable<ICallStackItem>
             .OfType<MethodCallParameterAttribute>()
             .ToDictionary(attr => attr.Name, attr => attr.Value);
 
+        foreach (var configStaticParameter in config.StaticParameters ?? [])
+        {
+            attributeParameters[configStaticParameter.Key] = configStaticParameter.Value;
+        }
+
         var id = GenerateId();
 
         var result = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, id, attributeParameters, isExternalCall);

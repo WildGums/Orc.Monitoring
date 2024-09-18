@@ -172,7 +172,8 @@ public class ClassMonitor : IClassMonitor
                 ClassType = isExternalCall ? externalType : _classType,
                 CallerMethodName = methodName,
                 GenericArguments = config.GenericArguments,
-                ParameterTypes = config.ParameterTypes
+                ParameterTypes = config.ParameterTypes,
+                StaticParameters = config.StaticParameters
             },
             methodInfo,
             externalType is not null);
@@ -321,7 +322,8 @@ public class ClassMonitor : IClassMonitor
             ClassType = _classType,
             CallerMethodName = callerMethod,
             GenericArguments = config.GenericArguments,
-            ParameterTypes = config.ParameterTypes
+            ParameterTypes = config.ParameterTypes,
+            StaticParameters = config.StaticParameters
         });
     }
 
