@@ -75,11 +75,10 @@ public class MethodCallInfoPoolTests
         var attributeParameters = new Dictionary<string, string>();
 
         // Act
-        var result = _pool.Rent(_mockClassMonitor.Object, typeof(string), _testMethod, genericArguments, "testId", attributeParameters, true, "ExternalType");
+        var result = _pool.Rent(_mockClassMonitor.Object, typeof(string), _testMethod, genericArguments, "testId", attributeParameters, true);
 
         // Assert
         Assert.That(result.IsExternalCall, Is.True);
-        Assert.That(result.ExternalTypeName, Is.EqualTo("ExternalType"));
     }
 
     [Test]

@@ -49,12 +49,11 @@ public class CallStackExternalMethodTests
         };
 
         // Act
-        var methodCallInfo = _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, externalType, config, externalType.GetMethod(externalMethodName, new[] { typeof(int) }), true, "System.String");
+        var methodCallInfo = _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, externalType, config, externalType.GetMethod(externalMethodName, new[] { typeof(int) }), true);
 
         // Assert
         Assert.That(methodCallInfo, Is.Not.Null);
         Assert.That(methodCallInfo.IsExternalCall, Is.True);
-        Assert.That(methodCallInfo.ExternalTypeName, Is.EqualTo("System.String"));
         Assert.That(methodCallInfo.MethodName, Does.Contain("Substring"));
     }
 
@@ -148,7 +147,7 @@ public class CallStackExternalMethodTests
 
         var methodInfo = new DummyMethodInfo(methodName, externalType);
 
-        return _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, externalType, config, methodInfo, true, externalType.FullName);
+        return _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, externalType, config, methodInfo, true);
     }
 
     // Dummy methods to satisfy the reflection calls
