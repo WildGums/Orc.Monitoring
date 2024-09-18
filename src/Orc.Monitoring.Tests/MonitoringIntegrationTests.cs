@@ -86,27 +86,43 @@ public class MonitoringIntegrationTests
     public void CallStack_RespectsHierarchicalControl()
     {
         var configuration = _performanceMonitor.GetCurrentConfiguration();
-        var callStack = new CallStack(_monitoringController, configuration, _methodCallInfoPool, _loggerFactory);
+        var callStack = new CallStack(_monitoringController, configuration!, _methodCallInfoPool, _loggerFactory);
         var observer = new TestObserver();
+        var classMonitor = _classMonitorFactory.CreateClassMonitor(GetType(), callStack, configuration!);
 
         using (callStack.Subscribe(observer))
         {
-            var config = new MethodCallContextConfig { ClassType = GetType(), CallerMethodName = nameof(CallStack_RespectsHierarchicalControl) };
+            // Test when monitoring is enabled
+            using (var context = classMonitor.StartMethod(new MethodConfiguration()))
+            {
+                Assert.That(observer.ReceivedItems, Has.Count.EqualTo(1), "Should receive start item when monitoring is enabled");
+                Assert.That(observer.ReceivedItems[0], Is.TypeOf<MethodCallStart>(), "First item should be MethodCallStart");
+            }
+            Assert.That(observer.ReceivedItems, Has.Count.EqualTo(3), "Should receive end item when context is disposed");
+            Assert.That(observer.ReceivedItems[0], Is.TypeOf<MethodCallStart>(), "First item should be MethodCallStart");
+            Assert.That(observer.ReceivedItems[1], Is.TypeOf<MethodCallEnd>(), "Second item should be MethodCallEnd");
+            Assert.That(observer.ReceivedItems[2], Is.EqualTo(CallStackItem.Empty), "Third item should be Empty, because the call stack is empty");
 
-            var methodCallInfo = callStack.CreateMethodCallInfo(null, GetType(), config);
-            callStack.Push(methodCallInfo);
-            Assert.That(observer.ReceivedItems, Is.Not.Empty, "Should receive items when monitoring is enabled");
-
+            // Test when monitoring is disabled
             _monitoringController.Disable();
             observer.ReceivedItems.Clear();
 
-            callStack.Pop(methodCallInfo);
-            Assert.That(observer.ReceivedItems, Is.Empty, "Should not receive items when monitoring is disabled");
+            using (var context = classMonitor.StartMethod(new MethodConfiguration()))
+            {
+                Assert.That(observer.ReceivedItems, Is.Empty, "Should not receive items when monitoring is disabled");
+            }
+            Assert.That(observer.ReceivedItems, Is.Empty, "Should not receive items when context is disposed and monitoring is disabled");
 
+            // Test when monitoring is re-enabled
             _monitoringController.Enable();
-            methodCallInfo = callStack.CreateMethodCallInfo(null, GetType(), config);
-            callStack.Push(methodCallInfo);
-            Assert.That(observer.ReceivedItems, Is.Not.Empty, "Should receive items when monitoring is re-enabled");
+
+            using (var context = classMonitor.StartMethod(new MethodConfiguration()))
+            {
+                Assert.That(observer.ReceivedItems, Has.Count.EqualTo(1), "Should receive start item when monitoring is re-enabled");
+                Assert.That(observer.ReceivedItems[0], Is.TypeOf<MethodCallStart>(), "First item after re-enabling should be MethodCallStart");
+            }
+            Assert.That(observer.ReceivedItems, Has.Count.EqualTo(3), "Should receive end item when context is disposed after re-enabling");
+            Assert.That(observer.ReceivedItems[1], Is.TypeOf<MethodCallEnd>(), "Second item after re-enabling should be MethodCallEnd");
         }
     }
 
