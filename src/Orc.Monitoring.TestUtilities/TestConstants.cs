@@ -4,6 +4,11 @@ using System;
 
 public static class TestConstants
 {
+    // Test item related constants
+    public const string DefaultCsvReportFileName = "TestReport.csv";
+    public const int DefaultItemCount = 10;
+    public static readonly DateTime DefaultItemStartTime = new DateTime(2023, 1, 1, 0, 0, 0);
+
     // Common string constants
     public const string DefaultTestReporterName = "TestReporter";
     public const string DefaultTestMethodName = "TestMethod";
@@ -58,7 +63,7 @@ public static class TestConstants
     public static readonly object[] EmptyObjectArray = Array.Empty<object>();
 
     // File content related constants
-    public const string CsvHeaderLine = "Id,ParentId,StartTime,EndTime,MethodName,Duration";
+    public const string CsvHeaderLine = "Id,ParentId,StartTime,EndTime,Report,ClassName,MethodName,FullName,Duration,ThreadId,ParentThreadId,NestingLevel,IsStatic,IsGeneric,IsExtension";
     public const string TxtHeaderLine = "---- Test Report ----";
 
     // Test exception messages
