@@ -338,7 +338,7 @@ public sealed class TxtReportOutput : IReportOutput
     private void ProcessMethodCallEnd(MethodCallEnd endItem, DateTime timestamp, string indentation)
     {
         // Add parameters
-        var parameters = endItem.MethodCallInfo.Parameters ?? [];
+        var parameters = endItem.MethodCallInfo.Parameters ?? new Dictionary<string, string>();
         if (parameters.Count > 0)
         {
             foreach (var parameter in parameters)

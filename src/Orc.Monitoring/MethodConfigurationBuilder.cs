@@ -65,4 +65,10 @@ public class MethodConfigurationBuilder
     }
 
     public MethodConfiguration Build() => _config;
+
+    public MethodConfigurationBuilder SetStaticParameter(string parameter, string value)
+    {
+        _config.StaticParameters[parameter] = value;
+        return this;
+    }
 }

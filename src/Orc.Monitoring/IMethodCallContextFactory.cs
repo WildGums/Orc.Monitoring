@@ -5,11 +5,11 @@ using System.Collections.Generic;
 
 public interface IMethodCallContextFactory
 {
-    MethodCallContext GetDummyMethodCallContext();
+    IMethodCallContext GetDummyMethodCallContext();
 
-    MethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds);
+    IMethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds);
 
-    AsyncMethodCallContext GetDummyAsyncMethodCallContext();
+    IMethodCallContext GetDummyAsyncMethodCallContext();
 
-    AsyncMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds);
+    IMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds);
 }

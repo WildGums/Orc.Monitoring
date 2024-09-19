@@ -3,10 +3,19 @@
 using System;
 using System.Threading.Tasks;
 
-public sealed class AsyncDisposable(Func<Task> disposeAction) : IAsyncDisposable
+internal sealed class AsyncDisposable : IAsyncDisposable
 {
-    public async ValueTask DisposeAsync()
+    private readonly Func<ValueTask> _disposeAsync;
+
+    public AsyncDisposable(Func<ValueTask> disposeAsync)
     {
-        await disposeAction();
+        _disposeAsync = disposeAsync;
     }
+
+    public ValueTask DisposeAsync()
+    {
+        return _disposeAsync();
+    }
+
+    public static IAsyncDisposable Empty { get; } = new AsyncDisposable(() => new ValueTask());
 }

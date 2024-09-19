@@ -19,16 +19,27 @@ public class NullClassMonitor : IClassMonitor
         _logger = loggerFactory.CreateLogger<NullClassMonitor>();
     }
 
-    public AsyncMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
+    public IMethodCallContext StartAsyncMethod(MethodConfiguration config, string callerMethod = "")
     {
         _logger.LogDebug($"NullClassMonitor.StartAsyncMethod called for {callerMethod}");
         return _methodCallContextFactory.GetDummyAsyncMethodCallContext();
     }
 
-    public MethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
+    public IMethodCallContext StartMethod(MethodConfiguration config, [CallerMemberName] string callerMethod = "")
     {
         _logger.LogDebug($"NullClassMonitor.StartMethod called for {callerMethod}");
         return _methodCallContextFactory.GetDummyMethodCallContext();
+    }
+
+    public IMethodCallContext StartExternalMethod(MethodConfiguration config, Type externalType,
+        string externalMethodName,
+        bool async = false)
+    {
+        _logger.LogDebug($"NullClassMonitor.StartExternalMethod called for {externalType.Name}.{externalMethodName}");
+        return async
+            ? _methodCallContextFactory.GetDummyAsyncMethodCallContext() 
+            : _methodCallContextFactory.GetDummyMethodCallContext();
+
     }
 
     public void LogStatus(IMethodLifeCycleItem status)

@@ -420,7 +420,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             _callProcessingContext.GapStart = endMethodCallInfo.StartTime + endMethodCallInfo.Elapsed;
         }
 
-        var parameters = endMethodCallInfo.Parameters ?? [];
+        var parameters = endMethodCallInfo.Parameters ?? new Dictionary<string, string>();
         var isUserInteraction = parameters.TryGetValue(MethodCallParameter.WorkflowItemType, out var itemType) &&
                                 string.Equals(itemType, MethodCallParameter.Types.UserInteraction, StringComparison.Ordinal);
 
@@ -450,7 +450,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
 
     private void PublishStartMethodCall(MethodCallStart methodCallStart)
     {
-        var parameters = methodCallStart.MethodCallInfo.Parameters ?? [];
+        var parameters = methodCallStart.MethodCallInfo.Parameters ?? new Dictionary<string, string>();
         if (!parameters.TryGetValue(MethodCallParameter.WorkflowItemName, out var workflowItemName))
         {
             return;
@@ -467,7 +467,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
 
     private void PublishEndMethodCall(MethodCallEnd methodCallEnd)
     {
-        var parameters = methodCallEnd.MethodCallInfo.Parameters ?? [];
+        var parameters = methodCallEnd.MethodCallInfo.Parameters ?? new Dictionary<string, string>();
         if (!parameters.TryGetValue(MethodCallParameter.WorkflowItemName, out var workflowItemName))
         {
             return;
@@ -492,7 +492,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
             throw new InvalidOperationException("Call processing context is not initialized");
         }
 
-        var parameters = rootMethodCallInfo.Parameters ?? [];
+        var parameters = rootMethodCallInfo.Parameters ?? new Dictionary<string, string>();
         if (!parameters.TryGetValue(MethodCallParameter.WorkflowItemName, out var workflowItemName))
         {
             _logger.LogWarning("WorkflowItemName not found in root method call parameters");

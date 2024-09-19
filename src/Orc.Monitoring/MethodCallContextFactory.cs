@@ -5,30 +5,29 @@ using System.Collections.Generic;
 
 public class MethodCallContextFactory(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory, MethodCallInfoPool methodCallInfoPool) : IMethodCallContextFactory
 {
-#pragma warning disable IDISP006
-    private MethodCallContext? _dummy;
-#pragma warning restore IDISP006
-    private AsyncMethodCallContext? _asyncDummy;
-
     internal static MethodCallContextFactory Instance { get; } = new(MonitoringController.Instance, MonitoringLoggerFactory.Instance, MethodCallInfoPool.Instance);
 
-    public MethodCallContext GetDummyMethodCallContext()
+    public IMethodCallContext GetDummyMethodCallContext()
     {
-        return _dummy ??= new MethodCallContext(loggerFactory, monitoringController, methodCallInfoPool);
+        return NullMethodCallContext.Instance;
     }
 
-    public MethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
+    public IMethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
     {
+#pragma warning disable IDISP005
         return new MethodCallContext(classMonitor, methodCallInfo, disposables, reporterIds, loggerFactory, monitoringController, methodCallInfoPool);
+#pragma warning restore IDISP005
     }
 
-    public AsyncMethodCallContext GetDummyAsyncMethodCallContext()
+    public IMethodCallContext GetDummyAsyncMethodCallContext()
     {
-        return _asyncDummy ??= new AsyncMethodCallContext(loggerFactory, monitoringController, methodCallInfoPool);
+        return NullMethodCallContext.Instance;
     }
 
-    public AsyncMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
+    public IMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
     {
+#pragma warning disable IDISP005
         return new AsyncMethodCallContext(classMonitor, methodCallInfo, disposables, reporterIds, loggerFactory, monitoringController, methodCallInfoPool);
+#pragma warning restore IDISP005
     }
 }

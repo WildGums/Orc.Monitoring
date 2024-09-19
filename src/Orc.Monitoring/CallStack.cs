@@ -8,9 +8,9 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
-using System.Runtime;
 
 public class CallStack : IObservable<ICallStackItem>
 {
@@ -18,9 +18,9 @@ public class CallStack : IObservable<ICallStackItem>
     private readonly ILogger<CallStack> _logger;
     private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ConcurrentDictionary<int, Stack<MethodCallInfo>> _threadCallStacks = new();
-    private readonly ConcurrentStack<MethodCallInfo> _globalCallStack = new();
+    private readonly Stack<MethodCallInfo> _globalCallStack = new();
     private readonly object _idLock = new();
-    private readonly List<IObserver<ICallStackItem>> _observers = [];
+    private readonly ConcurrentDictionary<IObserver<ICallStackItem>, object?> _observers = new();
     private readonly IMonitoringController _monitoringController;
     private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ConcurrentDictionary<int, MethodCallInfo> _threadRootMethods = new();
@@ -28,9 +28,9 @@ public class CallStack : IObservable<ICallStackItem>
 
     private MethodCallInfo? _rootParent;
     private int _idCounter;
-    private int _currentDepth;
+    private readonly ThreadLocal<int> _currentDepth = new(() => 0);
 
-    public CallStack(IMonitoringController monitoringController,  MonitoringConfiguration? monitoringConfig, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
+    public CallStack(IMonitoringController monitoringController, MonitoringConfiguration monitoringConfig, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(monitoringController);
         ArgumentNullException.ThrowIfNull(monitoringConfig);
@@ -43,7 +43,7 @@ public class CallStack : IObservable<ICallStackItem>
         _logger = loggerFactory.CreateLogger<CallStack>();
     }
 
-    public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null)
+    public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null, bool isExternalCall = false)
     {
         methodInfo ??= FindMatchingMethod(config);
         if (methodInfo is null)
@@ -56,9 +56,14 @@ public class CallStack : IObservable<ICallStackItem>
             .OfType<MethodCallParameterAttribute>()
             .ToDictionary(attr => attr.Name, attr => attr.Value);
 
+        foreach (var configStaticParameter in config.StaticParameters ?? [])
+        {
+            attributeParameters[configStaticParameter.Key] = configStaticParameter.Value;
+        }
+
         var id = GenerateId();
 
-        var result = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, id, attributeParameters);
+        var result = _methodCallInfoPool.Rent(classMonitor, callerType, methodInfo, config.GenericArguments, id, attributeParameters, isExternalCall);
 
         if (result.IsNull)
         {
@@ -79,12 +84,12 @@ public class CallStack : IObservable<ICallStackItem>
     {
         ArgumentNullException.ThrowIfNull(methodCallInfo);
 
-        if (_currentDepth >= MaxCallStackDepth)
-        {
-            throw new StackOverflowException("Maximum call stack depth exceeded");
-        }
+        _currentDepth.Value++;
 
-        _currentDepth++;
+        if (_currentDepth.Value >= MaxCallStackDepth)
+        {
+            throw new InvalidOperationException("Maximum call stack depth exceeded");
+        }
 
         var threadId = methodCallInfo.ThreadId;
         var threadStack = _threadCallStacks.GetOrAdd(threadId, _ => new Stack<MethodCallInfo>());
@@ -123,13 +128,13 @@ public class CallStack : IObservable<ICallStackItem>
                 _threadRootMethods[threadId] = methodCallInfo;
             }
 
-            _logger.LogInformation($"Pushed: {methodCallInfo}");
+            _logger.LogDebug("Pushed: {MethodCallInfo}", methodCallInfo);
 
-            var currentVersion = _monitoringController.GetCurrentVersion();
-            if (_monitoringController.ShouldTrack(currentVersion))
-            {
-                NotifyObservers(new MethodCallStart(methodCallInfo), currentVersion);
-            }
+            //var currentVersion = _monitoringController.GetCurrentVersion();
+            //if (_monitoringController.ShouldTrack(currentVersion))
+            //{
+            //    NotifyObservers(new MethodCallStart(methodCallInfo), currentVersion);
+            //}
         }
     }
 
@@ -137,7 +142,7 @@ public class CallStack : IObservable<ICallStackItem>
     {
         ArgumentNullException.ThrowIfNull(methodCallInfo);
 
-        _currentDepth--;
+        _currentDepth.Value--;
 
         var threadId = methodCallInfo.ThreadId;
         lock (_globalLock)
@@ -159,34 +164,31 @@ public class CallStack : IObservable<ICallStackItem>
                         _threadRootMethods.TryRemove(threadId, out _);
                     }
 
-                    _logger.LogInformation($"Popped: {methodCallInfo}");
+                    _logger.LogDebug("Popped: {MethodCallInfo}", methodCallInfo);
 
-                    var currentVersion = _monitoringController.GetCurrentVersion();
-                    if (_monitoringController.ShouldTrack(currentVersion))
-                    {
-                        NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
-                    }
+                    //var currentVersion = _monitoringController.GetCurrentVersion();
+                    //if (_monitoringController.ShouldTrack(currentVersion))
+                    //{
+                    //    NotifyObservers(new MethodCallEnd(methodCallInfo), currentVersion);
+                    //}
                 }
                 else
                 {
-                    _logger.LogWarning($"Thread CallStack mismatch: no context found for thread {threadId}.");
+                    _logger.LogWarning("Thread CallStack mismatch: no context found for thread {ThreadId}.", threadId);
                 }
             }
             else
             {
-                _logger.LogWarning($"Thread CallStack mismatch: no stack found for thread {threadId}.");
+                _logger.LogWarning("Thread CallStack mismatch: no stack found for thread {ThreadId}.", threadId);
             }
 
-            if (_globalCallStack.TryPop(out var globalPoppedContext))
+            if (_globalCallStack.Count > 0 && _globalCallStack.Peek() == methodCallInfo)
             {
-                if (globalPoppedContext != methodCallInfo)
-                {
-                    _logger.LogWarning("Global CallStack mismatch: popped context is not the same as the method call info.");
-                }
+                _globalCallStack.Pop();
             }
             else
             {
-                _logger.LogWarning("Global CallStack mismatch: failed to pop method call info.");
+                _logger.LogWarning("Global CallStack mismatch: popped context is not the same as the method call info.");
             }
 
             if (methodCallInfo == _rootParent)
@@ -198,7 +200,9 @@ public class CallStack : IObservable<ICallStackItem>
 
     public void LogStatus(IMethodLifeCycleItem status)
     {
-        _logger.LogDebug($"LogStatus called with {status.GetType().Name}");
+        ArgumentNullException.ThrowIfNull(status);
+
+        _logger.LogDebug("LogStatus called with {StatusTypeName}", status.GetType().Name);
 
         var currentVersion = _monitoringController.GetCurrentVersion();
         if (!_monitoringController.ShouldTrack(currentVersion))
@@ -207,11 +211,9 @@ public class CallStack : IObservable<ICallStackItem>
             return;
         }
 
-        ArgumentNullException.ThrowIfNull(status);
-
         if (ShouldLogStatus(status))
         {
-            _logger.LogDebug($"Notifying observers: {status}");
+            _logger.LogDebug("Notifying observers: {Status}", status);
             NotifyObservers(status, currentVersion);
 
             if (status is MethodCallEnd && IsEmpty())
@@ -222,13 +224,19 @@ public class CallStack : IObservable<ICallStackItem>
         }
         else
         {
-            _logger.LogDebug($"Skipping status logging: {status}");
+            _logger.LogDebug("Skipping status logging: {Status}", status);
         }
     }
 
     private bool ShouldLogStatus(IMethodLifeCycleItem status)
     {
-        var methodInfo = status.MethodCallInfo.MethodInfo;
+        var methodCallInfo = status.MethodCallInfo;
+        if(methodCallInfo is null)
+        {
+            return false;
+        }
+
+        var methodInfo = methodCallInfo.MethodInfo;
         if (methodInfo is null)
         {
             return false;
@@ -238,14 +246,14 @@ public class CallStack : IObservable<ICallStackItem>
         var applicableFilters = _monitoringConfig.Filters;
 
         // Check if any enabled reporter is interested in this status
-        var anyEnabledReporterInterested = applicableReporters.Any(_monitoringController.IsReporterEnabled);
+        var anyEnabledReporterInterested = !applicableReporters.Any() || applicableReporters.Any(_monitoringController.IsReporterEnabled);
 
         // Check if any enabled filter allows this status
-        var anyEnabledFilterAllows = applicableFilters.Any(filter =>
+        var anyEnabledFilterAllows = !applicableFilters.Any() || applicableFilters.Any(filter =>
         {
             if (_monitoringController.IsFilterEnabled(filter.GetType()))
             {
-                return filter.ShouldInclude(status.MethodCallInfo);
+                return filter.ShouldInclude(methodCallInfo);
             }
             return false;
         });
@@ -331,7 +339,7 @@ public class CallStack : IObservable<ICallStackItem>
 
         var classTypeName = config.ClassType?.Name ?? string.Empty;
 
-        throw new AmbiguousImplementationException(
+        throw new AmbiguousMatchException(
             $"Multiple methods found in {classTypeName} with the name {methods[0].Name} that match the provided configuration.");
     }
 
@@ -361,10 +369,35 @@ public class CallStack : IObservable<ICallStackItem>
         }
 
         var genericArgs = method.GetGenericArguments();
-        return genericArgs.Length == configGenericArgs.Count;
+        if (genericArgs.Length != configGenericArgs.Count)
+        {
+            return false;
+        }
+
+        // Compare each generic argument type
+        var methodGenericArgs = method.GetGenericMethodDefinition().GetGenericArguments();
+        for (int i = 0; i < genericArgs.Length; i++)
+        {
+            if (genericArgs[i].Name != methodGenericArgs[i].Name)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
-    private bool IsEmpty() => _threadCallStacks.Values.All(t => t.Count == 0);
+    private bool IsEmpty()
+    {
+        foreach (var stack in _threadCallStacks.Values)
+        {
+            if (stack.Count > 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
     private string GenerateId()
     {
@@ -383,33 +416,37 @@ public class CallStack : IObservable<ICallStackItem>
 
     public IDisposable Subscribe(IObserver<ICallStackItem> observer)
     {
-        if (!_observers.Contains(observer))
-        {
-            _observers.Add(observer);
-        }
-
+        _observers.TryAdd(observer, null);
         return new Unsubscriber<ICallStackItem>(_observers, observer);
     }
 
     private void NotifyObservers(ICallStackItem value, MonitoringVersion version)
     {
-        foreach (var observer in _observers.ToArray())
+        if (!_monitoringController.ShouldTrack(version))
         {
-            if (_monitoringController.ShouldTrack(version))
-            {
-                observer.OnNext(value);
-            }
+            return;
+        }
+
+        foreach (var observer in _observers.Keys)
+        {
+            observer.OnNext(value);
         }
     }
 
-    private sealed class Unsubscriber<T>(List<IObserver<T>> observers, IObserver<T> observer) : IDisposable
+    private sealed class Unsubscriber<T> : IDisposable
     {
+        private readonly ConcurrentDictionary<IObserver<T>, object?> _observers;
+        private readonly IObserver<T> _observer;
+
+        public Unsubscriber(ConcurrentDictionary<IObserver<T>, object?> observers, IObserver<T> observer)
+        {
+            _observers = observers;
+            _observer = observer;
+        }
+
         public void Dispose()
         {
-            if (observers.Contains(observer))
-            {
-                observers.Remove(observer);
-            }
+            _observers.TryRemove(_observer, out _);
         }
     }
 }

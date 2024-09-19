@@ -70,7 +70,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         var disposable = _ranttOutput.Initialize(mockReporter.Object);
 
         var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
-        methodCallInfo.Parameters["CustomColumn"] = "OriginalValue";
+        methodCallInfo.AddParameter("CustomColumn", "OriginalValue");
         methodCallInfo.AttributeParameters.Add("CustomColumn");
 
         // Act

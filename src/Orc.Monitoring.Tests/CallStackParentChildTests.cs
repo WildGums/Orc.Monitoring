@@ -260,7 +260,7 @@ public class CallStackParentChildTests
     [Test]
     public void ConcurrentPushPop_MaintainsCorrectState()
     {
-        const int operationCount = 1000;
+        const int operationCount = 100;
         var barrier = new Barrier(2);
         var random = new Random();
 

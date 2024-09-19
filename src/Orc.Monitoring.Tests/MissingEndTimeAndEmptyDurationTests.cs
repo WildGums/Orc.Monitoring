@@ -12,6 +12,7 @@ using System.Globalization;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using MethodLifeCycleItems;
+using System.Collections.Concurrent;
 
 [TestFixture]
 public class MissingEndTimeAndEmptyDurationTests
@@ -32,6 +33,9 @@ public class MissingEndTimeAndEmptyDurationTests
     {
         _logger = new TestLogger<MissingEndTimeAndEmptyDurationTests>();
         _loggerFactory = new TestLoggerFactory<MissingEndTimeAndEmptyDurationTests>(_logger);
+        _loggerFactory.EnableLoggingFor<CallStack>();
+        _loggerFactory.EnableLoggingFor<MonitoringController>();
+        _loggerFactory.EnableLoggingFor<MethodCallInfoPool>();
         _config = new MonitoringConfiguration();
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
@@ -66,13 +70,14 @@ public class MissingEndTimeAndEmptyDurationTests
     {
         var methodInfo = CreateMethodCallInfo("IncompleteMethod");
         _callStack.Push(methodInfo);
+        _reportOutputHelper.ProcessCallStackItem(new MethodCallStart(methodInfo));
 
         // Simulate abrupt termination without popping the method
         await Task.Delay(10);
 
         var reportItems = ProcessCallStackItems();
         Assert.That(reportItems, Has.Some.Matches<ReportItem>(item =>
-            (item.MethodName??string.Empty).StartsWith("IncompleteMethod") && string.IsNullOrEmpty(item.EndTime)));
+            (item.MethodName ?? string.Empty).StartsWith("IncompleteMethod") && string.IsNullOrEmpty(item.EndTime)));
     }
 
     [Test]
@@ -81,6 +86,7 @@ public class MissingEndTimeAndEmptyDurationTests
         var methodInfo = CreateMethodCallInfo("AsyncMethod");
 
         _callStack.Push(methodInfo);
+        _reportOutputHelper.ProcessCallStackItem(new MethodCallStart(methodInfo));
 
         _logger.LogInformation("Call stack after Push:");
         LogCallStackItems();
@@ -93,7 +99,7 @@ public class MissingEndTimeAndEmptyDurationTests
 
         // Assert that the AsyncMethod is in the report items and has no EndTime
         Assert.That(reportItems, Has.Exactly(1).Matches<ReportItem>(item =>
-                (item.MethodName??string.Empty).StartsWith("AsyncMethod") && string.IsNullOrEmpty(item.EndTime)),
+                (item.MethodName ?? string.Empty).StartsWith("AsyncMethod") && string.IsNullOrEmpty(item.EndTime)),
             $"AsyncMethod should be present exactly once with no EndTime. Actual items: {string.Join(", ", reportItems.Select(i => $"{i.MethodName}:{i.EndTime}"))}");
 
         // Now complete the async method
@@ -105,14 +111,14 @@ public class MissingEndTimeAndEmptyDurationTests
 
         // Process the end of the async method
         _reportOutputHelper.ProcessCallStackItem(new MethodCallEnd(methodInfo));
-        reportItems = _reportOutputHelper.GetReportItems();
+        reportItems = _reportOutputHelper.ReportItems.ToList();
 
         _logger.LogInformation("Report items after second processing:");
         LogReportItems(reportItems);
 
         // Assert that the AsyncMethod now has an EndTime
         Assert.That(reportItems, Has.Exactly(1).Matches<ReportItem>(item =>
-                (item.MethodName??string.Empty).StartsWith("AsyncMethod") && !string.IsNullOrEmpty(item.EndTime)),
+                (item.MethodName ?? string.Empty).StartsWith("AsyncMethod") && !string.IsNullOrEmpty(item.EndTime)),
             $"AsyncMethod should be present exactly once with an EndTime. Actual items: {string.Join(", ", reportItems.Select(i => $"{i.MethodName}:{i.EndTime}"))}");
     }
 
@@ -137,6 +143,7 @@ public class MissingEndTimeAndEmptyDurationTests
     {
         var methodInfo = CreateMethodCallInfo("ExceptionMethod");
         _callStack.Push(methodInfo);
+        _reportOutputHelper.ProcessCallStackItem(new MethodCallStart(methodInfo));
 
         try
         {
@@ -145,26 +152,32 @@ public class MissingEndTimeAndEmptyDurationTests
         catch (Exception ex)
         {
             _logger.LogInformation($"Caught exception: {ex.Message}");
-            // Exception caught, but method not popped from call stack
+            _reportOutputHelper.ProcessCallStackItem(new MethodCallException(methodInfo, ex));
+        }
+        finally
+        {
+            _callStack.Pop(methodInfo);
+            _reportOutputHelper.ProcessCallStackItem(new MethodCallEnd(methodInfo));
         }
 
-        var reportItems = ProcessCallStackItems();
+        var reportItems = _reportOutputHelper.ReportItems.ToList();
         var exceptionMethodReport = reportItems.FirstOrDefault(item => item.MethodName?.StartsWith("ExceptionMethod") ?? false);
 
         Assert.That(exceptionMethodReport, Is.Not.Null, "ExceptionMethod should be present in the report items.");
-        Assert.That(exceptionMethodReport.EndTime, Is.Null, "ExceptionMethod should not have an EndTime.");
+        Assert.That(exceptionMethodReport.EndTime, Is.Not.Null, "ExceptionMethod should have an EndTime.");
     }
-
 
     [Test]
     public void TestVeryShortMethodExecution()
     {
         var methodInfo = CreateMethodCallInfo("VeryShortMethod");
         _callStack.Push(methodInfo);
+        _reportOutputHelper.ProcessCallStackItem(new MethodCallStart(methodInfo));
         _callStack.Pop(methodInfo);
+        _reportOutputHelper.ProcessCallStackItem(new MethodCallEnd(methodInfo));
 
         var reportItems = ProcessCallStackItems();
-        var veryShortMethodReport = reportItems.FirstOrDefault(item => (item.MethodName??string.Empty).StartsWith("VeryShortMethod"));
+        var veryShortMethodReport = reportItems.FirstOrDefault(item => (item.MethodName ?? string.Empty).StartsWith("VeryShortMethod"));
 
         Assert.That(veryShortMethodReport, Is.Not.Null, "VeryShortMethod should be present in the report items.");
         Assert.That(veryShortMethodReport.EndTime, Is.Not.Null, "VeryShortMethod should have an EndTime.");
@@ -188,25 +201,29 @@ public class MissingEndTimeAndEmptyDurationTests
         {
             _logger.LogInformation($"Pushing ConcurrentMethod1 (Thread: {Environment.CurrentManagedThreadId})");
             _callStack.Push(methodInfo1);
+            _reportOutputHelper.ProcessCallStackItem(new MethodCallStart(methodInfo1));
             Thread.Sleep(10);
             _logger.LogInformation($"Popping ConcurrentMethod1 (Thread: {Environment.CurrentManagedThreadId})");
             _callStack.Pop(methodInfo1);
+            _reportOutputHelper.ProcessCallStackItem(new MethodCallEnd(methodInfo1));
         });
 
         var task2 = Task.Run(() =>
         {
             _logger.LogInformation($"Pushing ConcurrentMethod2 (Thread: {Environment.CurrentManagedThreadId})");
             _callStack.Push(methodInfo2);
+            _reportOutputHelper.ProcessCallStackItem(new MethodCallStart(methodInfo2));
             Thread.Sleep(5);
             _logger.LogInformation($"Popping ConcurrentMethod2 (Thread: {Environment.CurrentManagedThreadId})");
             _callStack.Pop(methodInfo2);
+            _reportOutputHelper.ProcessCallStackItem(new MethodCallEnd(methodInfo2));
         });
 
         await Task.WhenAll(task1, task2);
 
         _logger.LogInformation("Concurrent method execution completed");
 
-        var reportItems = ProcessCallStackItems();
+        var reportItems = _reportOutputHelper.ReportItems.ToList();
 
         _logger.LogInformation($"Report items count: {reportItems.Count}");
         foreach (var item in reportItems)
@@ -215,9 +232,9 @@ public class MissingEndTimeAndEmptyDurationTests
         }
 
         Assert.That(reportItems, Has.Some.Matches<ReportItem>(item =>
-            (item.MethodName??string.Empty).StartsWith("ConcurrentMethod1") && !string.IsNullOrEmpty(item.EndTime)));
+            (item.MethodName ?? string.Empty).StartsWith("ConcurrentMethod1") && !string.IsNullOrEmpty(item.EndTime)));
         Assert.That(reportItems, Has.Some.Matches<ReportItem>(item =>
-            (item.MethodName??string.Empty).StartsWith("ConcurrentMethod2") && !string.IsNullOrEmpty(item.EndTime)));
+            (item.MethodName ?? string.Empty).StartsWith("ConcurrentMethod2") && !string.IsNullOrEmpty(item.EndTime)));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName)
@@ -237,15 +254,19 @@ public class MissingEndTimeAndEmptyDurationTests
     {
         foreach (var item in _callStackItems)
         {
-            _logger.LogInformation($"  Processing: {item.GetType().Name} for {(item as IMethodLifeCycleItem)?.MethodCallInfo.MethodName}");
-            _reportOutputHelper.ProcessCallStackItem(item);
+            _logger.LogInformation($"Processing: {item.GetType().Name} for {(item as IMethodLifeCycleItem)?.MethodCallInfo.MethodName}");
+            var reportItem = _reportOutputHelper.ProcessCallStackItem(item);
+            if (reportItem is not null)
+            {
+                _logger.LogInformation($"Added report item: {reportItem.MethodName}, StartTime: {reportItem.StartTime}, EndTime: {reportItem.EndTime}");
+            }
         }
 
-        var reportItems = _reportOutputHelper.GetReportItems();
-        _logger.LogInformation($"Report items after processing: {reportItems.Count}");
+        var reportItems = _reportOutputHelper.ReportItems.ToList();
+        _logger.LogInformation($"Total report items after processing: {reportItems.Count}");
         foreach (var item in reportItems)
         {
-            _logger.LogInformation($"  {item.MethodName}: StartTime={item.StartTime}, EndTime={item.EndTime}");
+            _logger.LogInformation($"{item.MethodName}: StartTime={item.StartTime}, EndTime={item.EndTime}");
         }
 
         return reportItems;
