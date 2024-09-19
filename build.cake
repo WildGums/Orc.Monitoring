@@ -26,7 +26,10 @@ Parameters["UseVisualStudioPrerelease"] = "true";
 
 Components.Add("Orc.Monitoring");
 
-TestProjects.Add(string.Format("{0}.Tests", GetBuildServerVariable("SolutionName")));
+Dependencies.Add("Orc.Monitoring");
+Dependencies.Add("Orc.Monitoring.TestUtilities");
+
+TestProjects.Add("Orc.Monitoring.Tests");
 
 //=======================================================
 // REQUIRED INITIALIZATION, DO NOT CHANGE
