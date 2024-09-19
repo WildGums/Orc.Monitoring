@@ -26,6 +26,7 @@ Parameters["UseVisualStudioPrerelease"] = "true";
 
 Components.Add("Orc.Monitoring");
 
+Dependencies.Add("Orc.Monitoring");
 Dependencies.Add("Orc.Monitoring.TestUtilities");
 
 TestProjects.Add("Orc.Monitoring.Tests");
