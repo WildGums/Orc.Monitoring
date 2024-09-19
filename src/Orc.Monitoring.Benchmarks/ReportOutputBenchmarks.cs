@@ -11,6 +11,8 @@ using Reporters;
 using Reporters.ReportOutputs;
 using MethodLifeCycleItems;
 using Tests;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [MemoryDiagnoser]
 public class ReportOutputBenchmarks
@@ -42,7 +44,7 @@ public class ReportOutputBenchmarks
         var csvUtils = new CsvUtils(_fileSystem);
         var reportArchiver = new ReportArchiver(_fileSystem, loggerFactory);
 
-        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
 
         _reportOutputHelper = new ReportOutputHelper(loggerFactory);

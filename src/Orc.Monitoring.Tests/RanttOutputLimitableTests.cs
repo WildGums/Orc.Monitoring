@@ -11,6 +11,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using TestUtilities;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 using Microsoft.Extensions.Logging;
 
 [TestFixture]
@@ -39,9 +43,9 @@ public class RanttOutputLimitableTests
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
-        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
-        _ranttOutput = new RanttOutput(_loggerFactory, 
+        _ranttOutput = new RanttOutput(_loggerFactory,
             () => new EnhancedDataPostProcessor(_loggerFactory),
             new ReportOutputHelper(_loggerFactory),
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
@@ -66,7 +70,7 @@ public class RanttOutputLimitableTests
     [Test]
     public void SetLimitOptions_SetsOptionsCorrectly()
     {
-        var options = OutputLimitOptions.LimitItems(100);
+        var options = OutputLimitOptions.LimitItems(TestConstants.DefaultTestMaxItems);
         _ranttOutput.SetLimitOptions(options);
         var retrievedOptions = _ranttOutput.GetLimitOptions();
 
@@ -83,19 +87,19 @@ public class RanttOutputLimitableTests
     [Test]
     public async Task WriteItem_RespectsItemCountLimit()
     {
-        _ranttOutput.SetLimitOptions(OutputLimitOptions.LimitItems(5));
+        _ranttOutput.SetLimitOptions(OutputLimitOptions.LimitItems(TestConstants.DefaultTestMaxItems));
         var mockReporter = new Mock<IMethodCallReporter>();
-        mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+        mockReporter.Setup(r => r.FullName).Returns(TestConstants.DefaultTestReporterName);
         await using (var _ = _ranttOutput.Initialize(mockReporter.Object))
         {
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < TestConstants.DefaultTestMaxItems * 2; i++)
             {
-                var item = CreateTestMethodLifeCycleItem($"Item{i}", DateTime.Now.AddMinutes(-i));
+                var item = CreateTestMethodLifeCycleItem($"{TestConstants.DefaultTestMethodName}{i}", TestConstants.DefaultItemStartTime.AddMinutes(-i));
                 _ranttOutput.WriteItem(item);
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var filePath = _fileSystem.Combine(_testOutputPath, TestConstants.DefaultTestReporterName, TestConstants.DefaultCsvFileName);
         Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should be created");
 
         var fileContent = await _fileSystem.ReadAllTextAsync(filePath);
@@ -103,7 +107,7 @@ public class RanttOutputLimitableTests
         var lines = fileContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         _logger.LogInformation($"Number of non-empty lines: {lines.Length}");
 
-        Assert.That(lines.Length, Is.EqualTo(6), "Should have header and five data lines");
+        Assert.That(lines.Length, Is.EqualTo(TestConstants.DefaultTestMaxItems + 1), "Should have header and limited number of data lines");
 
         // Log each line for debugging
         for (int i = 0; i < lines.Length; i++)
@@ -112,31 +116,31 @@ public class RanttOutputLimitableTests
         }
 
         Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
-        Assert.That(lines.Skip(1).Count(), Is.EqualTo(5), "Should have 5 data lines");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(TestConstants.DefaultTestMaxItems), $"Should have {TestConstants.DefaultTestMaxItems} data lines");
     }
 
     [Test]
     public async Task WriteItem_WithNoLimit_WritesAllItems()
     {
         var mockReporter = new Mock<IMethodCallReporter>();
-        mockReporter.Setup(r => r.FullName).Returns("TestReporter");
+        mockReporter.Setup(r => r.FullName).Returns(TestConstants.DefaultTestReporterName);
         await using (var _ = _ranttOutput.Initialize(mockReporter.Object))
         {
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < TestConstants.DefaultItemCount; i++)
             {
-                var item = CreateTestMethodLifeCycleItem($"Item{i}", DateTime.Now.AddMinutes(-i));
+                var item = CreateTestMethodLifeCycleItem($"{TestConstants.DefaultTestMethodName}{i}", TestConstants.DefaultItemStartTime.AddMinutes(-i));
                 _ranttOutput.WriteItem(item);
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var filePath = _fileSystem.Combine(_testOutputPath, TestConstants.DefaultTestReporterName, TestConstants.DefaultCsvFileName);
         var lines = await _fileSystem.ReadAllLinesAsync(filePath);
 
         _logger.LogInformation($"File content:\n{string.Join("\n", lines)}");
 
-        Assert.That(lines.Length, Is.EqualTo(11), "Expected 11 lines (header + 10 items)");
+        Assert.That(lines.Length, Is.EqualTo(TestConstants.DefaultItemCount + 1), $"Expected {TestConstants.DefaultItemCount + 1} lines (header + {TestConstants.DefaultItemCount} items)");
         Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
-        Assert.That(lines.Skip(1).Count(), Is.EqualTo(10), "Should have 10 items");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(TestConstants.DefaultItemCount), $"Should have {TestConstants.DefaultItemCount} items");
     }
 
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
@@ -146,7 +150,7 @@ public class RanttOutputLimitableTests
             null,
             typeof(RanttOutputLimitableTests),
             methodInfo,
-            Array.Empty<Type>(),
+            TestConstants.EmptyTypeArray,
             Guid.NewGuid().ToString(),
             new Dictionary<string, string>()
         );

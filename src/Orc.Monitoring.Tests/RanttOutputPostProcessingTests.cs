@@ -11,6 +11,9 @@ using MethodLifeCycleItems;
 using Reporters;
 using Reporters.ReportOutputs;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class RanttOutputPostProcessingTests
@@ -79,7 +82,7 @@ public class RanttOutputPostProcessingTests
 
         await InitializeAndExportData(reportItems);
 
-        var relationshipsFilePath = Path.Combine(_testOutputPath, "TestReporter", RelationshipsFileName);
+        var relationshipsFilePath = _fileSystem.Combine(_testOutputPath, "TestReporter", RelationshipsFileName);
         Assert.That(_fileSystem.FileExists(relationshipsFilePath), Is.True, $"Relationships file does not exist: {relationshipsFilePath}");
 
         var relationshipsContent = await _fileSystem.ReadAllTextAsync(relationshipsFilePath);
@@ -112,7 +115,7 @@ public class RanttOutputPostProcessingTests
 
         await InitializeAndExportData(reportItems);
 
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", CsvFileName);
+        var csvFilePath = _fileSystem.Combine(_testOutputPath, "TestReporter", CsvFileName);
         Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, $"CSV file does not exist: {csvFilePath}");
 
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
@@ -198,7 +201,7 @@ public class RanttOutputPostProcessingTests
 
     private string CreateTestOutputPath()
     {
-        var path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var path = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(path);
         return path;
     }

@@ -10,8 +10,11 @@ using System.Threading.Tasks;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using Microsoft.Extensions.Logging;
 using System.Linq;
+using TestUtilities;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class CsvReportOutputLimitableTests
@@ -39,7 +42,7 @@ public class CsvReportOutputLimitableTests
 
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
 
-        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
 
         _fileSystem.CreateDirectory(_testOutputPath);
 
@@ -48,7 +51,7 @@ public class CsvReportOutputLimitableTests
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
             _fileSystem, _reportArchiver);
-        var parameters = CsvReportOutput.CreateParameters(_testOutputPath, "TestReport");
+        var parameters = CsvReportOutput.CreateParameters(_testOutputPath, TestConstants.DefaultReportName);
         _csvReportOutput.SetParameters(parameters);
     }
 
@@ -65,7 +68,7 @@ public class CsvReportOutputLimitableTests
     [Test]
     public void SetLimitOptions_SetsOptionsCorrectly()
     {
-        var options = OutputLimitOptions.LimitItems(100);
+        var options = OutputLimitOptions.LimitItems(TestConstants.DefaultTestMaxItems);
         _csvReportOutput.SetLimitOptions(options);
         var retrievedOptions = _csvReportOutput.GetLimitOptions();
 
@@ -82,49 +85,45 @@ public class CsvReportOutputLimitableTests
     [Test]
     public async Task WriteItem_RespectsItemCountLimit()
     {
-        _csvReportOutput.SetLimitOptions(OutputLimitOptions.LimitItems(5));
+        _csvReportOutput.SetLimitOptions(OutputLimitOptions.LimitItems(TestConstants.DefaultTestMaxItems));
         var mockReporter = new Mock<IMethodCallReporter>();
+        mockReporter.Setup(r => r.FullName).Returns(TestConstants.DefaultTestReporterName);
         await using (var _ = _csvReportOutput.Initialize(mockReporter.Object))
         {
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < TestConstants.DefaultTestMaxItems * 2; i++)
             {
-                var item = CreateTestMethodLifeCycleItem($"Item{i}", DateTime.Now.AddMinutes(-i));
+                var item = CreateTestMethodLifeCycleItem($"{TestConstants.DefaultTestMethodName}{i}", TestConstants.DefaultItemStartTime.AddMinutes(-i));
                 _csvReportOutput.WriteItem(item);
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, "TestReport.csv");
+        var filePath = _fileSystem.Combine(_testOutputPath, TestConstants.DefaultCsvReportFileName);
         var lines = (await _fileSystem.ReadAllTextAsync(filePath))
             .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
 
-        _logger.LogInformation($"CSV file contents ({lines.Length} lines):");
-        foreach (var line in lines)
-        {
-            _logger.LogInformation(line);
-        }
-
-        Assert.That(lines.Length, Is.EqualTo(6), $"Expected 6 lines (header + 5 items), but got {lines.Length} lines");
-        Assert.That(lines[0], Does.Contain("Id"), "First line should be the header");
-        Assert.That(lines.Skip(1).Count(), Is.EqualTo(5), "Should have 5 data lines");
+        Assert.That(lines.Length, Is.EqualTo(TestConstants.DefaultTestMaxItems + 1), $"Expected {TestConstants.DefaultTestMaxItems + 1} lines (header + {TestConstants.DefaultTestMaxItems} items)");
+        Assert.That(lines[0], Does.Contain(TestConstants.CsvHeaderLine), "First line should be the header");
+        Assert.That(lines.Skip(1).Count(), Is.EqualTo(TestConstants.DefaultTestMaxItems), $"Should have {TestConstants.DefaultTestMaxItems} data lines");
     }
 
     [Test]
     public async Task WriteItem_WithNoLimit_WritesAllItems()
     {
         var mockReporter = new Mock<IMethodCallReporter>();
+        mockReporter.Setup(r => r.FullName).Returns(TestConstants.DefaultTestReporterName);
         await using (var _ = _csvReportOutput.Initialize(mockReporter.Object))
         {
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < TestConstants.DefaultItemCount; i++)
             {
-                var item = CreateTestMethodLifeCycleItem($"Item{i}", DateTime.Now.AddMinutes(-i));
+                var item = CreateTestMethodLifeCycleItem($"{TestConstants.DefaultTestMethodName}{i}", TestConstants.DefaultItemStartTime.AddMinutes(-i));
                 _csvReportOutput.WriteItem(item);
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, "TestReport.csv");
+        var filePath = _fileSystem.Combine(_testOutputPath, TestConstants.DefaultCsvReportFileName);
         var lines = (await _fileSystem.ReadAllTextAsync(filePath))
             .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
-        Assert.That(lines.Length, Is.EqualTo(11)); // Header + 10 items
+        Assert.That(lines.Length, Is.EqualTo(TestConstants.DefaultItemCount + 1), $"Expected {TestConstants.DefaultItemCount + 1} lines (header + {TestConstants.DefaultItemCount} items)");
     }
 
     private ICallStackItem CreateTestMethodLifeCycleItem(string itemName, DateTime timestamp)
@@ -134,7 +133,7 @@ public class CsvReportOutputLimitableTests
             null,
             typeof(CsvReportOutputLimitableTests),
             methodInfo,
-            Array.Empty<Type>(),
+            TestConstants.EmptyTypeArray,
             Guid.NewGuid().ToString(),
             new Dictionary<string, string>()
         );

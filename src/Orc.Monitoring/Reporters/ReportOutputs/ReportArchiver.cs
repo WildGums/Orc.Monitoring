@@ -26,7 +26,7 @@ public class ReportArchiver
             return;
         }
 
-        var directory = Path.GetDirectoryName(filePath);
+        var directory = _fileSystem.GetDirectoryName(filePath);
         if (directory is null)
         {
             return;
@@ -34,11 +34,11 @@ public class ReportArchiver
 
         var archiveDirectory = GetArchiveDirectory(directory);
 
-        var fileName = Path.GetFileNameWithoutExtension(filePath);
-        var extension = Path.GetExtension(filePath);
+        var fileName = _fileSystem.GetFileNameWithoutExtension(filePath);
+        var extension = _fileSystem.GetExtension(filePath);
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         var archivedFileName = $"{fileName}_{timestamp}{extension}";
-        var archivedFilePath = Path.Combine(archiveDirectory, archivedFileName);
+        var archivedFilePath = _fileSystem.Combine(archiveDirectory, archivedFileName);
 
         _fileSystem.CopyFile(filePath, archivedFilePath, true);
     }
@@ -54,9 +54,9 @@ public class ReportArchiver
         }
 
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        var destinationFolderName = $"{Path.GetFileName(folderPath)}_{timestamp}";
-        var archiveFolder = Path.Combine(Path.GetDirectoryName(folderPath) ?? string.Empty, "Archived");
-        var destinationFolder = Path.Combine(archiveFolder, destinationFolderName);
+        var destinationFolderName = $"{_fileSystem.GetFileName(folderPath)}_{timestamp}";
+        var archiveFolder = _fileSystem.Combine(_fileSystem.GetDirectoryName(folderPath) ?? string.Empty, "Archived");
+        var destinationFolder = _fileSystem.Combine(archiveFolder, destinationFolderName);
 
         _logger.LogInformation($"Creating archived folder: {destinationFolder}");
         _fileSystem.CreateDirectory(destinationFolder);
@@ -66,9 +66,9 @@ public class ReportArchiver
 
         foreach (var file in files)
         {
-            var relativePath = Path.GetRelativePath(folderPath, file);
-            var destinationFilePath = Path.Combine(destinationFolder, relativePath);
-            var destinationFileDirectory = Path.GetDirectoryName(destinationFilePath);
+            var relativePath = _fileSystem.GetRelativePath(folderPath, file);
+            var destinationFilePath = _fileSystem.Combine(destinationFolder, relativePath);
+            var destinationFileDirectory = _fileSystem.GetDirectoryName(destinationFilePath);
 
             if (!string.IsNullOrEmpty(destinationFileDirectory))
             {
@@ -93,7 +93,7 @@ public class ReportArchiver
 
     private string GetArchiveDirectory(string directory)
     {
-        var archiveDirectory = Path.Combine(directory, "Archived");
+        var archiveDirectory = _fileSystem.Combine(directory, "Archived");
         if (!_fileSystem.DirectoryExists(archiveDirectory))
         {
             _fileSystem.CreateDirectory(archiveDirectory);

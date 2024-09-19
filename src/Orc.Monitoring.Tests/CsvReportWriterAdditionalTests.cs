@@ -8,6 +8,8 @@ using System.IO;
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class CsvReportWriterAdditionalTests
@@ -29,7 +31,7 @@ public class CsvReportWriterAdditionalTests
         _csvUtils = new CsvUtils(_fileSystem);
 
         _stringWriter = new StringWriter();
-        _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
+        _overrideManager = new MethodOverrideManager(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
 

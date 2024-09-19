@@ -1,8 +1,8 @@
-﻿namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.TestUtilities.Filters;
 
 using System;
-using Filters;
 using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Filters;
 
 public class AlwaysIncludeFilter : IMethodFilter
 {

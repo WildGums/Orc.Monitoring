@@ -155,7 +155,7 @@ public sealed class RanttOutput : IReportOutput
             throw new InvalidOperationException("Folder path is not set");
         }
 
-        _outputDirectory = Path.Combine(_folderPath, reporter.FullName);
+        _outputDirectory = _fileSystem.Combine(_folderPath, reporter.FullName);
 
         _fileSystem.CreateDirectory(_outputDirectory);
         _logger.LogInformation($"Created output directory: {_outputDirectory}");
@@ -200,7 +200,7 @@ public sealed class RanttOutput : IReportOutput
             throw new InvalidOperationException("Output directory or method override manager is not set");
         }
 
-        var fullPath = Path.Combine(_outputDirectory, fileName);
+        var fullPath = _fileSystem.Combine(_outputDirectory, fileName);
 
         try
         {
@@ -298,7 +298,7 @@ public sealed class RanttOutput : IReportOutput
             throw new InvalidOperationException("Output directory or method override manager is not set");
         }
 
-        var fullPath = Path.Combine(_outputDirectory, fileName);
+        var fullPath = _fileSystem.Combine(_outputDirectory, fileName);
 
         try
         {
@@ -358,7 +358,7 @@ public sealed class RanttOutput : IReportOutput
             .Replace("%SourceFileName%", EscapeXmlContent(dataFileName))
             .Replace("%RelationshipsFileName%", EscapeXmlContent(relationshipsFileName))
             .Replace("%reportName%", EscapeXmlContent(reporter.FullName));
-        var ranttProjectPath = Path.Combine(_outputDirectory, ranttProjectFileName);
+        var ranttProjectPath = _fileSystem.Combine(_outputDirectory, ranttProjectFileName);
 
         try
         {

@@ -25,8 +25,8 @@ public class MethodOverrideManager
 
         _fileSystem = fileSystem;
         _csvUtils = csvUtils;
-        _overrideFilePath = Path.Combine(outputDirectory, "method_overrides.csv");
-        _overrideTemplateFilePath = Path.Combine(outputDirectory, "method_overrides.template");
+        _overrideFilePath = _fileSystem.Combine(outputDirectory, "method_overrides.csv");
+        _overrideTemplateFilePath = _fileSystem.Combine(outputDirectory, "method_overrides.template");
         _overrides = new Dictionary<string, Dictionary<string, string>>();
         _logger = loggerFactory.CreateLogger<MethodOverrideManager>();
     }

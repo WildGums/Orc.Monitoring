@@ -13,6 +13,9 @@ using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
 using IO;
 using System.Text;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class CsvReportOutputTests
@@ -44,7 +47,7 @@ public class CsvReportOutputTests
 
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
 
-        _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testFolderPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testFolderPath);
         _testFileName = "TestReport";
         var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
@@ -81,7 +84,7 @@ public class CsvReportOutputTests
         var parameters = CsvReportOutput.CreateParameters(_testFolderPath, _testFileName);
         _csvReportOutput.SetParameters(parameters);
 
-        var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
+        var filePath = _fileSystem.Combine(_testFolderPath, $"{_testFileName}.csv");
         Assert.That(_fileSystem.FileExists(filePath), Is.False, "File should not be created yet");
     }
 
@@ -94,7 +97,7 @@ public class CsvReportOutputTests
         var disposable = _csvReportOutput.Initialize(_mockReporter.Object);
         await disposable.DisposeAsync();
 
-        var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
+        var filePath = _fileSystem.Combine(_testFolderPath, $"{_testFileName}.csv");
         Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should be created after initialization");
     }
 
@@ -119,7 +122,7 @@ public class CsvReportOutputTests
 
         await disposable.DisposeAsync();
 
-        var filePath = Path.Combine(_testFolderPath, $"{_testFileName}.csv");
+        var filePath = _fileSystem.Combine(_testFolderPath, $"{_testFileName}.csv");
         Assert.That(_fileSystem.FileExists(filePath), Is.True, "CSV file should be created");
 
         var fileContent = await _fileSystem.ReadAllTextAsync(filePath);
@@ -143,7 +146,7 @@ public class CsvReportOutputTests
     [Test]
     public void Initialize_WithReadOnlyFolder_ThrowsUnauthorizedAccessException()
     {
-        var readOnlyFolder = Path.Combine(_testFolderPath, "ReadOnly");
+        var readOnlyFolder = _fileSystem.Combine(_testFolderPath, "ReadOnly");
         _fileSystem.CreateDirectory(readOnlyFolder);
         _fileSystem.SetAttributes(readOnlyFolder, FileAttributes.ReadOnly);
 
@@ -184,7 +187,7 @@ public class CsvReportOutputTests
         var mockReporter = new Mock<IMethodCallReporter>();
         mockReporter.Setup(r => r.FullName).Returns("TestReporter");
 
-        var filePath = Path.Combine(_testFolderPath, "TestReporter", "TestReport.csv");
+        var filePath = _fileSystem.Combine(_testFolderPath, "TestReporter", "TestReport.csv");
 
         // Ensure the file exists
         await _fileSystem.WriteAllTextAsync(filePath, "Initial content");
@@ -264,7 +267,7 @@ public class CsvReportOutputTests
 
         // The file should be created after the disposable is disposed
 
-        var filePath = Path.Combine(_testFolderPath, "TestReport.csv");
+        var filePath = _fileSystem.Combine(_testFolderPath, "TestReport.csv");
         _logger.LogInformation($"Checking for file existence at path: {filePath}");
 
         // List all files in the directory

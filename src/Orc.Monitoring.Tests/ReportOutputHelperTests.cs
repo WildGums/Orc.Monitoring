@@ -11,6 +11,8 @@ using System.Collections.Generic;
 using Moq;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using TestUtilities.Logging;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class ReportOutputHelperTests

@@ -3,7 +3,7 @@
 using System;
 using System.Threading.Tasks;
 
-internal sealed class AsyncDisposable : IAsyncDisposable
+public sealed class AsyncDisposable : IAsyncDisposable
 {
     private readonly Func<ValueTask> _disposeAsync;
 

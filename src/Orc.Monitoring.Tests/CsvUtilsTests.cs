@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class CsvUtilsTests
@@ -21,7 +23,7 @@ public class CsvUtilsTests
         var loggerFactoty = new TestLoggerFactory<CsvUtilsTests>(_logger);
         _fileSystem = new InMemoryFileSystem(loggerFactoty);
         _csvUtils = new CsvUtils(_fileSystem);
-        _testFilePath = Path.GetTempFileName();
+        _testFilePath = _fileSystem.GetTempFileName();
     }
 
     [TearDown]

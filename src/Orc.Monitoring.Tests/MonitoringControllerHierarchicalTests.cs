@@ -4,6 +4,8 @@ using NUnit.Framework;
 using Filters;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using TestUtilities.Logging;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class MonitoringControllerHierarchicalTests

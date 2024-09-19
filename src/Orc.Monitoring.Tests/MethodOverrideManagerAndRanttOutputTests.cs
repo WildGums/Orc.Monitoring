@@ -11,6 +11,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class MethodOverrideManagerAndRanttOutputTests
@@ -80,7 +83,7 @@ public class MethodOverrideManagerAndRanttOutputTests
         await disposable.DisposeAsync();
 
         // Assert
-        var csvFilePath = Path.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = _fileSystem.Combine(_testOutputPath, "TestReporter", "TestReporter.csv");
         Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, "CSV file should exist");
         var content = await _fileSystem.ReadAllTextAsync(csvFilePath);
         var lines = await _fileSystem.ReadAllLinesAsync(csvFilePath);
@@ -170,10 +173,10 @@ public class MethodOverrideManagerAndRanttOutputTests
 
     private void InitializePaths()
     {
-        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
-        _overrideFilePath = Path.Combine(_testOutputPath, "TestReporter", "method_overrides.csv");
-        _overrideTemplateFilePath = Path.Combine(_testOutputPath, "TestReporter", "method_overrides.template");
+        _overrideFilePath = _fileSystem.Combine(_testOutputPath, "TestReporter", "method_overrides.csv");
+        _overrideTemplateFilePath = _fileSystem.Combine(_testOutputPath, "TestReporter", "method_overrides.template");
     }
 
     private RanttOutput CreateRanttOutput()

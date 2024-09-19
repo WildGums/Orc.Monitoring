@@ -10,6 +10,8 @@ using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using Moq;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class CsvReportWriterTests
@@ -34,7 +36,7 @@ public class CsvReportWriterTests
         _csvUtils = new CsvUtils(_fileSystem);
 
         _stringWriter = new StringWriter();
-        _overrideFilePath = Path.GetTempPath();
+        _overrideFilePath = _fileSystem.GetTempPath();
         _overrideManager = new MethodOverrideManager(_overrideFilePath, _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
@@ -108,7 +110,7 @@ public class CsvReportWriterTests
     {
         // Arrange
         var overrideContent = "FullName,CustomColumn\nTestClass.Method1,OverrideValue";
-        var overrideFilePath = Path.Combine(_overrideFilePath, "method_overrides.csv");
+        var overrideFilePath = _fileSystem.Combine(_overrideFilePath, "method_overrides.csv");
         await _fileSystem.WriteAllTextAsync(overrideFilePath, overrideContent);
         _overrideManager.ReadOverrides();
 
@@ -231,7 +233,7 @@ public class CsvReportWriterTests
             new() { Id = "1", MethodName = "Method1", StartTime = "2023-01-01 00:00:00" },
             new() { Id = "2", MethodName = "Method2", StartTime = "2023-01-01 00:00:01" }
         };
-        var overrideManager = new Mock<MethodOverrideManager>(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils).Object;
+        var overrideManager = new Mock<MethodOverrideManager>(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils).Object;
         var writer = new CsvReportWriter(stringWriter, reportItems, overrideManager, _loggerFactory, _csvUtils);
 
         // Act

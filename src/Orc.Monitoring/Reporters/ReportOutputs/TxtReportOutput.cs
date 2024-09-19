@@ -85,7 +85,7 @@ public sealed class TxtReportOutput : IReportOutput
         var rootDisplayName = GetRootDisplayName();
         rootDisplayName = rootDisplayName.Replace(" ", "_");
 
-        _fileName = Path.Combine(_folderPath, $"{reporter.Name}_{rootDisplayName}.txt");
+        _fileName = _fileSystem.Combine(_folderPath, $"{reporter.Name}_{rootDisplayName}.txt");
         _logger.LogInformation($"File name set to: {_fileName}");
 
         // Create an empty file to ensure it exists

@@ -8,6 +8,8 @@ using System.Linq;
 using System;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class CsvReportWriterSpecialCharactersTests
@@ -30,7 +32,7 @@ public class CsvReportWriterSpecialCharactersTests
         _csvUtils = new CsvUtils(_fileSystem);
 
         _stringWriter = new StringWriter();
-        _overrideManager = new MethodOverrideManager(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
+        _overrideManager = new MethodOverrideManager(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
 

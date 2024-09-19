@@ -1,4 +1,4 @@
-namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.TestUtilities.Mocks;
 
 using System;
 using System.Collections.Concurrent;
@@ -7,8 +7,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using IO;
 using Microsoft.Extensions.Logging;
+using IO;
 
 public class InMemoryFileSystem : IFileSystem, IDisposable
 {
@@ -46,7 +46,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public void WriteAllText(string path, string contents)
     {
         var normalizedPath = NormalizePath(path);
-        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+        var directoryPath = NormalizePath(GetDirectoryName(normalizedPath));
 
         _logger.LogInformation("Writing text to file at path: {Path}", path);
 
@@ -100,7 +100,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                     Attributes = FileAttributes.Normal
                 };
 
-                _files[normalizedPath] = newFile;
+                SetFileContent(normalizedPath, newFile);
 
                 _logger.LogInformation("Successfully wrote text to file at path: {Path}", path);
             }
@@ -139,7 +139,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public void AppendAllText(string path, string contents)
     {
         var normalizedPath = NormalizePath(path);
-        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+        var directoryPath = NormalizePath(GetDirectoryName(normalizedPath));
 
         EnsureDirectoryExists(directoryPath);
 
@@ -251,11 +251,11 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
         var files = _files.Keys.Where(f =>
         {
-            var fileDir = NormalizePath(Path.GetDirectoryName(f));
+            var fileDir = NormalizePath(GetDirectoryName(f));
             var isInDirectory = (searchOption == SearchOption.AllDirectories && fileDir.StartsWith(normalizedPath, StringComparison.OrdinalIgnoreCase)) ||
                                 (searchOption == SearchOption.TopDirectoryOnly && fileDir.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
 
-            return isInDirectory && searchPatternRegex.IsMatch(Path.GetFileName(f));
+            return isInDirectory && searchPatternRegex.IsMatch(GetFileName(f));
         });
 
         return files.ToArray();
@@ -298,7 +298,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public TextWriter CreateStreamWriter(string fullPath, bool append, Encoding encoding)
     {
         var normalizedPath = NormalizePath(fullPath);
-        EnsureDirectoryExists(Path.GetDirectoryName(normalizedPath));
+        EnsureDirectoryExists(GetDirectoryName(normalizedPath));
         var fileStream = CreateFileStream(normalizedPath, append ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read);
         return new StreamWriter(fileStream, encoding);
     }
@@ -351,7 +351,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare, int bufferSize, FileOptions fileOptions)
     {
         var normalizedPath = NormalizePath(sourcePath);
-        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+        var directoryPath = NormalizePath(GetDirectoryName(normalizedPath));
 
         _logger.LogInformation("Creating file stream for path: {Path}, FileMode: {FileMode}, FileAccess: {FileAccess}, FileShare: {FileShare}", sourcePath, fileMode, fileAccess, fileShare);
 
@@ -434,7 +434,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                     Attributes = FileAttributes.Normal
                 };
 #pragma warning restore IDISP001
-                _files[normalizedPath] = existingFile;
+                SetFileContent(normalizedPath, existingFile);
             }
 
             var stream = existingFile.Contents;
@@ -523,7 +523,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 sourceFile.Contents.CopyTo(destFile.Contents);
                 destFile.Contents.Position = 0;
 
-                _files[destPath] = destFile;
+                SetFileContent(destPath, destFile);
             }
         }
     }
@@ -546,10 +546,165 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 if (_files.ContainsKey(destPath))
                     throw new IOException("File already exists");
 
-                _files[destPath] = sourceFile;
+                SetFileContent(destPath, sourceFile);
             }
         }
     }
+
+    public string? GetDirectoryName(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return null;
+
+        var normalizedPath = NormalizePath(path);
+        var lastSeparatorIndex = normalizedPath.LastIndexOf('/');
+
+        if (lastSeparatorIndex <= 0)
+            return null;
+
+        var directoryName = normalizedPath.Substring(0, lastSeparatorIndex);
+
+        return directoryName;
+    }
+
+    public string GetFileNameWithoutExtension(string path)
+    {
+        var fileName = GetFileName(path);
+
+        if (string.IsNullOrEmpty(fileName))
+            return string.Empty;
+
+        var lastDotIndex = fileName.LastIndexOf('.');
+
+        if (lastDotIndex < 0)
+            return fileName; // No extension found
+
+        return fileName.Substring(0, lastDotIndex);
+    }
+
+    public string GetExtension(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return string.Empty;
+
+        var fileName = GetFileName(path);
+        var lastDotIndex = fileName.LastIndexOf('.');
+
+        if (lastDotIndex < 0)
+            return string.Empty;
+
+        return fileName.Substring(lastDotIndex);
+    }
+
+    public string Combine(string path1, string path2)
+    {
+        if (string.IsNullOrEmpty(path1))
+            return NormalizePath(path2);
+
+        if (string.IsNullOrEmpty(path2))
+            return NormalizePath(path1);
+
+        var combinedPath = path1.TrimEnd('/') + '/' + path2.TrimStart('/');
+        return NormalizePath(combinedPath);
+    }
+
+    public string Combine(string path1, string path2, string path3)
+    {
+        return Combine(Combine(path1, path2), path3);
+    }
+
+    public string GetFileName(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return string.Empty;
+
+        // Replace backslashes with forward slashes
+        var pathToUse = path.Replace('\\', '/');
+
+        // If path ends with a slash, it's a directory, so return an empty string
+        if (pathToUse.EndsWith("/"))
+            return string.Empty;
+
+        var lastSeparatorIndex = pathToUse.LastIndexOf('/');
+
+        if (lastSeparatorIndex < 0)
+            return pathToUse; // No slashes, return the entire path
+
+        return pathToUse.Substring(lastSeparatorIndex + 1);
+    }
+
+    public string GetRelativePath(string relativeTo, string path)
+    {
+        if (string.IsNullOrEmpty(relativeTo))
+            throw new ArgumentNullException(nameof(relativeTo));
+
+        if (string.IsNullOrEmpty(path))
+            throw new ArgumentNullException(nameof(path));
+
+        var normalizedRelativeTo = NormalizePath(relativeTo).TrimEnd('/');
+        var normalizedPath = NormalizePath(path);
+
+        if (!normalizedPath.StartsWith(normalizedRelativeTo + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedPath;
+        }
+
+        var relativePath = normalizedPath.Substring(normalizedRelativeTo.Length);
+
+        if (relativePath.StartsWith("/"))
+        {
+            relativePath = relativePath.Substring(1);
+        }
+
+        return relativePath;
+    }
+
+    public string GetTempPath()
+    {
+        var tempPath = "/tmp";
+        EnsureDirectoryExists(tempPath);
+        return tempPath;
+    }
+
+    public string GetRandomFileName()
+    {
+        // Generate a random file name similar to Path.GetRandomFileName()
+        var randomBytes = new byte[16];
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(randomBytes);
+        }
+
+        var base64String = Convert.ToBase64String(randomBytes)
+            .Replace("+", string.Empty)
+            .Replace("/", string.Empty)
+            .Replace("=", string.Empty);
+
+        var fileName = base64String.Substring(0, 8);
+        var extension = base64String.Substring(8, 3);
+
+        return $"{fileName}.{extension}";
+    }
+
+    public string GetTempFileName()
+    {
+        var tempPath = GetTempPath();
+        string tempFileName;
+        string tempFilePath;
+
+        do
+        {
+            tempFileName = GetRandomFileName();
+            tempFilePath = Combine(tempPath, tempFileName);
+        }
+        while (FileExists(tempFilePath));
+
+        // Create an empty file
+        WriteAllText(tempFilePath, string.Empty);
+
+        return tempFilePath;
+    }
+
 
     public string[] ReadAllLines(string path)
     {
@@ -557,8 +712,10 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         return contents.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
     }
 
-    private string NormalizePath(string path)
+    private string NormalizePath(string? path)
     {
+        path ??= string.Empty;
+
         path = path.Replace('\\', '/').TrimEnd('/');
         if (!path.StartsWith("/"))
         {
@@ -613,7 +770,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
     private bool IsDirectChild(string parentDir, string childPath)
     {
-        var childDir = NormalizePath(Path.GetDirectoryName(childPath));
+        var childDir = NormalizePath(GetDirectoryName(childPath));
         return childDir.Equals(parentDir, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -641,6 +798,11 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         }
 
         _disposed = true;
+    }
+
+    private void SetFileContent(string path, InMemoryFile content)
+    {
+        _files[path] = content;
     }
 
     private sealed class InMemoryFile : IDisposable

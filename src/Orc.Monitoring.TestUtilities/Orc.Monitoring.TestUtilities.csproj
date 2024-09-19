@@ -1,10 +1,10 @@
 ﻿<Project Sdk="MSBuild.Sdk.Extras">
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
-    <AssemblyName>Orc.Monitoring.Tests</AssemblyName>
-    <RootNamespace>Orc.Monitoring.Tests</RootNamespace>
+    <AssemblyName>Orc.Monitoring.TestUtilities</AssemblyName>
+    <RootNamespace>Orc.Monitoring.TestUtilities</RootNamespace>
     <DefaultLanguage>en-US</DefaultLanguage>
-    <PackageId>Orc.Monitoring.Tests</PackageId>
+    <PackageId>Orc.Monitoring.TestUtilities</PackageId>
     <PackageVersion>1.0.0-alpha0001</PackageVersion>
     <Description></Description>
     <PackageTags></PackageTags>
@@ -23,11 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="*.approved.cs;*.received.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Orc.Monitoring.TestUtilities\Orc.Monitoring.TestUtilities.csproj" />
     <ProjectReference Include="..\Orc.Monitoring\Orc.Monitoring.csproj" />
   </ItemGroup>
 

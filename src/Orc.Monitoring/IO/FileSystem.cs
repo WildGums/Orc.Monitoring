@@ -98,4 +98,54 @@ public class FileSystem : IFileSystem
     {
         File.Move(sourceFileName, destFileName);
     }
+
+    public string? GetDirectoryName(string path)
+    {
+        return Path.GetDirectoryName(path);
+    }
+
+    public string GetFileNameWithoutExtension(string path)
+    {
+        return Path.GetFileNameWithoutExtension(path);
+    }
+
+    public string GetExtension(string path)
+    {
+        return Path.GetExtension(path);
+    }
+
+    public string Combine(string path1, string path2)
+    {
+        return Path.Combine(path1, path2);
+    }
+
+    public string Combine(string path1, string path2, string path3)
+    {
+        return Path.Combine(path1, path2, path3);
+    }
+
+    public string GetFileName(string path)
+    {
+        return Path.GetFileName(path);
+    }
+
+    public string GetRelativePath(string relativeTo, string path)
+    {
+        return Path.GetRelativePath(relativeTo, path);
+    }
+
+    public string GetTempPath()
+    {
+        return Path.GetTempPath();
+    }
+
+    public string GetRandomFileName()
+    {
+        return Path.GetRandomFileName();
+    }
+
+    public string GetTempFileName()
+    {
+        return Path.GetTempFileName();
+    }
 }
