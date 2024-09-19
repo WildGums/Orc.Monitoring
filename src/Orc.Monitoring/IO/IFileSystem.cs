@@ -31,4 +31,10 @@ public interface IFileSystem
     string[] ReadAllLines(string path);
 
     void MoveFile(string sourceFileName, string destFileName);
+    string? GetDirectoryName(string path);
+    string GetFileNameWithoutExtension(string path);
+    string GetExtension(string path);
+    string Combine(string path1, string path2);
+    string GetFileName(string path);
+    string GetRelativePath(string relativeTo, string path);
 }

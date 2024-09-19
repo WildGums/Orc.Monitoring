@@ -517,4 +517,166 @@ public class InMemoryFileSystemTests
         Assert.That(_fileSystem.FileExists(path), Is.False, "File should not exist after deletion.");
         Assert.Throws<FileNotFoundException>(() => _fileSystem.ReadAllText(path), "Reading a deleted file should throw FileNotFoundException.");
     }
+
+    [Test]
+    public void GetDirectoryName_ShouldReturnCorrectDirectoryName()
+    {
+        // Arrange
+        string path = "/folder/subfolder/file.txt";
+
+        // Act
+        string directoryName = _fileSystem.GetDirectoryName(path);
+
+        // Assert
+        Assert.That(directoryName, Is.EqualTo("/folder/subfolder"), "GetDirectoryName should return the parent directory path.");
+    }
+
+    [Test]
+    public void GetDirectoryName_ShouldReturnNull_WhenNoDirectory()
+    {
+        // Arrange
+        string path = "/file.txt";
+
+        // Act
+        string directoryName = _fileSystem.GetDirectoryName(path);
+
+        // Assert
+        Assert.That(directoryName, Is.Null, "GetDirectoryName should return null when there is no parent directory.");
+    }
+
+    [Test]
+    public void GetFileNameWithoutExtension_ShouldReturnFileNameWithoutExtension()
+    {
+        // Arrange
+        string path = "/folder/subfolder/file.txt";
+
+        // Act
+        string fileNameWithoutExtension = _fileSystem.GetFileNameWithoutExtension(path);
+
+        // Assert
+        Assert.That(fileNameWithoutExtension, Is.EqualTo("file"), "GetFileNameWithoutExtension should return the file name without its extension.");
+    }
+
+    [Test]
+    public void GetFileNameWithoutExtension_ShouldReturnEmpty_WhenNoFileName()
+    {
+        // Arrange
+        string path = "/folder/subfolder/";
+
+        // Act
+        string fileNameWithoutExtension = _fileSystem.GetFileNameWithoutExtension(path);
+
+        // Assert
+        Assert.That(fileNameWithoutExtension, Is.Empty, "GetFileNameWithoutExtension should return empty when there is no file name.");
+    }
+
+    [Test]
+    public void GetExtension_ShouldReturnFileExtension()
+    {
+        // Arrange
+        string path = "/folder/subfolder/file.txt";
+
+        // Act
+        string extension = _fileSystem.GetExtension(path);
+
+        // Assert
+        Assert.That(extension, Is.EqualTo(".txt"), "GetExtension should return the file extension including the dot.");
+    }
+
+    [Test]
+    public void GetExtension_ShouldReturnEmpty_WhenNoExtension()
+    {
+        // Arrange
+        string path = "/folder/subfolder/file";
+
+        // Act
+        string extension = _fileSystem.GetExtension(path);
+
+        // Assert
+        Assert.That(extension, Is.Empty, "GetExtension should return empty when there is no file extension.");
+    }
+
+    [Test]
+    public void Combine_ShouldReturnCombinedPath()
+    {
+        // Arrange
+        string path1 = "/folder";
+        string path2 = "subfolder/file.txt";
+
+        // Act
+        string combinedPath = _fileSystem.Combine(path1, path2);
+
+        // Assert
+        Assert.That(combinedPath, Is.EqualTo("/folder/subfolder/file.txt"), "Combine should correctly combine two paths.");
+    }
+
+    [Test]
+    public void Combine_ShouldHandleNullAndEmptyPaths()
+    {
+        // Arrange
+        string path1 = null;
+        string path2 = "/folder/file.txt";
+
+        // Act
+        string combinedPath1 = _fileSystem.Combine(path1, path2);
+        string combinedPath2 = _fileSystem.Combine(path2, path1);
+
+        // Assert
+        Assert.That(combinedPath1, Is.EqualTo("/folder/file.txt"), "Combine should return the second path when the first is null.");
+        Assert.That(combinedPath2, Is.EqualTo("/folder/file.txt"), "Combine should return the first path when the second is null.");
+    }
+
+    [Test]
+    public void GetFileName_ShouldReturnFileName()
+    {
+        // Arrange
+        string path = "/folder/subfolder/file.txt";
+
+        // Act
+        string fileName = _fileSystem.GetFileName(path);
+
+        // Assert
+        Assert.That(fileName, Is.EqualTo("file.txt"), "GetFileName should return the file name with extension.");
+    }
+
+    [Test]
+    public void GetFileName_ShouldReturnEmpty_WhenPathEndsWithSlash()
+    {
+        // Arrange
+        string path = "/folder/subfolder/";
+
+        // Act
+        string fileName = _fileSystem.GetFileName(path);
+
+        // Assert
+        Assert.That(fileName, Is.Empty, "GetFileName should return empty when path ends with a slash.");
+    }
+
+    [Test]
+    public void GetRelativePath_ShouldReturnPathRelativeToAnother()
+    {
+        // Arrange
+        string relativeTo = "/folder";
+        string path = "/folder/subfolder/file.txt";
+
+        // Act
+        string relativePath = _fileSystem.GetRelativePath(relativeTo, path);
+
+        // Assert
+        Assert.That(relativePath, Is.EqualTo("subfolder/file.txt"), "GetRelativePath should return the path relative to the specified base path.");
+    }
+
+    [Test]
+    public void GetRelativePath_ShouldReturnFullPath_WhenNotUnderBasePath()
+    {
+        // Arrange
+        string relativeTo = "/anotherfolder";
+        string path = "/folder/subfolder/file.txt";
+
+        // Act
+        string relativePath = _fileSystem.GetRelativePath(relativeTo, path);
+
+        // Assert
+        Assert.That(relativePath, Is.EqualTo("/folder/subfolder/file.txt"), "GetRelativePath should return the full path if it is not under the base path.");
+    }
 }

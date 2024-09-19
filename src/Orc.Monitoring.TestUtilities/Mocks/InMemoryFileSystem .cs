@@ -100,7 +100,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                     Attributes = FileAttributes.Normal
                 };
 
-                _files[normalizedPath] = newFile;
+                SetFileContent(normalizedPath, newFile);
 
                 _logger.LogInformation("Successfully wrote text to file at path: {Path}", path);
             }
@@ -434,7 +434,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                     Attributes = FileAttributes.Normal
                 };
 #pragma warning restore IDISP001
-                _files[normalizedPath] = existingFile;
+                SetFileContent(normalizedPath, existingFile);
             }
 
             var stream = existingFile.Contents;
@@ -523,7 +523,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 sourceFile.Contents.CopyTo(destFile.Contents);
                 destFile.Contents.Position = 0;
 
-                _files[destPath] = destFile;
+                SetFileContent(destPath, destFile);
             }
         }
     }
@@ -546,9 +546,112 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
                 if (_files.ContainsKey(destPath))
                     throw new IOException("File already exists");
 
-                _files[destPath] = sourceFile;
+                SetFileContent(destPath, sourceFile);
             }
         }
+    }
+
+    public string? GetDirectoryName(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return null;
+
+        var normalizedPath = NormalizePath(path);
+        var lastSeparatorIndex = normalizedPath.LastIndexOf('/');
+
+        if (lastSeparatorIndex <= 0)
+            return null;
+
+        var directoryName = normalizedPath.Substring(0, lastSeparatorIndex);
+
+        return directoryName;
+    }
+
+    public string GetFileNameWithoutExtension(string path)
+    {
+        var fileName = GetFileName(path);
+
+        if (string.IsNullOrEmpty(fileName))
+            return string.Empty;
+
+        var lastDotIndex = fileName.LastIndexOf('.');
+
+        if (lastDotIndex < 0)
+            return fileName; // No extension found
+
+        return fileName.Substring(0, lastDotIndex);
+    }
+
+    public string GetExtension(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return string.Empty;
+
+        var fileName = GetFileName(path);
+        var lastDotIndex = fileName.LastIndexOf('.');
+
+        if (lastDotIndex < 0)
+            return string.Empty;
+
+        return fileName.Substring(lastDotIndex);
+    }
+
+    public string Combine(string path1, string path2)
+    {
+        if (string.IsNullOrEmpty(path1))
+            return NormalizePath(path2);
+
+        if (string.IsNullOrEmpty(path2))
+            return NormalizePath(path1);
+
+        var combinedPath = path1.TrimEnd('/') + '/' + path2.TrimStart('/');
+        return NormalizePath(combinedPath);
+    }
+
+    public string GetFileName(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+            return string.Empty;
+
+        // Replace backslashes with forward slashes
+        var pathToUse = path.Replace('\\', '/');
+
+        // If path ends with a slash, it's a directory, so return an empty string
+        if (pathToUse.EndsWith("/"))
+            return string.Empty;
+
+        var lastSeparatorIndex = pathToUse.LastIndexOf('/');
+
+        if (lastSeparatorIndex < 0)
+            return pathToUse; // No slashes, return the entire path
+
+        return pathToUse.Substring(lastSeparatorIndex + 1);
+    }
+
+    public string GetRelativePath(string relativeTo, string path)
+    {
+        if (string.IsNullOrEmpty(relativeTo))
+            throw new ArgumentNullException(nameof(relativeTo));
+
+        if (string.IsNullOrEmpty(path))
+            throw new ArgumentNullException(nameof(path));
+
+        var normalizedRelativeTo = NormalizePath(relativeTo).TrimEnd('/');
+        var normalizedPath = NormalizePath(path);
+
+        if (!normalizedPath.StartsWith(normalizedRelativeTo + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return normalizedPath;
+        }
+
+        var relativePath = normalizedPath.Substring(normalizedRelativeTo.Length);
+
+        if (relativePath.StartsWith("/"))
+        {
+            relativePath = relativePath.Substring(1);
+        }
+
+        return relativePath;
     }
 
     public string[] ReadAllLines(string path)
@@ -641,6 +744,11 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         }
 
         _disposed = true;
+    }
+
+    private void SetFileContent(string path, InMemoryFile content)
+    {
+        _files[path] = content;
     }
 
     private sealed class InMemoryFile : IDisposable
