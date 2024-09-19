@@ -14,8 +14,8 @@ public static class TestConstants
     public const string DefaultTestMethodName = "TestMethod";
 
     // File and path related constants
-    public const string DefaultCsvFileName = "TestReport.csv";
-    public const string DefaultTxtFileName = "TestReport.txt";
+    public const string DefaultCsvFileName = "TestReporter.csv";
+    public const string DefaultTxtFileName = "TestReporter.txt";
     public const string DefaultRanttFileName = "TestReport.rprjx";
     public const string DefaultOverrideFileName = "method_overrides.csv";
     public const string DefaultTemplateFileName = "method_overrides.template";
@@ -45,4 +45,9 @@ public static class TestConstants
 
     // Reporting related constants
     public const string DefaultReportName = "TestReport";
+
+    // Test file related constants
+    public const string DefaultRanttReportFileName = "TestReport.rprjx";
+    public const string DefaultRelationshipsFileName = "TestReport_Relationships.csv";
+    public const string DefaultCsvHeaderLine = "Id,ParentId,StartTime,EndTime,Report,ClassName,MethodName,FullName,Duration,ThreadId,ParentThreadId,NestingLevel,IsStatic,IsGeneric,IsExtension";
 }
