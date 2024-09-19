@@ -39,7 +39,7 @@ public class TxtReportOutputLimitableTests
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
-        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
         
         var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
@@ -94,7 +94,7 @@ public class TxtReportOutputLimitableTests
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
+        var filePath = _fileSystem.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
         var lines = await _fileSystem.ReadAllLinesAsync(filePath);
         Assert.That(lines.Length, Is.EqualTo(5), "Should have 5 items");
     }
@@ -114,7 +114,7 @@ public class TxtReportOutputLimitableTests
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
+        var filePath = _fileSystem.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
         var lines = await _fileSystem.ReadAllLinesAsync(filePath);
         Assert.That(lines.Length, Is.EqualTo(10), "Should have all 10 items");
     }
@@ -134,7 +134,7 @@ public class TxtReportOutputLimitableTests
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
+        var filePath = _fileSystem.Combine(_testOutputPath, "TestReporter_TestDisplay.txt");
         var content = await _fileSystem.ReadAllTextAsync(filePath);
 
         _logger.LogInformation($"File content:\n{content}");

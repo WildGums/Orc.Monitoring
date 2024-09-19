@@ -68,11 +68,11 @@ public class RanttOutputTests
     {
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
-        _testFolderPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         _mockReporter = new MockReporter(_loggerFactory) { Name = TestReporterName, FullName = TestReporterName };
 #pragma warning disable IDISP003
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
 #pragma warning restore IDISP003
+        _testFolderPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         _csvUtils = new CsvUtils(_fileSystem);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
     }
@@ -151,7 +151,7 @@ public class RanttOutputTests
     {
         // Arrange
         var overrideContent = "FullName,CustomColumn\nRanttOutputTests.TestMethod,OverrideValue";
-        await _fileSystem.WriteAllTextAsync(Path.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
+        await _fileSystem.WriteAllTextAsync(_fileSystem.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
 
         var methodCallInfo = CreateMethodCallInfo("TestMethod", null);
         methodCallInfo.AddParameter("CustomColumn", "OriginalValue");
@@ -164,7 +164,7 @@ public class RanttOutputTests
         }
 
         // Assert
-        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = _fileSystem.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
 
         var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
@@ -222,7 +222,7 @@ public class RanttOutputTests
             _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
         }
 
-        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = _fileSystem.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
         Assert.That(_fileSystem.FileExists(csvFilePath), Is.True, "CSV file should be created");
 
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
@@ -243,7 +243,7 @@ public class RanttOutputTests
         var csvLines = await _fileSystem.ReadAllLinesAsync(csvFilePath);
         Assert.That(csvLines.Length, Is.EqualTo(2), "CSV should contain header and one data line");
 
-        var ranttFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.rprjx");
+        var ranttFilePath = _fileSystem.Combine(_testFolderPath, "TestReporter", "TestReporter.rprjx");
         Assert.That(_fileSystem.FileExists(ranttFilePath), Is.True, "Rantt project file should be created");
 
         var ranttContent = await _fileSystem.ReadAllTextAsync(ranttFilePath);
@@ -341,7 +341,7 @@ public class RanttOutputTests
         }
 
         // Assert
-        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = _fileSystem.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
         var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         var headers = lines[0].Split(',');
@@ -372,7 +372,7 @@ public class RanttOutputTests
         }
 
         // Assert
-        var csvFilePath = Path.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        var csvFilePath = _fileSystem.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
         var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
 
         var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
@@ -413,7 +413,7 @@ public class RanttOutputTests
 
     private string GetFilePath(string fileName)
     {
-        return Path.Combine(_testFolderPath, TestReporterName, fileName);
+        return _fileSystem.Combine(_testFolderPath, TestReporterName, fileName);
     }
 
     private void AssertFileExists(string filePath)
@@ -423,7 +423,7 @@ public class RanttOutputTests
 
     private string CreateReadOnlyTestFolder()
     {
-        var readOnlyFolder = Path.Combine(_testFolderPath, "ReadOnly");
+        var readOnlyFolder = _fileSystem.Combine(_testFolderPath, "ReadOnly");
         _fileSystem.CreateDirectory(readOnlyFolder);
         _fileSystem.SetAttributes(readOnlyFolder, FileAttributes.ReadOnly);
         return readOnlyFolder;

@@ -35,6 +35,7 @@ public interface IFileSystem
     string GetFileNameWithoutExtension(string path);
     string GetExtension(string path);
     string Combine(string path1, string path2);
+    string Combine(string path1, string path2, string path3);
     string GetFileName(string path);
     string GetRelativePath(string relativeTo, string path);
 }

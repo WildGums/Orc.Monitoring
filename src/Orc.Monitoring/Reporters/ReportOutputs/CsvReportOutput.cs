@@ -91,7 +91,7 @@ public sealed class CsvReportOutput : IReportOutput
             throw new InvalidOperationException("Folder path is not set");
         }
 
-        var testFilePath = Path.Combine(_folderPath, "test_write.tmp");
+        var testFilePath = _fileSystem.Combine(_folderPath, "test_write.tmp");
         try
         {
             _fileSystem.WriteAllText(testFilePath, "Test");
@@ -155,7 +155,7 @@ public sealed class CsvReportOutput : IReportOutput
 
         _fileSystem.CreateDirectory(_folderPath);
 
-        var fullPath = Path.Combine(_folderPath, $"{_fileName}.csv");
+        var fullPath = _fileSystem.Combine(_folderPath, $"{_fileName}.csv");
 
         try
         {

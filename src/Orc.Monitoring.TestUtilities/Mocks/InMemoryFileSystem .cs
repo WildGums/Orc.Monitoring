@@ -608,6 +608,11 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         return NormalizePath(combinedPath);
     }
 
+    public string Combine(string path1, string path2, string path3)
+    {
+        return Combine(Combine(path1, path2), path3);
+    }
+
     public string GetFileName(string path)
     {
         if (string.IsNullOrEmpty(path))

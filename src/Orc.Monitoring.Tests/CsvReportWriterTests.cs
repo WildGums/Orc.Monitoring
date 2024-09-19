@@ -110,7 +110,7 @@ public class CsvReportWriterTests
     {
         // Arrange
         var overrideContent = "FullName,CustomColumn\nTestClass.Method1,OverrideValue";
-        var overrideFilePath = Path.Combine(_overrideFilePath, "method_overrides.csv");
+        var overrideFilePath = _fileSystem.Combine(_overrideFilePath, "method_overrides.csv");
         await _fileSystem.WriteAllTextAsync(overrideFilePath, overrideContent);
         _overrideManager.ReadOverrides();
 

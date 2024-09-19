@@ -119,6 +119,11 @@ public class FileSystem : IFileSystem
         return Path.Combine(path1, path2);
     }
 
+    public string Combine(string path1, string path2, string path3)
+    {
+        return Path.Combine(path1, path2, path3);
+    }
+
     public string GetFileName(string path)
     {
         return Path.GetFileName(path);

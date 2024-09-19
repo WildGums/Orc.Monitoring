@@ -42,7 +42,7 @@ public class CsvReportOutputLimitableTests
 
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
 
-        _testOutputPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
         _fileSystem.CreateDirectory(_testOutputPath);
 
@@ -97,7 +97,7 @@ public class CsvReportOutputLimitableTests
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, TestConstants.DefaultCsvReportFileName);
+        var filePath = _fileSystem.Combine(_testOutputPath, TestConstants.DefaultCsvReportFileName);
         var lines = (await _fileSystem.ReadAllTextAsync(filePath))
             .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
 
@@ -120,7 +120,7 @@ public class CsvReportOutputLimitableTests
             }
         }
 
-        var filePath = Path.Combine(_testOutputPath, TestConstants.DefaultCsvReportFileName);
+        var filePath = _fileSystem.Combine(_testOutputPath, TestConstants.DefaultCsvReportFileName);
         var lines = (await _fileSystem.ReadAllTextAsync(filePath))
             .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries);
         Assert.That(lines.Length, Is.EqualTo(TestConstants.DefaultItemCount + 1), $"Expected {TestConstants.DefaultItemCount + 1} lines (header + {TestConstants.DefaultItemCount} items)");
