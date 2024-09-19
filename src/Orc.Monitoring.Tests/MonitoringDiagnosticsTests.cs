@@ -5,6 +5,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
 
 [TestFixture]
 public class MonitoringDiagnosticsTests

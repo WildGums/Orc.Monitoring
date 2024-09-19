@@ -11,6 +11,8 @@ using Reporters;
 using Reporters.ReportOutputs;
 using MethodLifeCycleItems;
 using Tests;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [MemoryDiagnoser]
 public class ReportOutputBenchmarks

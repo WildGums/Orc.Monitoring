@@ -12,6 +12,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class TxtReportOutputLimitableTests

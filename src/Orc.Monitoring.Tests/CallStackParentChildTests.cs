@@ -11,6 +11,8 @@ using System.Linq;
 using System.Threading;
 using Moq;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class CallStackParentChildTests

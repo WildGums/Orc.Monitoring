@@ -8,7 +8,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Orc.Monitoring.MethodLifeCycleItems;
 using System.Collections.Generic;
-
+using TestUtilities.Logging;
 
 [TestFixture]
 public class ClassMonitorTests

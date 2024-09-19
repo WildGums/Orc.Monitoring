@@ -5,6 +5,7 @@ using System;
 using Monitoring;
 using MethodLifeCycleItems;
 using System.Threading.Tasks;
+using TestUtilities.Logging;
 
 [TestFixture]
 public class MonitoringRobustnessTests

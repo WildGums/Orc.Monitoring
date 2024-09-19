@@ -4,7 +4,8 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class MonitoringControllerVersionChangeTests

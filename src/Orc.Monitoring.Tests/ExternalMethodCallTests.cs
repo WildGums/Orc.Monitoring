@@ -8,6 +8,8 @@ using Moq;
 using Monitoring;
 using Filters;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class ExternalMethodCallTests

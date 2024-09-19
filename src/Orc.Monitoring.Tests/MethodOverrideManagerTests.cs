@@ -7,6 +7,8 @@ using Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class MethodOverrideManagerTests

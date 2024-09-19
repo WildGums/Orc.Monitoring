@@ -7,7 +7,8 @@ using Reporters.ReportOutputs;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class ReportArchiverTests

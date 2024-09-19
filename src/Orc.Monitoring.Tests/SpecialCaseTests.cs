@@ -11,6 +11,8 @@ using Monitoring;
 using Filters;
 using Microsoft.Extensions.Logging;
 using Reporters;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class SpecialCaseTests

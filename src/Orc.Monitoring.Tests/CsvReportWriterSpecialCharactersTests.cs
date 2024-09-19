@@ -8,6 +8,8 @@ using System.Linq;
 using System;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class CsvReportWriterSpecialCharactersTests

@@ -12,7 +12,9 @@ using System.Threading;
 using Microsoft.Extensions.Logging;
 using Reporters;
 using System.Linq;
-
+using TestUtilities.Filters;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class PerformanceMonitorIntegrationTests

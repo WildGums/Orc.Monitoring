@@ -13,6 +13,8 @@ using System.Linq;
 using Microsoft.Extensions.Logging;
 using MethodLifeCycleItems;
 using System.Collections.Concurrent;
+using TestUtilities.Logging;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class MissingEndTimeAndEmptyDurationTests

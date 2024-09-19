@@ -7,7 +7,8 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class InMemoryFileSystemTests

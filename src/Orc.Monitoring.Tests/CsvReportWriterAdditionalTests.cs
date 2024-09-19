@@ -8,6 +8,8 @@ using System.IO;
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class CsvReportWriterAdditionalTests

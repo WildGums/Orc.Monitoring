@@ -6,7 +6,9 @@ using Filters;
 using Reporters.ReportOutputs;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-
+using TestUtilities.Filters;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
 
 [TestFixture]
 public class PerformanceMonitorTests

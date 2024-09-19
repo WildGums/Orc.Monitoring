@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.TestUtilities.Logging;
 
 using System;
 using System.Collections.Generic;

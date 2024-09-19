@@ -13,6 +13,9 @@ using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
 using IO;
 using System.Text;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class CsvReportOutputTests

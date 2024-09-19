@@ -6,6 +6,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
 using Moq;
+using TestUtilities.Logging;
+using TestUtilities.TestHelpers;
 
 [TestFixture]
 public class CallStackSimulationTests

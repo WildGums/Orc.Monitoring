@@ -1,13 +1,13 @@
-﻿namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.TestUtilities.Mocks;
 
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Filters;
 using MethodLifeCycleItems;
 using Reporters;
 using Reporters.ReportOutputs;
-using Filters;
-using Microsoft.Extensions.Logging;
 
 public class MockReporter : IMethodCallReporter
 {
