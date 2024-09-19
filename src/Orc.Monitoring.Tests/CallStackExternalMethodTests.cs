@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Moq;
 using Microsoft.Extensions.Logging;
+using TestUtilities;
 
 [TestFixture]
 public class CallStackExternalMethodTests
@@ -29,8 +30,8 @@ public class CallStackExternalMethodTests
         _config = new MonitoringConfiguration();
 
         _mockLoggerFactory.Setup(f => f.CreateLogger<CallStack>()).Returns(_mockLogger.Object);
-        _mockController.Setup(c => c.IsEnabled).Returns(true);
-        _mockController.Setup(c => c.GetCurrentVersion()).Returns(new MonitoringVersion(1, 0, Guid.NewGuid()));
+        _mockController.Setup(c => c.IsEnabled).Returns(TestConstants.DefaultIsEnabled);
+        _mockController.Setup(c => c.GetCurrentVersion()).Returns(new MonitoringVersion(TestConstants.DefaultVersionTimestamp, TestConstants.DefaultVersionCounter, TestConstants.DefaultTestGuid));
 
         _methodCallInfoPool = new MethodCallInfoPool(_mockController.Object, _mockLoggerFactory.Object);
         _callStack = new CallStack(_mockController.Object, _config, _methodCallInfoPool, _mockLoggerFactory.Object);
@@ -41,20 +42,20 @@ public class CallStackExternalMethodTests
     {
         // Arrange
         var externalType = typeof(string);
-        var externalMethodName = "Substring";
+        var externalMethodName = nameof(string.Contains);
         var config = new MethodCallContextConfig
         {
             CallerMethodName = externalMethodName,
-            ParameterTypes = new[] { typeof(int) }
+            ParameterTypes = new[] { typeof(char) }
         };
 
         // Act
-        var methodCallInfo = _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, externalType, config, externalType.GetMethod(externalMethodName, new[] { typeof(int) }), true);
+        var methodCallInfo = _callStack.CreateMethodCallInfo(_mockClassMonitor.Object, externalType, config, externalType.GetMethod(externalMethodName, new[] { typeof(char) }), true);
 
         // Assert
-        Assert.That(methodCallInfo, Is.Not.Null);
-        Assert.That(methodCallInfo.IsExternalCall, Is.True);
-        Assert.That(methodCallInfo.MethodName, Does.Contain("Substring"));
+        Assert.That(methodCallInfo, Is.Not.Null, "MethodCallInfo should not be null");
+        Assert.That(methodCallInfo.IsExternalCall, Is.True, "MethodCallInfo should be an external call");
+        Assert.That(methodCallInfo.MethodName, Does.Contain(externalMethodName), "MethodCallInfo.MethodName should contain the external method name");
     }
 
     [Test]
@@ -108,7 +109,7 @@ public class CallStackExternalMethodTests
         {
             _callStack.Push(externalMethod);
             // Simulate some async work
-            Task.Delay(100).Wait();
+            Task.Delay(TestConstants.DefaultAsyncOperationDelay).Wait();
             _callStack.Pop(externalMethod);
         });
 
@@ -171,8 +172,8 @@ public class CallStackExternalMethodTests
         public override Type ReflectedType => DeclaringType;
         public override MethodInfo GetBaseDefinition() => this;
         public override ICustomAttributeProvider ReturnTypeCustomAttributes { get; }
-        public override object[] GetCustomAttributes(bool inherit) => Array.Empty<object>();
-        public override object[] GetCustomAttributes(Type attributeType, bool inherit) => Array.Empty<object>();
+        public override object[] GetCustomAttributes(bool inherit) => TestConstants.EmptyObjectArray;
+        public override object[] GetCustomAttributes(Type attributeType, bool inherit) => TestConstants.EmptyObjectArray;
         public override MethodImplAttributes GetMethodImplementationFlags() => MethodImplAttributes.Managed;
         public override ParameterInfo[] GetParameters() => Array.Empty<ParameterInfo>();
         public override object Invoke(object obj, BindingFlags invokeAttr, Binder binder, object[] parameters, System.Globalization.CultureInfo culture) => null;
