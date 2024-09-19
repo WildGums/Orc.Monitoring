@@ -109,7 +109,7 @@ public class CallStackExternalMethodTests
         {
             _callStack.Push(externalMethod);
             // Simulate some async work
-            Task.Delay(TestConstants.DefaultAsyncOperationDelay).Wait();
+            Task.Delay(TestConstants.MediumDelayMilliseconds).Wait();
             _callStack.Pop(externalMethod);
         });
 

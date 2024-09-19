@@ -1,6 +1,7 @@
 ﻿namespace Orc.Monitoring.TestUtilities;
 
 using System;
+using System.IO;
 
 public static class TestConstants
 {
@@ -19,6 +20,10 @@ public static class TestConstants
     public const string DefaultRanttFileName = "TestReport.rprjx";
     public const string DefaultOverrideFileName = "method_overrides.csv";
     public const string DefaultTemplateFileName = "method_overrides.template";
+    public const string DefaultTestFilePath = "/test.txt";
+    public const string DefaultTestFolderPath = "/testFolder";
+    public const string DefaultTestContent = "Test content";
+    public const string DefaultTestFileName = "testfile.txt";
 
     // Numeric constants
     public const int DefaultTestMaxItems = 100;
@@ -40,14 +45,27 @@ public static class TestConstants
     // File content related constants
     public const string CsvHeaderLine = "Id,ParentId,StartTime,EndTime,Report,ClassName,MethodName,FullName,Duration,ThreadId,ParentThreadId,NestingLevel,IsStatic,IsGeneric,IsExtension";
 
-    // Async operation related constants
-    public const int DefaultAsyncOperationDelay = 100; // milliseconds
-
     // Reporting related constants
     public const string DefaultReportName = "TestReport";
 
-    // Test file related constants
-    public const string DefaultRanttReportFileName = "TestReport.rprjx";
-    public const string DefaultRelationshipsFileName = "TestReport_Relationships.csv";
-    public const string DefaultCsvHeaderLine = "Id,ParentId,StartTime,EndTime,Report,ClassName,MethodName,FullName,Duration,ThreadId,ParentThreadId,NestingLevel,IsStatic,IsGeneric,IsExtension";
+    // File size constants
+    public const int LargeFileSize = 10_000_000; // 10 MB
+
+    // Timing constants
+    public const int ShortDelayMilliseconds = 10;
+    public const int MediumDelayMilliseconds = 100;
+    public const int LongDelayMilliseconds = 1000;
+
+    // Thread and concurrency constants
+    public const int DefaultThreadCount = 10;
+    public const int DefaultConcurrentOperations = 1000;
+
+    // File attribute constants
+    public const FileAttributes DefaultFileAttributes = FileAttributes.Normal;
+    public const FileAttributes ReadOnlyFileAttributes = FileAttributes.ReadOnly;
+
+    // File mode and access constants
+    public static readonly FileMode DefaultFileMode = FileMode.Create;
+    public static readonly FileAccess DefaultFileAccess = FileAccess.ReadWrite;
+    public static readonly FileShare DefaultFileShare = FileShare.None;
 }
