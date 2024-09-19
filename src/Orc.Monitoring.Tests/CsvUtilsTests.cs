@@ -23,7 +23,7 @@ public class CsvUtilsTests
         var loggerFactoty = new TestLoggerFactory<CsvUtilsTests>(_logger);
         _fileSystem = new InMemoryFileSystem(loggerFactoty);
         _csvUtils = new CsvUtils(_fileSystem);
-        _testFilePath = Path.GetTempFileName();
+        _testFilePath = _fileSystem.GetTempFileName();
     }
 
     [TearDown]

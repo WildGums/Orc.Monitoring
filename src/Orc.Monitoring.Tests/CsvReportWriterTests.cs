@@ -36,7 +36,7 @@ public class CsvReportWriterTests
         _csvUtils = new CsvUtils(_fileSystem);
 
         _stringWriter = new StringWriter();
-        _overrideFilePath = Path.GetTempPath();
+        _overrideFilePath = _fileSystem.GetTempPath();
         _overrideManager = new MethodOverrideManager(_overrideFilePath, _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
@@ -233,7 +233,7 @@ public class CsvReportWriterTests
             new() { Id = "1", MethodName = "Method1", StartTime = "2023-01-01 00:00:00" },
             new() { Id = "2", MethodName = "Method2", StartTime = "2023-01-01 00:00:01" }
         };
-        var overrideManager = new Mock<MethodOverrideManager>(Path.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils).Object;
+        var overrideManager = new Mock<MethodOverrideManager>(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils).Object;
         var writer = new CsvReportWriter(stringWriter, reportItems, overrideManager, _loggerFactory, _csvUtils);
 
         // Act

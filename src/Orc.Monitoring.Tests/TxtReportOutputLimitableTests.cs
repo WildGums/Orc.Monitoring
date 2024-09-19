@@ -39,7 +39,7 @@ public class TxtReportOutputLimitableTests
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
-        _testOutputPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
         
         var reportOutputHelper = new ReportOutputHelper(_loggerFactory);

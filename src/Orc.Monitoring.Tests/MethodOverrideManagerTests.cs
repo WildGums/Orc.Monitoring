@@ -30,7 +30,7 @@ public class MethodOverrideManagerTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = new CsvUtils(_fileSystem);
 
-        _testOutputPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
         _overrideFilePath = _fileSystem.Combine(_testOutputPath, "method_overrides.csv");
         _overrideTemplateFilePath = _fileSystem.Combine(_testOutputPath, "method_overrides.template");

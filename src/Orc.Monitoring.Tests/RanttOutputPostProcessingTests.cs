@@ -201,7 +201,7 @@ public class RanttOutputPostProcessingTests
 
     private string CreateTestOutputPath()
     {
-        var path = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var path = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(path);
         return path;
     }

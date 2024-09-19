@@ -133,4 +133,19 @@ public class FileSystem : IFileSystem
     {
         return Path.GetRelativePath(relativeTo, path);
     }
+
+    public string GetTempPath()
+    {
+        return Path.GetTempPath();
+    }
+
+    public string GetRandomFileName()
+    {
+        return Path.GetRandomFileName();
+    }
+
+    public string GetTempFileName()
+    {
+        return Path.GetTempFileName();
+    }
 }

@@ -46,7 +46,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public void WriteAllText(string path, string contents)
     {
         var normalizedPath = NormalizePath(path);
-        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+        var directoryPath = NormalizePath(GetDirectoryName(normalizedPath));
 
         _logger.LogInformation("Writing text to file at path: {Path}", path);
 
@@ -139,7 +139,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public void AppendAllText(string path, string contents)
     {
         var normalizedPath = NormalizePath(path);
-        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+        var directoryPath = NormalizePath(GetDirectoryName(normalizedPath));
 
         EnsureDirectoryExists(directoryPath);
 
@@ -251,11 +251,11 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
         var files = _files.Keys.Where(f =>
         {
-            var fileDir = NormalizePath(Path.GetDirectoryName(f));
+            var fileDir = NormalizePath(GetDirectoryName(f));
             var isInDirectory = (searchOption == SearchOption.AllDirectories && fileDir.StartsWith(normalizedPath, StringComparison.OrdinalIgnoreCase)) ||
                                 (searchOption == SearchOption.TopDirectoryOnly && fileDir.Equals(normalizedPath, StringComparison.OrdinalIgnoreCase));
 
-            return isInDirectory && searchPatternRegex.IsMatch(Path.GetFileName(f));
+            return isInDirectory && searchPatternRegex.IsMatch(GetFileName(f));
         });
 
         return files.ToArray();
@@ -298,7 +298,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public TextWriter CreateStreamWriter(string fullPath, bool append, Encoding encoding)
     {
         var normalizedPath = NormalizePath(fullPath);
-        EnsureDirectoryExists(Path.GetDirectoryName(normalizedPath));
+        EnsureDirectoryExists(GetDirectoryName(normalizedPath));
         var fileStream = CreateFileStream(normalizedPath, append ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.Read);
         return new StreamWriter(fileStream, encoding);
     }
@@ -351,7 +351,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
     public Stream CreateFileStream(string sourcePath, FileMode fileMode, FileAccess fileAccess, FileShare fileShare, int bufferSize, FileOptions fileOptions)
     {
         var normalizedPath = NormalizePath(sourcePath);
-        var directoryPath = NormalizePath(Path.GetDirectoryName(normalizedPath));
+        var directoryPath = NormalizePath(GetDirectoryName(normalizedPath));
 
         _logger.LogInformation("Creating file stream for path: {Path}, FileMode: {FileMode}, FileAccess: {FileAccess}, FileShare: {FileShare}", sourcePath, fileMode, fileAccess, fileShare);
 
@@ -659,14 +659,63 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
         return relativePath;
     }
 
+    public string GetTempPath()
+    {
+        var tempPath = "/tmp";
+        EnsureDirectoryExists(tempPath);
+        return tempPath;
+    }
+
+    public string GetRandomFileName()
+    {
+        // Generate a random file name similar to Path.GetRandomFileName()
+        var randomBytes = new byte[16];
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(randomBytes);
+        }
+
+        var base64String = Convert.ToBase64String(randomBytes)
+            .Replace("+", string.Empty)
+            .Replace("/", string.Empty)
+            .Replace("=", string.Empty);
+
+        var fileName = base64String.Substring(0, 8);
+        var extension = base64String.Substring(8, 3);
+
+        return $"{fileName}.{extension}";
+    }
+
+    public string GetTempFileName()
+    {
+        var tempPath = GetTempPath();
+        string tempFileName;
+        string tempFilePath;
+
+        do
+        {
+            tempFileName = GetRandomFileName();
+            tempFilePath = Combine(tempPath, tempFileName);
+        }
+        while (FileExists(tempFilePath));
+
+        // Create an empty file
+        WriteAllText(tempFilePath, string.Empty);
+
+        return tempFilePath;
+    }
+
+
     public string[] ReadAllLines(string path)
     {
         var contents = ReadAllText(path);
         return contents.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
     }
 
-    private string NormalizePath(string path)
+    private string NormalizePath(string? path)
     {
+        path ??= string.Empty;
+
         path = path.Replace('\\', '/').TrimEnd('/');
         if (!path.StartsWith("/"))
         {
@@ -721,7 +770,7 @@ public class InMemoryFileSystem : IFileSystem, IDisposable
 
     private bool IsDirectChild(string parentDir, string childPath)
     {
-        var childDir = NormalizePath(Path.GetDirectoryName(childPath));
+        var childDir = NormalizePath(GetDirectoryName(childPath));
         return childDir.Equals(parentDir, StringComparison.OrdinalIgnoreCase);
     }
 

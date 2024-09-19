@@ -38,4 +38,7 @@ public interface IFileSystem
     string Combine(string path1, string path2, string path3);
     string GetFileName(string path);
     string GetRelativePath(string relativeTo, string path);
+    string GetTempPath();
+    string GetRandomFileName();
+    string GetTempFileName();
 }

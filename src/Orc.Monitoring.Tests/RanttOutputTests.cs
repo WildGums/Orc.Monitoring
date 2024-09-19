@@ -45,9 +45,10 @@ public class RanttOutputTests
         _logger.LogInformation("___");
         _logger.LogInformation("Starting RanttOutputTests setup");
 
-        _testOutputPath = Path.GetTempPath();
-
         InitializeDependencies();
+
+        _testOutputPath = _fileSystem.GetTempPath();
+
         InitializeRanttOutput();
 
         _monitoringController.Enable();
@@ -72,7 +73,7 @@ public class RanttOutputTests
 #pragma warning disable IDISP003
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
 #pragma warning restore IDISP003
-        _testFolderPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testFolderPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _csvUtils = new CsvUtils(_fileSystem);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
     }

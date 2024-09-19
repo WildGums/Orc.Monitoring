@@ -173,7 +173,7 @@ public class MethodOverrideManagerAndRanttOutputTests
 
     private void InitializePaths()
     {
-        _testOutputPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
         _overrideFilePath = _fileSystem.Combine(_testOutputPath, "TestReporter", "method_overrides.csv");
         _overrideTemplateFilePath = _fileSystem.Combine(_testOutputPath, "TestReporter", "method_overrides.template");

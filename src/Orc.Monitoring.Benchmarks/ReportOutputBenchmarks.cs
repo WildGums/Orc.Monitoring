@@ -44,7 +44,7 @@ public class ReportOutputBenchmarks
         var csvUtils = new CsvUtils(_fileSystem);
         var reportArchiver = new ReportArchiver(_fileSystem, loggerFactory);
 
-        _testOutputPath = _fileSystem.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
 
         _reportOutputHelper = new ReportOutputHelper(loggerFactory);
