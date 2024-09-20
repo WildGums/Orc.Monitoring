@@ -7,27 +7,18 @@ using Monitoring;
 /// <summary>
 /// Represents a log entry in the performance monitoring system.
 /// </summary>
-public class LogEntryItem : IMethodLifeCycleItem
+public class LogEntryItem<T> : MethodLifeCycleItemBase
 {
-    public LogEntryItem(MethodCallInfo methodCallInfo, string category, object data)
+    public LogEntryItem(MethodCallInfo methodCallInfo, string category, T data)
+    : base(methodCallInfo)
     {
-        ArgumentNullException.ThrowIfNull(methodCallInfo);
         ArgumentNullException.ThrowIfNull(category);
         ArgumentNullException.ThrowIfNull(data);
 
-        MethodCallInfo = methodCallInfo;
         Category = category;
         Data = data;
         TimeStamp = DateTime.Now;
-        ThreadId = Thread.CurrentThread.ManagedThreadId;
     }
-
-    /// <summary>
-    /// Gets the timestamp of the log entry.
-    /// </summary>
-    public DateTime TimeStamp { get; }
-
-    public MethodCallInfo MethodCallInfo { get; }
 
     /// <summary>
     /// Gets the category of the log entry.
@@ -37,13 +28,8 @@ public class LogEntryItem : IMethodLifeCycleItem
     /// <summary>
     /// Gets the data of the log entry.
     /// </summary>
-    public object Data { get; }
+    public T Data { get; }
 
-    /// <summary>
-    /// Gets the ID of the thread that made the log entry.
-    /// </summary>
-    public int ThreadId { get; }
-
-    public override string ToString() => $"LogEntry: {Category} {MethodCallInfo}";
+    public override string ToString() => $"LogEntryItem at {TimeStamp}: {Category} in {MethodCallInfo}";
 }
 
