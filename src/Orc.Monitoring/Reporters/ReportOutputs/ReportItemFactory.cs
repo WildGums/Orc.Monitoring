@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
+namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
 using System.Collections.Generic;
@@ -128,7 +128,7 @@ public class ReportItemFactory : IReportItemFactory
 
     public ReportItem CreateGapReportItem(CallGap gap, IMethodCallReporter? reporter)
     {
-        var reportItem = CreateGapReportItem(gap, reporter);
+        var reportItem = new ReportItem
 
         reportItem = new ReportItem
         {
