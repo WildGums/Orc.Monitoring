@@ -129,8 +129,6 @@ public class ReportItemFactory : IReportItemFactory
     public ReportItem CreateGapReportItem(CallGap gap, IMethodCallReporter? reporter)
     {
         var reportItem = new ReportItem
-
-        reportItem = new ReportItem
         {
             Id = Guid.NewGuid().ToString(),
             StartTime = gap.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
