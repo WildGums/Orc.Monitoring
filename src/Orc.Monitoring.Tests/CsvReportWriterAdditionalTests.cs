@@ -84,11 +84,11 @@ public class CsvReportWriterAdditionalTests
 
         Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
         Assert.That(lines[0], Does.Contain("CustomColumn1"));
-        Assert.That(lines[0], Does.Not.Contain("CustomColumn2"));
+        Assert.That(lines[0], Does.Contain("CustomColumn2"));
         Assert.That(lines[0], Does.Contain("CustomColumn3"));
 
         Assert.That(lines[1], Does.Contain("Value1"));
-        Assert.That(lines[1], Does.Not.Contain("Value2"));
+        Assert.That(lines[1], Does.Contain("Value2"));
         Assert.That(lines[2], Does.Contain("Value3"));
         Assert.That(lines[2], Does.Contain("Value4"));
     }

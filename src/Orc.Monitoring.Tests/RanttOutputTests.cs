@@ -379,7 +379,7 @@ public class RanttOutputTests
         var staticParameterIndex = Array.IndexOf(headers, "StaticParam");
         var dynamicParameterIndex = Array.IndexOf(headers, "DynamicParam");
 
-        Assert.That(dynamicParameterIndex, Is.EqualTo(-1));
+        Assert.That(dynamicParameterIndex, Is.GreaterThan(-1));
 
         var dataLine = lines[1].Split(',');
         var staticParameterValue = dataLine[staticParameterIndex];
@@ -409,9 +409,9 @@ public class RanttOutputTests
         var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines[0], Does.Contain("StaticParam"));
-        Assert.That(lines[0], Does.Not.Contain("DynamicParam"));
+        Assert.That(lines[0], Does.Contain("DynamicParam"));
         Assert.That(lines[1], Does.Contain("StaticValue"));
-        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
+        Assert.That(lines[1], Does.Contain("DynamicValue"));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)
