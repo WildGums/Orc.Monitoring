@@ -321,4 +321,43 @@ public class CsvReportWriterTests
         Assert.That(lines[1], Does.Not.Contain("DynamicValue1"));
         Assert.That(lines[1], Does.Not.Contain("DynamicValue2"));
     }
+
+    [Test]
+    public async Task WriteReportItemsCsvAsync_ShouldOnlyApplyOverridesToStaticParameters()
+    {
+        // Arrange
+        var overrideContent = "FullName,StaticParam\nTestClass.TestMethod,StaticOverride";
+        await _fileSystem.WriteAllTextAsync(_fileSystem.Combine(_fileSystem.GetTempPath(), "method_overrides.csv"), overrideContent);
+
+        _reportItems.Add(new ReportItem
+        {
+            Id = "1",
+            MethodName = "TestMethod",
+            FullName = "TestClass.TestMethod",
+            Parameters = new Dictionary<string, string>
+            {
+                {"StaticParam", "OriginalStatic"},
+                {"DynamicParam", "OriginalDynamic"}
+            },
+            AttributeParameters = new HashSet<string> { "StaticParam" }
+        });
+
+        var overrideManager = new MethodOverrideManager(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
+        overrideManager.ReadOverrides();
+
+        var writer = new CsvReportWriter(_stringWriter, _reportItems, overrideManager, _loggerFactory, _csvUtils);
+
+        // Act
+        await writer.WriteReportItemsCsvAsync();
+
+        // Assert
+        var content = _stringWriter.ToString();
+        var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.That(lines[0], Does.Contain("StaticParam"));
+        Assert.That(lines[0], Does.Not.Contain("DynamicParam"));
+        Assert.That(lines[1], Does.Contain("StaticOverride"));
+        Assert.That(lines[1], Does.Not.Contain("DynamicOverride"));
+        Assert.That(lines[1], Does.Not.Contain("OriginalDynamic"));
+    }
 }
