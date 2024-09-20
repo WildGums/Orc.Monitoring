@@ -178,6 +178,36 @@ public class RanttOutputTests
     }
 
     [Test]
+    public async Task ExportToCsv_AppliesOverridesCorrectly()
+    {
+        // Arrange
+        var overrideContent = "FullName,CustomColumn\nRanttOutputTests.Method1,OverrideValue";
+        await _fileSystem.WriteAllTextAsync(_fileSystem.Combine(_testFolderPath, "TestReporter", "method_overrides.csv"), overrideContent);
+
+        var methodCallInfo = CreateMethodCallInfo("Method1", null);
+        methodCallInfo.AddParameter("CustomColumn", "OriginalValue");
+        methodCallInfo.AttributeParameters.Add("CustomColumn");
+
+        await using (var _ = _ranttOutput.Initialize(_mockReporter))
+        {
+            _ranttOutput.WriteItem(new MethodCallStart(methodCallInfo));
+            _ranttOutput.WriteItem(new MethodCallEnd(methodCallInfo));
+        }
+
+        // Assert
+        var csvFilePath = _fileSystem.Combine(_testFolderPath, "TestReporter", "TestReporter.csv");
+        var csvContent = await _fileSystem.ReadAllTextAsync(csvFilePath);
+
+        var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var headers = lines[0].Split(',');
+        var customColumnIndex = Array.IndexOf(headers, "CustomColumn");
+
+        var values = lines[1].Split(',');
+
+        Assert.That(values[customColumnIndex], Is.EqualTo("OverrideValue"), "Override value should be used");
+    }
+
+    [Test]
     [Ignore("Not important at the moment")]
     public async Task Initialize_ShouldThrowUnauthorizedAccessException_WhenFolderIsReadOnly()
     {

@@ -238,7 +238,7 @@ public sealed class RanttOutput : IReportOutput
             var itemsWithOverrides = itemsToWrite.Select(item =>
             {
                 var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
-                var overrides = _overrideManager.GetOverridesForMethod(fullName);
+                var overrides = _overrideManager.GetOverridesForMethod(fullName, item.IsStaticParameter);
                 _logger.LogInformation($"Applying overrides for {fullName}: {string.Join(", ", overrides.Select(x => $"{x.Key}={x.Value}"))}");
                 var newParameters = new Dictionary<string, string>(item.Parameters, StringComparer.OrdinalIgnoreCase);
                 foreach (var kvp in overrides)

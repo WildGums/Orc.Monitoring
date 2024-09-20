@@ -97,7 +97,7 @@ public class MethodOverrideManager
         using var writer = _fileSystem.CreateStreamWriter(_overrideTemplateFilePath, false, System.Text.Encoding.UTF8);
         _csvUtils.WriteCsvLine(writer, sortedHeader.ToArray());
 
-        var savedFullNames = new HashSet<string>(); 
+        var savedFullNames = new HashSet<string>();
 
         foreach (var item in reportItems.Where(i => i.MethodName != MethodCallParameter.Types.Gap))
         {
@@ -123,12 +123,13 @@ public class MethodOverrideManager
         _logger.LogInformation($"Saved method override template to {_overrideTemplateFilePath}");
     }
 
-    public Dictionary<string, string> GetOverridesForMethod(string fullName)
+    public Dictionary<string, string> GetOverridesForMethod(string fullName, Predicate<string> isStaticParameter)
     {
         if (_overrides.TryGetValue(fullName, out var methodOverrides) ||
             _overrides.TryGetValue(fullName.ToLowerInvariant(), out methodOverrides))
         {
-            return methodOverrides;
+            return methodOverrides.Where(kvp => isStaticParameter(kvp.Key))
+                                  .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         }
 
         return new Dictionary<string, string>();

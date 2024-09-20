@@ -64,7 +64,7 @@ public class MethodOverrideManagerTests
         _overrideManager.ReadOverrides();
 
         // Assert
-        var overrides = _overrideManager.GetOverridesForMethod(methodName);
+        var overrides = _overrideManager.GetOverridesForMethod(methodName, _ => true);
         Assert.That(overrides, Does.ContainKey(expectedKey));
         Assert.That(overrides[expectedKey], Is.EqualTo(expectedValue));
     }
@@ -79,7 +79,7 @@ public class MethodOverrideManagerTests
         _overrideManager.ReadOverrides();
 
         // Assert
-        var overrides = _overrideManager.GetOverridesForMethod("AnyMethod");
+        var overrides = _overrideManager.GetOverridesForMethod("AnyMethod", _ => true);
         Assert.That(overrides, Is.Empty, "Overrides should be empty for an empty file");
     }
 
@@ -90,7 +90,7 @@ public class MethodOverrideManagerTests
         _overrideManager.ReadOverrides();
 
         // Assert
-        var overrides = _overrideManager.GetOverridesForMethod("AnyMethod");
+        var overrides = _overrideManager.GetOverridesForMethod("AnyMethod", _ => true);
         Assert.That(overrides, Is.Empty);
     }
 
@@ -156,7 +156,7 @@ public class MethodOverrideManagerTests
         _overrideManager.ReadOverrides();
 
         // Act
-        var overrides = _overrideManager.GetOverridesForMethod(methodName);
+        var overrides = _overrideManager.GetOverridesForMethod(methodName, _ => true);
 
         // Assert
         Assert.That(overrides, Does.ContainKey(overrideKey));
@@ -183,7 +183,7 @@ public class MethodOverrideManagerTests
             if (!string.IsNullOrEmpty(line))
             {
                 var parts = line.Split(',');
-                allOverrides.Add(_overrideManager.GetOverridesForMethod(parts[0]));
+                allOverrides.Add(_overrideManager.GetOverridesForMethod(parts[0], _ => true));
             }
         }
         Assert.That(allOverrides.Count, Is.EqualTo(expectedOverrideCount));
@@ -271,12 +271,12 @@ public class MethodOverrideManagerTests
         };
 
         // Act
-        var overrides = _overrideManager.GetOverridesForMethod(reportItem.FullName);
+        var overrides = _overrideManager.GetOverridesForMethod(reportItem.FullName, _ => true);
         foreach (var kvp in overrides)
         {
             if (reportItem.IsStaticParameter(kvp.Key))
             {
-                ((Dictionary<string, string>)reportItem.Parameters)[kvp.Key] =  kvp.Value;
+                ((Dictionary<string, string>)reportItem.Parameters)[kvp.Key] = kvp.Value;
             }
         }
 

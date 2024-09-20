@@ -180,16 +180,18 @@ public class CsvReportWriter
         };
 
         var fullName = item.FullName ?? string.Empty;
-        var overrides = _overrideManager.GetOverridesForMethod(fullName);
+        var overrides = _overrideManager.GetOverridesForMethod(fullName, item.IsStaticParameter);
 
         foreach (var kvp in item.Parameters)
         {
-            if (!item.AttributeParameters.Contains(kvp.Key))
+            if (item.IsStaticParameter(kvp.Key))
             {
-                continue;
+                result[kvp.Key] = overrides.TryGetValue(kvp.Key, out var overrideValue) ? overrideValue : kvp.Value;
             }
-
-            result[kvp.Key] = overrides.TryGetValue(kvp.Key, out var overrideValue) ? overrideValue : kvp.Value;
+            else
+            {
+                result[kvp.Key] = kvp.Value;
+            }
         }
 
         return result;
