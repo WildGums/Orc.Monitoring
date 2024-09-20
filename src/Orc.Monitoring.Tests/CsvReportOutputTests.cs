@@ -50,7 +50,7 @@ public class CsvReportOutputTests
         _testFolderPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testFolderPath);
         _testFileName = "TestReport";
-        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory));
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
             _fileSystem, _reportArchiver);
@@ -215,7 +215,7 @@ public class CsvReportOutputTests
 
         var csvUtils = new CsvUtils(mockFileSystem.Object);
 
-        var csvReportOutput = new CsvReportOutput(_loggerFactory, new ReportOutputHelper(_loggerFactory),
+        var csvReportOutput = new CsvReportOutput(_loggerFactory, new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory)),
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, mockFileSystem.Object, csvUtils), mockFileSystem.Object, _reportArchiver);
 
         var parameters = CsvReportOutput.CreateParameters(_testFolderPath, _testFileName);

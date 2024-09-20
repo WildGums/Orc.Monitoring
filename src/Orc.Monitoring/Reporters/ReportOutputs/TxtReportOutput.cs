@@ -29,7 +29,7 @@ public sealed class TxtReportOutput : IReportOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public TxtReportOutput()
-    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance), new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance), FileSystem.Instance)
+    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance, new ReportItemFactory(MonitoringLoggerFactory.Instance)), new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance), FileSystem.Instance)
     {
         
     }

@@ -82,10 +82,10 @@ public class RanttOutputTests
     {
         _ranttOutput = new RanttOutput(_loggerFactory,
             () => new EnhancedDataPostProcessor(_loggerFactory),
-            new ReportOutputHelper(_loggerFactory),
+            new ReportOutputHelper(_loggerFactory, new ReportItemFactory(MonitoringLoggerFactory.Instance)),
             (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils),
             _fileSystem,
-            _reportArchiver);
+            _reportArchiver, new ReportItemFactory(MonitoringLoggerFactory.Instance));
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }

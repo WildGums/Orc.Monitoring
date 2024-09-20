@@ -24,7 +24,7 @@ public sealed class CsvReportOutput : IReportOutput
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
 
     public CsvReportOutput()
-    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance),
+    : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance, new ReportItemFactory(MonitoringLoggerFactory.Instance)),
         (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
         FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance))
     {

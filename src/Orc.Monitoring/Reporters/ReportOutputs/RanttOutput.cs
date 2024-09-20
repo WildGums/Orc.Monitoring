@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Monitoring;
 using MethodLifeCycleItems;
 using Reporters;
+using System.Security.Cryptography;
 
 public sealed class RanttOutput : IReportOutput
 {
@@ -53,17 +54,18 @@ public sealed class RanttOutput : IReportOutput
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
     private readonly IFileSystem _fileSystem;
     private readonly ReportArchiver _reportArchiver;
+    private readonly IReportItemFactory _reportItemFactory;
 
     public RanttOutput()
     : this(MonitoringLoggerFactory.Instance, () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
-            new ReportOutputHelper(MonitoringLoggerFactory.Instance), (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
-            FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance))
+            new ReportOutputHelper(MonitoringLoggerFactory.Instance, new ReportItemFactory(MonitoringLoggerFactory.Instance)), (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
+            FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance), new ReportItemFactory(MonitoringLoggerFactory.Instance))
     {
 
     }
 
     public RanttOutput(IMonitoringLoggerFactory monitoringLoggerFactory, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
-        Func<string, MethodOverrideManager> methodOverrideManagerFactory, IFileSystem fileSystem, ReportArchiver reportArchiver)
+        Func<string, MethodOverrideManager> methodOverrideManagerFactory, IFileSystem fileSystem, ReportArchiver reportArchiver, IReportItemFactory reportItemFactory)
     {
         _logger = monitoringLoggerFactory.CreateLogger<RanttOutput>();
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
@@ -71,6 +73,7 @@ public sealed class RanttOutput : IReportOutput
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
         _fileSystem = fileSystem;
         _reportArchiver = reportArchiver;
+        _reportItemFactory = reportItemFactory;
     }
 
     public static RanttReportParameters CreateParameters(
@@ -235,39 +238,7 @@ public sealed class RanttOutput : IReportOutput
                 _logger.LogInformation($"Applied limit: Writing {itemsToWrite.Count} items");
             }
 
-            var itemsWithOverrides = itemsToWrite.Select(item =>
-            {
-                var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
-                var overrides = _overrideManager.GetOverridesForMethod(fullName, item.IsStaticParameter);
-                _logger.LogInformation($"Applying overrides for {fullName}: {string.Join(", ", overrides.Select(x => $"{x.Key}={x.Value}"))}");
-                var newParameters = new Dictionary<string, string>(item.Parameters, StringComparer.OrdinalIgnoreCase);
-                foreach (var kvp in overrides)
-                {
-                    if (item.IsStaticParameter(kvp.Key))
-                    {
-                        newParameters[kvp.Key] = kvp.Value;
-                        _logger.LogInformation($"Applied override: {kvp.Key}={kvp.Value}");
-                    }
-                }
-                return new ReportItem
-                {
-                    Id = item.Id,
-                    StartTime = item.StartTime,
-                    ItemName = item.ItemName,
-                    EndTime = item.EndTime,
-                    Duration = item.Duration,
-                    Report = item.Report,
-                    ThreadId = item.ThreadId,
-                    Level = item.Level,
-                    ClassName = item.ClassName,
-                    MethodName = item.MethodName,
-                    FullName = fullName,
-                    Parent = item.Parent,
-                    ParentThreadId = item.ParentThreadId,
-                    Parameters = newParameters,
-                    AttributeParameters = new HashSet<string>(item.AttributeParameters)
-                };
-            }).ToList();
+            var itemsWithOverrides = itemsToWrite.Select(item => _reportItemFactory.CloneReportItemWithOverrides(item, _overrideManager)).ToList();
 
             _logger.LogInformation($"Number of items with overrides: {itemsWithOverrides.Count}");
 

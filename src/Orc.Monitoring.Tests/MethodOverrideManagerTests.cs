@@ -105,6 +105,7 @@ public class MethodOverrideManagerTests
         {
             new()
             {
+                Id = Guid.NewGuid().ToString(),
                 FullName = methodName,
                 Parameters = new Dictionary<string, string>
                 {
@@ -196,9 +197,9 @@ public class MethodOverrideManagerTests
         // Arrange
         var reportItems = new List<ReportItem>
         {
-            new() { FullName = "Method1", MethodName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" } } },
-            new() { FullName = "Method2", MethodName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" } } },
-            new() { FullName = "Gap", MethodName = MethodCallParameter.Types.Gap, Parameters = new Dictionary<string, string>() }
+            new() { Id = Guid.NewGuid().ToString(), FullName = "Method1", MethodName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" } } },
+            new() { Id = Guid.NewGuid().ToString(), FullName = "Method2", MethodName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" } } },
+            new() { Id = Guid.NewGuid().ToString(),  FullName = "Gap", MethodName = MethodCallParameter.Types.Gap, Parameters = new Dictionary<string, string>() }
         };
 
         // Act
@@ -236,9 +237,9 @@ public class MethodOverrideManagerTests
         // Arrange
         var reportItems = new List<ReportItem>
         {
-            new() { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
-            new() { FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
-            new() { FullName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" }, { "CustomParam", "Value2" } } }
+            new() { Id = Guid.NewGuid().ToString(), FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
+            new() { Id = Guid.NewGuid().ToString(),  FullName = "Method1", Parameters = new Dictionary<string, string> { { "IsStatic", "True" }, { "CustomParam", "Value1" } } },
+            new() { Id = Guid.NewGuid().ToString(),  FullName = "Method2", Parameters = new Dictionary<string, string> { { "IsExtension", "True" }, { "CustomParam", "Value2" } } }
         };
 
         // Act
@@ -261,6 +262,7 @@ public class MethodOverrideManagerTests
 
         var reportItem = new ReportItem
         {
+            Id = Guid.NewGuid().ToString(),
             FullName = "TestClass.TestMethod",
             Parameters = new Dictionary<string, string>
             {

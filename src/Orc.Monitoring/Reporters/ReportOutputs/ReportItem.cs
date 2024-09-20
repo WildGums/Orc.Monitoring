@@ -3,8 +3,8 @@
 using System.Collections.Generic;
 
 public class ReportItem
-{ 
-    public string? Id { get; set; }
+{
+    public required string Id { get; set; }
     public string? StartTime { get; set; }
     public string? ItemName { get; set; }
     public string? EndTime { get; set; }

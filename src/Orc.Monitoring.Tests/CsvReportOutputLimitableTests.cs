@@ -46,7 +46,7 @@ public class CsvReportOutputLimitableTests
 
         _fileSystem.CreateDirectory(_testOutputPath);
 
-        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory));
 
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
