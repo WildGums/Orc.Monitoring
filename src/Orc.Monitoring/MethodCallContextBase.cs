@@ -51,7 +51,8 @@ public abstract class MethodCallContextBase : VersionedMonitoringContext, IMetho
     }
 
     public abstract void LogException(Exception exception);
-    public abstract void Log(string category, object data);
+
+    public abstract void Log<T>(string category, T data);
     public abstract void SetParameter(string name, string value);
 
     public abstract void Dispose();

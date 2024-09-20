@@ -14,7 +14,7 @@ public sealed class NullMethodCallContext : IMethodCallContext
     public IReadOnlyList<string> ReporterIds => Array.Empty<string>();
 
     public void LogException(Exception exception) { /* No-op */ }
-    public void Log(string category, object data) { /* No-op */ }
+    public void Log<T>(string category, T data) { /* No-op */ }
     public void SetParameter(string name, string value) { /* No-op */ }
 
     public void Dispose() { /* No-op */ }

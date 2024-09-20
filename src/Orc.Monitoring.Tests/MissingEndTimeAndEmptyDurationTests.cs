@@ -47,7 +47,7 @@ public class MissingEndTimeAndEmptyDurationTests
         _callStackObserver = StartObservingCallStack();
 
         _mockClassMonitor = new Mock<IClassMonitor>();
-        _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        _reportOutputHelper = new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory));
         _monitoringController.Enable();
     }
 

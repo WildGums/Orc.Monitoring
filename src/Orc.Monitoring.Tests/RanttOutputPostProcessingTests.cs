@@ -131,7 +131,7 @@ public class RanttOutputPostProcessingTests
     private async Task InitializeAndExportData(List<ReportItem> reportItems)
     {
         _logger.LogInformation("Initializing and exporting data");
-        var helper = new ReportOutputHelper(_loggerFactory);
+        var helper = new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory));
         helper.Initialize(_reporterMock.Object);
         var methodCallStarts = new List<MethodCallStart>();
 
@@ -208,14 +208,14 @@ public class RanttOutputPostProcessingTests
 
     private RanttOutput InitializeRanttOutput()
     {
-        _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        _reportOutputHelper = new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory));
         var output = new RanttOutput(
             MonitoringLoggerFactory.Instance,
             () => _mockPostProcessor.Object,
             _reportOutputHelper,
             (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils), 
             _fileSystem,
-            _reportArchiver);
+            _reportArchiver, new ReportItemFactory(_loggerFactory));
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         output.SetParameters(parameters);
         return output;

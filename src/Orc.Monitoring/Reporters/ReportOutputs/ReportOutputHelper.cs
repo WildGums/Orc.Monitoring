@@ -8,18 +8,19 @@ using MethodLifeCycleItems;
 using Reporters;
 using Microsoft.Extensions.Logging;
 
-public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
+public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory, IReportItemFactory reportItemFactory)
 {
+    private readonly IReportItemFactory _reportItemFactory = reportItemFactory;
     private readonly ILogger<ReportOutputHelper> _logger = loggerFactory.CreateLogger<ReportOutputHelper>();
-    private readonly List<ReportItem> _reportItems = [];
 
     private IMethodCallReporter? _reporter;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
+    private Dictionary<string, ReportItem> _reportItems = [];
 
     public List<ReportItem> Gaps { get; } = [];
     public HashSet<string> ParameterNames { get; } = [];
     public string? LastEndTime { get; private set; }
-    public IReadOnlyCollection<ReportItem> ReportItems => _reportItems;
+    public IReadOnlyCollection<ReportItem> ReportItems => _reportItems.Values;
     public IMethodCallReporter? Reporter => _reporter;
 
     public void Initialize(IMethodCallReporter reporter)
@@ -72,10 +73,10 @@ public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
 
     private void AddOrUpdateReportItem(ReportItem item)
     {
-        var existingItem = _reportItems.FirstOrDefault(r => r.Id == item.Id);
+        var existingItem = _reportItems.GetValueOrDefault(item.Id);
         if (existingItem is null)
         {
-            _reportItems.Add(item);
+            _reportItems.Add(item.Id, item);
             _logger.LogInformation($"Added new ReportItem: {item.MethodName}, Id: {item.Id}");
         }
         else
@@ -91,28 +92,9 @@ public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
 
     private ReportItem ProcessStart(MethodCallStart start)
     {
-        var methodCallInfo = start.MethodCallInfo;
         var reporter = Reporter;
-        var id = methodCallInfo.Id;
 
-        id ??= Guid.NewGuid().ToString();
-
-        var reportItem = new ReportItem
-        {
-            Id = id,
-            IsRoot = reporter is not null && methodCallInfo.AssociatedReporters.Contains(reporter),
-            StartTime = methodCallInfo.StartTime.ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            Report = _reporter?.FullName ?? string.Empty,
-            ThreadId = methodCallInfo.ThreadId.ToString(),
-            Level = methodCallInfo.Level.ToString(),
-            ClassName = methodCallInfo.ClassType?.Name ?? string.Empty,
-            MethodName = methodCallInfo.MethodName,
-            ItemName = methodCallInfo.MethodName,
-            FullName = $"{methodCallInfo.ClassType?.Name}.{methodCallInfo.MethodName}",
-            Parent = methodCallInfo.Parent?.Id,
-            ParentThreadId = methodCallInfo.ParentThreadId.ToString(),
-            Parameters = methodCallInfo.Parameters ?? new Dictionary<string, string>(),
-        };
+        var reportItem = _reportItemFactory.CreateReportItem(start, reporter);
 
         _logger.LogInformation($"Created new ReportItem: Id={reportItem.Id}, MethodName={reportItem.MethodName}, Parent={reportItem.Parent}");
 
@@ -121,46 +103,9 @@ public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
 
     private ReportItem ProcessEnd(MethodCallEnd end)
     {
-        var methodCallInfo = end.MethodCallInfo;
+        var reportItem = _reportItemFactory.UpdateReportItemEnding(end, Reporter, _reportItems);
 
-        var id = methodCallInfo.Id;
-
-        if (string.IsNullOrEmpty(id))
-        {
-            _logger.LogWarning("Method call ID is null or empty. Attempting to find matching item by method name.");
-            var matchingItem = _reportItems.FirstOrDefault(item => item.MethodName == methodCallInfo.MethodName);
-            if (matchingItem is not null)
-            {
-                id = matchingItem.Id;
-                _logger.LogInformation($"Found matching item with Id: {id}");
-            }
-            else
-            {
-                _logger.LogWarning("No matching item found. Creating a new item.");
-                id = Guid.NewGuid().ToString();
-            }
-        }
-
-        var reportItem = _reportItems.FirstOrDefault(item => item.Id == id);
-        if (reportItem is null)
-        {
-            _logger.LogInformation($"Creating new report item for method call ID {id}.");
-            reportItem = new ReportItem
-            {
-                Id = id,
-                MethodName = methodCallInfo.MethodName,
-                StartTime = methodCallInfo.StartTime.ToString("yyyy-MM-dd HH:mm:ss.fff")
-            };
-            _reportItems.Add(reportItem);
-        }
-
-        var endTime = end.TimeStamp;
-        LastEndTime = endTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
-        reportItem.EndTime = LastEndTime;
-        reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture);
-        reportItem.Parameters = methodCallInfo.Parameters ?? new Dictionary<string, string>();
-        reportItem.AttributeParameters = methodCallInfo.AttributeParameters ?? [];
-
+        LastEndTime = reportItem.EndTime;
         ParameterNames.UnionWith(reportItem.Parameters.Keys);
 
         _logger.LogDebug($"Updated report item: {reportItem.MethodName}, Id: {reportItem.Id}, StartTime: {reportItem.StartTime}, EndTime: {reportItem.EndTime}, Duration: {reportItem.Duration}ms");
@@ -170,20 +115,7 @@ public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
 
     private ReportItem ProcessGap(CallGap gap)
     {
-        var reportItem = new ReportItem
-        {
-            Id = Guid.NewGuid().ToString(),
-            StartTime = gap.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            EndTime = (gap.TimeStamp + gap.Elapsed).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            Duration = gap.Elapsed.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture),
-            Report = _reporter?.FullName ?? string.Empty,
-            ThreadId = string.Empty,
-            Level = string.Empty,
-            ClassName = MethodCallParameter.Types.Gap,
-            MethodName = MethodCallParameter.Types.Gap,
-            FullName = MethodCallParameter.Types.Gap,
-            Parameters = gap.Parameters
-        };
+        var reportItem = _reportItemFactory.CreateGapReportItem(gap, Reporter);
 
         ParameterNames.UnionWith(reportItem.Parameters.Keys);
         Gaps.Add(reportItem);
@@ -193,18 +125,14 @@ public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
         return reportItem;
     }
 
-    public List<ReportItem> GetReportItems()
-    {
-        return _reportItems;
-    }
 
     public void AddReportItem(ReportItem item)
     {
-        var existingItem = _reportItems.FirstOrDefault(r => r.Id == item.Id);
+        var existingItem = _reportItems.GetValueOrDefault(item.Id);
         if (existingItem is null)
         {
             // Add new item
-            _reportItems.Add(item);
+            _reportItems.Add(item.Id, item);
             _logger.LogDebug($"Added new ReportItem: Id={item.Id}, MethodName={item.MethodName}");
         }
         else
@@ -228,13 +156,13 @@ public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory)
             var itemsToRemove = _reportItems.Count - _limitOptions.MaxItems.Value;
             if (itemsToRemove > 0)
             {
-                var itemsToKeep = _reportItems
+                var itemsToKeep = _reportItems.Values
                     .OrderByDescending(i => DateTime.Parse(i.StartTime ?? DateTime.MinValue.ToString(CultureInfo.InvariantCulture)))
                     .Take(_limitOptions.MaxItems.Value)
                     .ToList();
 
                 _reportItems.Clear();
-                _reportItems.AddRange(itemsToKeep);
+                _reportItems = itemsToKeep.ToDictionary(x => x.Id);
 
                 _logger.LogInformation($"Applied limits. Removed {itemsToRemove} items.");
             }

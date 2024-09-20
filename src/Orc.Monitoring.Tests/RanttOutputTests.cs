@@ -82,10 +82,10 @@ public class RanttOutputTests
     {
         _ranttOutput = new RanttOutput(_loggerFactory,
             () => new EnhancedDataPostProcessor(_loggerFactory),
-            new ReportOutputHelper(_loggerFactory),
+            new ReportOutputHelper(_loggerFactory, new ReportItemFactory(MonitoringLoggerFactory.Instance)),
             (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils),
             _fileSystem,
-            _reportArchiver);
+            _reportArchiver, new ReportItemFactory(MonitoringLoggerFactory.Instance));
         var parameters = RanttOutput.CreateParameters(_testFolderPath);
         _ranttOutput.SetParameters(parameters);
     }
@@ -379,7 +379,7 @@ public class RanttOutputTests
         var staticParameterIndex = Array.IndexOf(headers, "StaticParam");
         var dynamicParameterIndex = Array.IndexOf(headers, "DynamicParam");
 
-        Assert.That(dynamicParameterIndex, Is.EqualTo(-1));
+        Assert.That(dynamicParameterIndex, Is.GreaterThan(-1));
 
         var dataLine = lines[1].Split(',');
         var staticParameterValue = dataLine[staticParameterIndex];
@@ -409,9 +409,9 @@ public class RanttOutputTests
         var lines = csvContent.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines[0], Does.Contain("StaticParam"));
-        Assert.That(lines[0], Does.Not.Contain("DynamicParam"));
+        Assert.That(lines[0], Does.Contain("DynamicParam"));
         Assert.That(lines[1], Does.Contain("StaticValue"));
-        Assert.That(lines[1], Does.Not.Contain("DynamicValue"));
+        Assert.That(lines[1], Does.Contain("DynamicValue"));
     }
 
     private MethodCallInfo CreateMethodCallInfo(string methodName, MethodCallInfo? parent)

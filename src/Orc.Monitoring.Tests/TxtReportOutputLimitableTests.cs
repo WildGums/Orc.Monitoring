@@ -42,7 +42,7 @@ public class TxtReportOutputLimitableTests
         _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
         
-        var reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        var reportOutputHelper = new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory));
         _txtReportOutput = new TxtReportOutput(_loggerFactory, reportOutputHelper, _reportArchiver, _fileSystem);
 
         var parameters = TxtReportOutput.CreateParameters(_testOutputPath, "TestDisplay");

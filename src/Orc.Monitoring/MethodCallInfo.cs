@@ -136,7 +136,11 @@ public class MethodCallInfo
 
     public override string ToString()
     {
-        if (IsNull) return "Null MethodCallInfo";
+        if (IsNull)
+        {
+            return "Null MethodCallInfo";
+        }
+
         var classTypeName = ClassType?.Name ?? string.Empty;
         var methodType = IsStatic ? "Static" : IsExtensionMethod ? "Extension" : "Instance";
         var genericInfo = IsGenericMethod ? $"<{string.Join(", ", GenericArguments?.Select(t => t.Name) ?? Array.Empty<string>())}>" : string.Empty;
@@ -256,4 +260,5 @@ public class MethodCallInfo
 
         _parameters[attrName] = attrValue;
     }
+
 }

@@ -47,7 +47,7 @@ public class ReportOutputBenchmarks
         _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);
 
-        _reportOutputHelper = new ReportOutputHelper(loggerFactory);
+        _reportOutputHelper = new ReportOutputHelper(loggerFactory, new ReportItemFactory(loggerFactory));
 
         _csvReportOutput = new CsvReportOutput(loggerFactory, _reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, loggerFactory, _fileSystem, csvUtils),
@@ -58,7 +58,7 @@ public class ReportOutputBenchmarks
             () => new EnhancedDataPostProcessor(loggerFactory),
             _reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, loggerFactory, _fileSystem, csvUtils),
-            _fileSystem, reportArchiver);
+            _fileSystem, reportArchiver, new ReportItemFactory(loggerFactory));
         _ranttOutput.SetParameters(RanttOutput.CreateParameters(_testOutputPath));
 
         _txtReportOutput = new TxtReportOutput(loggerFactory, _reportOutputHelper, reportArchiver, _fileSystem);

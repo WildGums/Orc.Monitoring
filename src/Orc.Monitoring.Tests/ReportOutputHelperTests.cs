@@ -33,7 +33,7 @@ public class ReportOutputHelperTests
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
-        _reportOutputHelper = new ReportOutputHelper(_loggerFactory);
+        _reportOutputHelper = new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory));
         _mockReporter = new Mock<IMethodCallReporter>();
         _mockReporter.Setup(r => r.FullName).Returns("TestReporter");
 

@@ -97,12 +97,12 @@ public class MonitoringDiagnosticsTests
         var version2 = new MonitoringVersion(101, 0, Guid.NewGuid());
         var version3 = new MonitoringVersion(102, 0, Guid.NewGuid());
 
-        var time1 = DateTime.UtcNow;
+        var time1 = DateTime.Now;
         MonitoringDiagnostics.LogVersionChange(version1, version2);
-        var time2 = DateTime.UtcNow;
+        var time2 = DateTime.Now;
         Thread.Sleep(100);
         MonitoringDiagnostics.LogVersionChange(version2, version3);
-        var time3 = DateTime.UtcNow;
+        var time3 = DateTime.Now;
 
         var history = MonitoringDiagnostics.GetVersionHistory().ToList();
         _logger.LogInformation("Version History:");

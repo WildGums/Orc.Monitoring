@@ -22,7 +22,7 @@ public static class MonitoringDiagnostics
     /// <param name="newVersion">The new version.</param>
     public static void LogVersionChange(MonitoringVersion oldVersion, MonitoringVersion newVersion)
     {
-        var record = new VersionChangeRecord(oldVersion, newVersion, DateTime.UtcNow);
+        var record = new VersionChangeRecord(oldVersion, newVersion, DateTime.Now);
         _versionHistory.Enqueue(record);
         _logger.LogInformation($"Monitoring version changed from {oldVersion} to {newVersion}");
 

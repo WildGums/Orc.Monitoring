@@ -54,7 +54,7 @@ public sealed class AsyncMethodCallContext : MethodCallContextBase
     /// </summary>
     /// <param name="category">The category of the log entry.</param>
     /// <param name="data">The data to log.</param>
-    public override void Log(string category, object data)
+    public override void Log<T>(string category, T data)
     {
         EnsureValidVersion();
         if (MethodCallInfo is null)
@@ -62,7 +62,7 @@ public sealed class AsyncMethodCallContext : MethodCallContextBase
             return;
         }
 
-        var logEntry = new LogEntryItem(MethodCallInfo, category, data);
+        var logEntry = new LogEntryItem<T>(MethodCallInfo, category, data);
         (_classMonitor as ClassMonitor)?.LogStatus(logEntry);
     }
 

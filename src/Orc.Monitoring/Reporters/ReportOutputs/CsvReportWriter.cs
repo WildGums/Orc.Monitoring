@@ -221,17 +221,18 @@ public class CsvReportWriter
         // Include all attribute parameters across all report items
         var attributeParameters = _reportItems
             .SelectMany(r => r.AttributeParameters)
-            .Distinct();
+            .Distinct().ToArray();
 
         // Exclude dynamic parameters that are not in attribute parameters
         var dynamicParameters = _reportItems
             .SelectMany(r => r.Parameters.Keys)
-            .Where(k => !_reportItems.Any(r => r.AttributeParameters.Contains(k)))
             .Distinct();
 
+        // Combine all headers and remove duplicates
         var headers = baseHeaders
             .Concat(attributeParameters)
-            .Except(dynamicParameters)
+            .Concat(dynamicParameters)
+            .Distinct()
             .ToArray();
 
         return headers;
