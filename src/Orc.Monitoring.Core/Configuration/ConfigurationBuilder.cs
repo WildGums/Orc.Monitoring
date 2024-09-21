@@ -4,7 +4,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using Abstractions;
-using Attributes;
+using Utilities;
 
 public class ConfigurationBuilder
 {

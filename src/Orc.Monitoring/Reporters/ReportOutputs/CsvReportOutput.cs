@@ -12,7 +12,6 @@ using Core.Logging;
 using Core.MethodLifecycle;
 using Core.Utilities;
 using Microsoft.Extensions.Logging;
-using Orc.Monitoring.Core.Attributes;
 
 [DefaultOutput(false)]
 public sealed class CsvReportOutput : IReportOutput

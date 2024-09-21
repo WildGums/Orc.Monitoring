@@ -5,7 +5,6 @@
     using System.Reflection;
     using System.Threading.Tasks;
     using Core.Abstractions;
-    using Core.Attributes;
     using Core.CallStacks;
     using Core.Configuration;
     using Core.IO;
@@ -17,8 +16,6 @@
     using Core.Utilities;
     using Moq;
     using NUnit.Framework;
-    using Monitoring;
-    using Reporters;
     using Reporters.ReportOutputs;
     using Filters;
     using Mocks;

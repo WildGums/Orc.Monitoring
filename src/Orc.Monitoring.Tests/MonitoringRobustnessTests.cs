@@ -8,7 +8,6 @@ using Core.Abstractions;
 using Core.CallStacks;
 using Core.Configuration;
 using Core.Controllers;
-using Core.Extensions;
 using Core.MethodCallContexts;
 using Core.MethodLifecycle;
 using Core.Models;
@@ -16,6 +15,7 @@ using Core.Monitors;
 using Core.PerformanceMonitoring;
 using Core.Pooling;
 using TestUtilities.Logging;
+using Core.Utilities;
 
 [TestFixture]
 public class MonitoringRobustnessTests

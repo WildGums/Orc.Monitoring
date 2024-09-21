@@ -10,13 +10,11 @@ using System;
 using System.Threading.Tasks;
 using System.Threading;
 using Microsoft.Extensions.Logging;
-using Reporters;
 using System.Linq;
 using Core.Abstractions;
 using Core.CallStacks;
 using Core.Configuration;
 using Core.Controllers;
-using Core.Extensions;
 using Core.MethodCallContexts;
 using Core.Monitors;
 using Core.PerformanceMonitoring;
@@ -24,6 +22,7 @@ using Core.Pooling;
 using TestUtilities.Filters;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
+using Core.Utilities;
 
 [TestFixture]
 public class PerformanceMonitorIntegrationTests

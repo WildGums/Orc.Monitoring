@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Core.Attributes;
+﻿namespace Orc.Monitoring.Core.Utilities;
 
 using System;
 

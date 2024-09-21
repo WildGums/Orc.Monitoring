@@ -10,7 +10,6 @@ using Core.CallStacks;
 using Core.Configuration;
 using Core.Controllers;
 using Core.Diagnostics;
-using Core.Extensions;
 using Core.MethodCallContexts;
 using Core.MethodLifecycle;
 using Core.Models;
@@ -21,6 +20,7 @@ using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
+using Core.Utilities;
 
 [TestFixture]
 public class MonitoringIntegrationTests

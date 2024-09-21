@@ -2,12 +2,10 @@
 
 using System;
 using Core.Abstractions;
-using Core.Attributes;
-using Core.Extensions;
 using Core.PerformanceMonitoring;
 using Filters;
-using Monitoring;
-using Orc.Monitoring.Reporters.ReportOutputs;
+using Core.Utilities;
+using Reporters.ReportOutputs;
 using Reporters;
 
 public class SimpleClass

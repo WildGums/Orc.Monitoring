@@ -18,7 +18,6 @@ using Microsoft.Extensions.Logging;
 using TestUtilities.Filters;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
-using Orc.Monitoring.Core.Attributes;
 
 [TestFixture]
 public class PerformanceMonitorTests

@@ -18,7 +18,6 @@ using Core.Logging;
 using Core.MethodLifecycle;
 using Core.Models;
 using Core.Utilities;
-using Orc.Monitoring.Core.Attributes;
 
 [DefaultOutput]
 public sealed class RanttOutput : IReportOutput
