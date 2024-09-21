@@ -1,4 +1,4 @@
-﻿#pragma warning disable CL0002
+#pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
@@ -10,11 +10,10 @@ using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using Core.Models;
-using Core.Utilities;
 using Moq;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
-using Orc.Monitoring.TestUtilities;
+using Utilities.Serialization;
 
 [TestFixture]
 public class CsvReportWriterTests

@@ -14,6 +14,7 @@ using Core.Pooling;
 using Moq;
 using Microsoft.Extensions.Logging;
 using TestUtilities;
+using Utilities.Logging;
 
 [TestFixture]
 public class CallStackExternalMethodTests

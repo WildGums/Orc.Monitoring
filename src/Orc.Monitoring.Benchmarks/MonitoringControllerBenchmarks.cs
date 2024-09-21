@@ -2,12 +2,11 @@
 
 using BenchmarkDotNet.Attributes;
 using Core.Controllers;
-using Core.Logging;
 using Core.Models;
 using Monitoring;
 using Reporters;
 using Filters;
-
+using Utilities.Logging;
 
 [MemoryDiagnoser]
 public class MonitoringControllerBenchmarks

@@ -7,6 +7,7 @@ using Abstractions;
 using MethodLifecycle;
 using Microsoft.Extensions.Logging;
 using Models;
+using Monitoring.Utilities.Logging;
 using Monitors;
 using Pooling;
 

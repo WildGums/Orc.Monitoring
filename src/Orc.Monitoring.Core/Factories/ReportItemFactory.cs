@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Microsoft.Extensions.Logging;
+using Monitoring.Utilities.Logging;
 using Orc.Monitoring.Core.Abstractions;
 using Orc.Monitoring.Core.Constants;
 using Orc.Monitoring.Core.MethodLifecycle;

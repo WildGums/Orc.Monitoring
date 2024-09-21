@@ -7,6 +7,7 @@ using Abstractions;
 using CallStacks;
 using Configuration;
 using Microsoft.Extensions.Logging;
+using Monitoring.Utilities.Logging;
 
 public class PerformanceMonitor(
     IMonitoringController monitoringController,

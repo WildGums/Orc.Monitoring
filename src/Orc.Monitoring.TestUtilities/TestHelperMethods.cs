@@ -7,19 +7,21 @@
     using Core.Abstractions;
     using Core.CallStacks;
     using Core.Configuration;
-    using Core.IO;
     using Core.MethodCallContexts;
     using Core.MethodLifecycle;
     using Core.Models;
     using Core.PerformanceMonitoring;
     using Core.Pooling;
-    using Core.Utilities;
     using Moq;
     using NUnit.Framework;
     using Reporters.ReportOutputs;
     using Filters;
     using Mocks;
     using TestHelpers;
+    using Utilities.IO;
+    using Utilities.Logging;
+    using Utilities.Metadata;
+    using Utilities.Serialization;
 
     public static class TestHelperMethods
     {

@@ -5,7 +5,7 @@ using Abstractions;
 using CallStacks;
 using Configuration;
 using Controllers;
-using Logging;
+using Monitoring.Utilities.Logging;
 using Monitors;
 
 public static class Performance

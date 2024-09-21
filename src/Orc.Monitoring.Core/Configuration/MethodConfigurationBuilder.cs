@@ -3,8 +3,8 @@
 using System;
 using System.Linq;
 using Abstractions;
-using Logging;
 using Microsoft.Extensions.Logging;
+using Monitoring.Utilities.Logging;
 
 public class MethodConfigurationBuilder
 {

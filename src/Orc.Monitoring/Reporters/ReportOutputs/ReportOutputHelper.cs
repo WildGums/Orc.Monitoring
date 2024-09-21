@@ -10,6 +10,7 @@ using Core.MethodLifecycle;
 using Core.Models;
 using Reporters;
 using Microsoft.Extensions.Logging;
+using Utilities.Logging;
 
 public class ReportOutputHelper(IMonitoringLoggerFactory loggerFactory, IReportItemFactory reportItemFactory)
 {

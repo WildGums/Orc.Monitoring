@@ -3,7 +3,7 @@
 using Abstractions;
 using Configuration;
 using Controllers;
-using Logging;
+using Monitoring.Utilities.Logging;
 using Pooling;
 
 public class CallStackFactory(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory, MethodCallInfoPool methodCallInfoPool) : ICallStackFactory

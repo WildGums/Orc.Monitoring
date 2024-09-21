@@ -9,12 +9,12 @@ using Core.Abstractions;
 using Core.CallStacks;
 using Core.Configuration;
 using Core.Controllers;
-using Core.Logging;
 using Core.MethodCallContexts;
 using Core.Models;
 using Core.Pooling;
 using Moq;
 using Microsoft.Extensions.Logging;
+using Utilities.Logging;
 
 [MemoryDiagnoser]
 public class CallStackBenchmarks

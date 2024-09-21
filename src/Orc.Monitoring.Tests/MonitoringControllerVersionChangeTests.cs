@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Core.Abstractions;
 using Core.Controllers;
 using Core.Models;
-using Core.Utilities;
+using Core.Versioning;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 

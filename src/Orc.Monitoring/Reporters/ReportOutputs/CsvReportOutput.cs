@@ -7,11 +7,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using Core.Abstractions;
 using Core.Factories;
-using Core.IO;
-using Core.Logging;
 using Core.MethodLifecycle;
-using Core.Utilities;
 using Microsoft.Extensions.Logging;
+using Utilities.IO;
+using Utilities.Logging;
+using Utilities.Metadata;
+using Utilities.Serialization;
+using Utilities.Threading;
 
 [DefaultOutput(false)]
 public sealed class CsvReportOutput : IReportOutput

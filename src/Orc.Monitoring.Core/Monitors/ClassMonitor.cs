@@ -13,7 +13,8 @@ using MethodCallContexts;
 using MethodLifecycle;
 using Microsoft.Extensions.Logging;
 using Models;
-using Utilities;
+using Monitoring.Utilities.Logging;
+using Monitoring.Utilities.Metadata;
 using Pooling;
 
 /// <summary>

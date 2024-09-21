@@ -1,8 +1,7 @@
-﻿namespace Orc.Monitoring.Core.Logging;
+﻿namespace Orc.Monitoring.Utilities.Logging;
 
 using System;
 using System.Collections.Generic;
-using Abstractions;
 using Microsoft.Extensions.Logging;
 
 public sealed class MonitoringLoggerFactory : IMonitoringLoggerFactory, IDisposable

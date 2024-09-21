@@ -5,6 +5,7 @@ using Core.Abstractions;
 using Core.Models;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Filters;
+using Utilities.Logging;
 
 public class AlwaysIncludeFilter : IMethodFilter
 {

@@ -1,4 +1,4 @@
-﻿#pragma warning disable CL0002
+#pragma warning disable CL0002
 namespace Orc.Monitoring.Benchmarks;
 
 using BenchmarkDotNet.Attributes;
@@ -8,11 +8,9 @@ using System.Threading.Tasks;
 using Core.Abstractions;
 using Core.Controllers;
 using Core.Factories;
-using Core.Logging;
 using Core.MethodLifecycle;
 using Core.Models;
 using Core.Pooling;
-using Core.Utilities;
 using Moq;
 using Microsoft.Extensions.Logging;
 using Reporters;
@@ -20,8 +18,8 @@ using Reporters.ReportOutputs;
 using Tests;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
-using Castle.Core.Logging;
-using Orc.Monitoring.TestUtilities;
+using Utilities.Logging;
+using Utilities.Serialization;
 
 [MemoryDiagnoser]
 public class ReportOutputBenchmarks

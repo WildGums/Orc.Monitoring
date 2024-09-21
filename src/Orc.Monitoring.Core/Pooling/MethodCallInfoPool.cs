@@ -7,10 +7,10 @@ using System.Reflection;
 using System.Threading;
 using Abstractions;
 using Controllers;
-using Logging;
 using Microsoft.Extensions.Logging;
 using Models;
-using Utilities;
+using Monitoring.Utilities.Logging;
+using Monitoring.Utilities.Threading;
 
 /// <summary>
 /// Provides a pool of <see cref="MethodCallInfo"/> instances to optimize performance by reusing objects.

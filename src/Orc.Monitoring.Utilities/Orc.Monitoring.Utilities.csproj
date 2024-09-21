@@ -1,10 +1,10 @@
 ﻿<Project Sdk="MSBuild.Sdk.Extras">
   <PropertyGroup>
     <TargetFrameworks>net8.0</TargetFrameworks>
-    <AssemblyName>Orc.Monitoring</AssemblyName>
-    <RootNamespace>Orc.Monitoring</RootNamespace>
+    <AssemblyName>Orc.Monitoring.Utilities</AssemblyName>
+    <RootNamespace>Orc.Monitoring.Utilities</RootNamespace>
     <DefaultLanguage>en-US</DefaultLanguage>
-    <PackageId>Orc.Monitoring</PackageId>
+    <PackageId>Orc.Monitoring.Utilities</PackageId>
     <PackageVersion>1.0.0-alpha0001</PackageVersion>
     <Description>Performance monitoring library.</Description>
     <PackageTags>orc;performance;monitoring</PackageTags>
@@ -12,7 +12,7 @@
 
   <PropertyGroup>
     <!-- SonarQube requires a project guid -->
-    <ProjectGuid>C575A8AA-8FC6-43CB-918E-E925EEE2CFA4</ProjectGuid>
+    <ProjectGuid>EF6CD7BC-1B7F-4363-A533-0BDFE40D0A1C</ProjectGuid>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,13 +21,7 @@
     <PackageReference Include="System.Reactive.Linq" Version="6.0.1" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Orc.Monitoring.Core\Orc.Monitoring.Core.csproj" />
-    <ProjectReference Include="..\Orc.Monitoring.Reporters\Orc.Monitoring.Reporters.csproj" />
-  </ItemGroup>
-
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.nullable.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.nullable.props')" />
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props')" />
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props')" />
 </Project>
-

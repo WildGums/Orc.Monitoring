@@ -4,8 +4,8 @@ using System;
 using System.Collections.Generic;
 using Abstractions;
 using Controllers;
-using Logging;
 using Models;
+using Monitoring.Utilities.Logging;
 using Pooling;
 
 public class MethodCallContextFactory(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory, MethodCallInfoPool methodCallInfoPool) : IMethodCallContextFactory

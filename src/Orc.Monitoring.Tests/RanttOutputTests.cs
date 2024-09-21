@@ -1,4 +1,4 @@
-﻿#pragma warning disable CL0001
+#pragma warning disable CL0001
 #pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
@@ -14,16 +14,15 @@ using Core.Abstractions;
 using Core.Configuration;
 using Core.Controllers;
 using Core.Factories;
-using Core.Logging;
 using Core.MethodLifecycle;
 using Core.Models;
 using Core.Pooling;
-using Core.Utilities;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
-using Orc.Monitoring.TestUtilities;
+using Utilities.Logging;
+using Utilities.Serialization;
 
 [TestFixture]
 public class RanttOutputTests

@@ -20,7 +20,6 @@ using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
-using Core.Utilities;
 
 [TestFixture]
 public class MonitoringIntegrationTests

@@ -12,10 +12,10 @@ using Core.Controllers;
 using Core.MethodCallContexts;
 using Core.Models;
 using Core.Pooling;
-using Core.Utilities;
 using Moq;
 using TestUtilities.Logging;
 using TestUtilities.TestHelpers;
+using Utilities.Metadata;
 
 [TestFixture]
 public class CallStackSimulationTests

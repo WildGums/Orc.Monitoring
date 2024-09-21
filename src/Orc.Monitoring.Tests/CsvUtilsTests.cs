@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Tests;
+namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Orc.Monitoring.TestUtilities.Logging;
@@ -8,9 +8,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using Core.Utilities;
 using Microsoft.Extensions.Logging;
-using TestUtilities;
+using TestUtilities.Logging;
+using TestUtilities.Mocks;
+using Utilities.Serialization;
 
 [TestFixture]
 public class CsvUtilsTests

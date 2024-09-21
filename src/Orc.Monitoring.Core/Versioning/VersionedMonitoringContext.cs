@@ -1,8 +1,8 @@
-﻿namespace Orc.Monitoring.Core.Utilities;
+﻿namespace Orc.Monitoring.Core.Versioning;
 
 using System;
-using Abstractions;
-using Models;
+using Orc.Monitoring.Core.Abstractions;
+using Orc.Monitoring.Core.Models;
 
 public abstract class VersionedMonitoringContext
 {

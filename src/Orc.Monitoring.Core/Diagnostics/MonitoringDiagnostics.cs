@@ -6,9 +6,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using Logging;
 using Microsoft.Extensions.Logging;
 using Models;
+using Monitoring.Utilities.Logging;
 
 public static class MonitoringDiagnostics
 {

@@ -15,12 +15,12 @@ using Core.Controllers;
 using Core.Factories;
 using Core.MethodLifecycle;
 using Core.Pooling;
-using Core.Utilities;
 using TestUtilities;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
 using Microsoft.Extensions.Logging;
+using Utilities.Serialization;
 
 [TestFixture]
 public class RanttOutputLimitableTests

@@ -8,11 +8,11 @@ using System.IO;
 using System;
 using System.Threading.Tasks;
 using Core.Models;
-using Core.Utilities;
 using Microsoft.Extensions.Logging;
 using TestUtilities;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
+using Utilities.Serialization;
 
 [TestFixture]
 public class CsvReportWriterAdditionalTests

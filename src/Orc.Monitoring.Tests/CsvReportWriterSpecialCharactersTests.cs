@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Tests;
+namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Reporters.ReportOutputs;
@@ -8,11 +8,10 @@ using System.Linq;
 using System;
 using System.Text;
 using Core.Models;
-using Core.Utilities;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
-using Orc.Monitoring.TestUtilities;
+using Utilities.Serialization;
 
 [TestFixture]
 public class CsvReportWriterSpecialCharactersTests

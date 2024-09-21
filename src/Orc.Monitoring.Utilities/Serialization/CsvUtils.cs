@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Core.Utilities;
+﻿namespace Orc.Monitoring.Utilities.Serialization;
 
 using System;
 using System.Collections.Generic;

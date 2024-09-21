@@ -10,10 +10,10 @@ using System.Threading;
 using Abstractions;
 using Configuration;
 using Diagnostics;
-using Logging;
 using Microsoft.Extensions.Logging;
 using Models;
-using Utilities;
+using Monitoring.Utilities.Logging;
+using Versioning;
 
 public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMonitoringController
 {

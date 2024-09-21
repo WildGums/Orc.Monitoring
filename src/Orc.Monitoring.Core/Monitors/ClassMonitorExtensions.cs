@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Core.Utilities;
+﻿namespace Orc.Monitoring.Core.Monitors;
 
 using System;
 using System.Runtime.CompilerServices;

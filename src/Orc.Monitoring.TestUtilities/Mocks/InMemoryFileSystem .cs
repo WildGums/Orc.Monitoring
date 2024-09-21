@@ -8,8 +8,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Core.Abstractions;
-using Core.IO;
 using Microsoft.Extensions.Logging;
+using Utilities.IO;
+using Utilities.Logging;
 
 public class InMemoryFileSystem : IFileSystem, IDisposable
 {

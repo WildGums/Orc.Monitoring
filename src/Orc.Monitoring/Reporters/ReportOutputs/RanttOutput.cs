@@ -13,11 +13,13 @@ using Reporters;
 using System.Security.Cryptography;
 using Core.Abstractions;
 using Core.Factories;
-using Core.IO;
-using Core.Logging;
 using Core.MethodLifecycle;
 using Core.Models;
-using Core.Utilities;
+using Utilities.IO;
+using Utilities.Logging;
+using Utilities.Metadata;
+using Utilities.Serialization;
+using Utilities.Threading;
 
 [DefaultOutput]
 public sealed class RanttOutput : IReportOutput

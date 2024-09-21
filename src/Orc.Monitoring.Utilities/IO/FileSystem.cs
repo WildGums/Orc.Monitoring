@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Core.IO;
+﻿namespace Orc.Monitoring.Utilities.IO;
 
 using System.IO;
 using System.Text;

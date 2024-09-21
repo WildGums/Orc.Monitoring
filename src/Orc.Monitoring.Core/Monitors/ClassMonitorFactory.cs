@@ -5,8 +5,8 @@ using Abstractions;
 using CallStacks;
 using Configuration;
 using Controllers;
-using Logging;
 using MethodCallContexts;
+using Monitoring.Utilities.Logging;
 using Pooling;
 
 public class ClassMonitorFactory : IClassMonitorFactory

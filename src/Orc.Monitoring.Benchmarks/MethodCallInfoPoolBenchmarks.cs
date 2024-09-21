@@ -10,8 +10,8 @@ using Microsoft.Extensions.Logging;
 using System.Reflection;
 using Core.Abstractions;
 using Core.Controllers;
-using Core.Logging;
 using Core.Pooling;
+using Utilities.Logging;
 
 [MemoryDiagnoser]
 public class MethodCallInfoPoolBenchmarks

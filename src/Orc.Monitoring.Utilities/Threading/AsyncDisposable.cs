@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Core.Utilities;
+﻿namespace Orc.Monitoring.Utilities.Threading;
 
 using System;
 using System.Threading.Tasks;

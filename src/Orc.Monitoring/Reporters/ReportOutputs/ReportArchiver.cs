@@ -4,8 +4,9 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Core.Abstractions;
-using Core.IO;
 using Microsoft.Extensions.Logging;
+using Utilities.IO;
+using Utilities.Logging;
 
 public class ReportArchiver
 {

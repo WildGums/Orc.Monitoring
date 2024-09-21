@@ -22,7 +22,7 @@ using Core.Pooling;
 using TestUtilities.Filters;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
-using Core.Utilities;
+using Utilities.Logging;
 
 [TestFixture]
 public class PerformanceMonitorIntegrationTests

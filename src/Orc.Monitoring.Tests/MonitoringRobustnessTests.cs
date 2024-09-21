@@ -15,7 +15,6 @@ using Core.Monitors;
 using Core.PerformanceMonitoring;
 using Core.Pooling;
 using TestUtilities.Logging;
-using Core.Utilities;
 
 [TestFixture]
 public class MonitoringRobustnessTests

@@ -13,6 +13,7 @@ using Filters;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
+using Utilities.Logging;
 
 [TestFixture]
 public class MonitoringControllerTests

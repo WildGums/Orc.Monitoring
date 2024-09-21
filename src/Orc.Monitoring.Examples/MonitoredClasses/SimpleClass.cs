@@ -4,9 +4,10 @@ using System;
 using Core.Abstractions;
 using Core.PerformanceMonitoring;
 using Filters;
-using Core.Utilities;
 using Reporters.ReportOutputs;
 using Reporters;
+using Orc.Monitoring.Core.Monitors;
+using Utilities.Metadata;
 
 public class SimpleClass
 {

@@ -1,4 +1,4 @@
-﻿namespace Orc.Monitoring.Core.Abstractions;
+﻿namespace Orc.Monitoring.Utilities.Logging;
 
 using System;
 using Microsoft.Extensions.Logging;

@@ -8,12 +8,13 @@ using System.Text;
 using System.Threading.Tasks;
 using Core.Abstractions;
 using Core.Factories;
-using Core.IO;
-using Core.Logging;
 using Core.MethodLifecycle;
-using Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Reporters;
+using Utilities.IO;
+using Utilities.Logging;
+using Utilities.Metadata;
+using Utilities.Threading;
 
 /// <summary>
 /// Provides functionality to output report data in TXT format.

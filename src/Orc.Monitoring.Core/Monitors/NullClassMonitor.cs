@@ -7,6 +7,7 @@ using Configuration;
 using MethodCallContexts;
 using MethodLifecycle;
 using Microsoft.Extensions.Logging;
+using Monitoring.Utilities.Logging;
 
 public class NullClassMonitor : IClassMonitor
 {

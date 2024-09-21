@@ -6,10 +6,10 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Core.Abstractions;
-using Core.Logging;
 using Core.Models;
-using Core.Utilities;
 using Microsoft.Extensions.Logging;
+using Utilities.Logging;
+using Utilities.Serialization;
 
 public class CsvReportWriter
 {
