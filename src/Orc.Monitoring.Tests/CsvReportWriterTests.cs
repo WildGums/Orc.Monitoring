@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
+using Core.Models;
+using Core.Utilities;
 using Moq;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;

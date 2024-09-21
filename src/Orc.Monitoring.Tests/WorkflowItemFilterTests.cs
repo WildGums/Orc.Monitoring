@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Filters;
 using Reporters;
 using System.Collections.Generic;
+using Core.Models;
 
 [TestFixture]
 public class WorkflowItemFilterTests

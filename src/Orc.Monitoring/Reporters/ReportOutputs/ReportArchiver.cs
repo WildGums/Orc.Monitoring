@@ -3,7 +3,8 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using IO;
+using Core.Abstractions;
+using Core.IO;
 using Microsoft.Extensions.Logging;
 
 public class ReportArchiver

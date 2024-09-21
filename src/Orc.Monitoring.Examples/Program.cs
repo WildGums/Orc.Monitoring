@@ -2,6 +2,7 @@
 
 using System;
 using System.Threading.Tasks;
+using Core.PerformanceMonitoring;
 using Monitoring;
 using MonitoredClasses;
 using Reporters.ReportOutputs;

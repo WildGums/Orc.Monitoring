@@ -5,10 +5,20 @@ using System.Reflection;
 using Filters;
 using Reporters.ReportOutputs;
 using System.Threading.Tasks;
+using Castle.Core.Internal;
+using Core.Abstractions;
+using Core.CallStacks;
+using Core.Configuration;
+using Core.Controllers;
+using Core.MethodCallContexts;
+using Core.Monitors;
+using Core.PerformanceMonitoring;
+using Core.Pooling;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Filters;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
+using Orc.Monitoring.Core.Attributes;
 
 [TestFixture]
 public class PerformanceMonitorTests
@@ -131,6 +141,7 @@ public class PerformanceMonitorTests
     public void Configure_ShouldEnableDefaultOutputTypes()
     {
         _performanceMonitor.Configure(_ => { });
+
         Assert.That(_monitoringController.IsOutputTypeEnabled<RanttOutput>(), Is.True);
         Assert.That(_monitoringController.IsOutputTypeEnabled<TxtReportOutput>(), Is.True);
     }
@@ -180,8 +191,8 @@ public class PerformanceMonitorTests
     {
         _performanceMonitor.Configure(config =>
         {
-            config.SetOutputTypeState<CsvReportOutput>(true);
-            config.SetOutputTypeState<RanttOutput>(false);
+            config.SetOutputTypeState(typeof(CsvReportOutput),true);
+            config.SetOutputTypeState(typeof(RanttOutput), false);
         });
 
         Assert.That(_monitoringController.IsOutputTypeEnabled<CsvReportOutput>(), Is.True);

@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Core.Utilities;
 using Microsoft.Extensions.Logging;
 using TestUtilities;
 

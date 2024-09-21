@@ -7,6 +7,8 @@ using System.IO;
 using System.Linq;
 using System;
 using System.Text;
+using Core.Models;
+using Core.Utilities;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;

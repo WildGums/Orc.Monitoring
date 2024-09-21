@@ -1,6 +1,10 @@
 ﻿namespace Orc.Monitoring.Examples.MonitoredClasses;
 
 using System;
+using Core.Abstractions;
+using Core.Attributes;
+using Core.Extensions;
+using Core.PerformanceMonitoring;
 using Filters;
 using Monitoring;
 using Orc.Monitoring.Reporters.ReportOutputs;

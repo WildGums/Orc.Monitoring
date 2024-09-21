@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Core.Controllers;
+using Core.Models;
 using TestUtilities.Logging;
 
 [TestFixture]

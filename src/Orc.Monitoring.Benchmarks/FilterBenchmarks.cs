@@ -3,6 +3,7 @@
 using BenchmarkDotNet.Attributes;
 using System;
 using System.Collections.Generic;
+using Core.Models;
 using Filters;
 using Reporters;
 

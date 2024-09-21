@@ -8,6 +8,10 @@ using System.Collections.Generic;
 using Moq;
 using Microsoft.Extensions.Logging;
 using System.Reflection;
+using Core.Abstractions;
+using Core.Controllers;
+using Core.Logging;
+using Core.Pooling;
 
 [MemoryDiagnoser]
 public class MethodCallInfoPoolBenchmarks

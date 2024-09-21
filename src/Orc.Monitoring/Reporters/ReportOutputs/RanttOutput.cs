@@ -7,13 +7,19 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using IO;
 using Microsoft.Extensions.Logging;
 using Monitoring;
-using MethodLifeCycleItems;
 using Reporters;
 using System.Security.Cryptography;
+using Core.Abstractions;
+using Core.IO;
+using Core.Logging;
+using Core.MethodLifecycle;
+using Core.Models;
+using Core.Utilities;
+using Orc.Monitoring.Core.Attributes;
 
+[DefaultOutput]
 public sealed class RanttOutput : IReportOutput
 {
     private const string RanttProjectContents = @"<?xml version=""1.0"" encoding=""utf-8""?>

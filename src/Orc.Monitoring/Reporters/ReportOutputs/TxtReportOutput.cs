@@ -6,14 +6,19 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using IO;
+using Core.Abstractions;
+using Core.Attributes;
+using Core.IO;
+using Core.Logging;
+using Core.MethodLifecycle;
+using Core.Utilities;
 using Microsoft.Extensions.Logging;
-using MethodLifeCycleItems;
 using Reporters;
 
 /// <summary>
 /// Provides functionality to output report data in TXT format.
 /// </summary>
+[DefaultOutput]
 public sealed class TxtReportOutput : IReportOutput
 {
     private readonly ILogger<TxtReportOutput> _logger;

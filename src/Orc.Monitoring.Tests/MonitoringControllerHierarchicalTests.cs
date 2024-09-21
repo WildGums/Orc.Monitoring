@@ -4,6 +4,8 @@ using NUnit.Framework;
 using Filters;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Core.Abstractions;
+using Core.Controllers;
 using TestUtilities.Logging;
 using TestUtilities.TestHelpers;
 

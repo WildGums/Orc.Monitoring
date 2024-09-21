@@ -9,12 +9,19 @@ using System.Reactive.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
-using MethodLifeCycleItems;
 using Monitoring;
 using Filters;
 using ReportOutputs;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using Core.Abstractions;
+using Core.Configuration;
+using Core.Controllers;
+using Core.Logging;
+using Core.MethodLifecycle;
+using Core.Models;
+using Core.Pooling;
+using Core.Utilities;
 
 public sealed class WorkflowReporter : IMethodCallReporter
 {

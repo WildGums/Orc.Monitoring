@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using Core.Abstractions;
 using Microsoft.Extensions.Logging;
 
 public class TestLoggerFactory<TFixture>(TestLogger<TFixture> fixtureLogger) : IMonitoringLoggerFactory

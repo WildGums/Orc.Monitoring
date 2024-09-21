@@ -1,7 +1,9 @@
 ﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System.Collections.Generic;
-using MethodLifeCycleItems;
+using Core.Abstractions;
+using Core.MethodLifecycle;
+using Core.Models;
 
 public interface IReportItemFactory
 {

@@ -7,6 +7,16 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Reporters;
 using System.Collections.Generic;
+using Core.Abstractions;
+using Core.CallStacks;
+using Core.Configuration;
+using Core.Controllers;
+using Core.Extensions;
+using Core.Logging;
+using Core.MethodCallContexts;
+using Core.Monitors;
+using Core.PerformanceMonitoring;
+using Core.Pooling;
 
 [MemoryDiagnoser]
 public class AsyncOperationBenchmarks

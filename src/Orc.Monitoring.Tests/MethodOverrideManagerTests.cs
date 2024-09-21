@@ -7,6 +7,8 @@ using Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Core.Models;
+using Core.Utilities;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using Orc.Monitoring.TestUtilities;

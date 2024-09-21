@@ -4,6 +4,8 @@ namespace Orc.Monitoring.Tests;
 using NUnit.Framework;
 using System.Threading;
 using System.Threading.Tasks;
+using Core.Controllers;
+using Core.Diagnostics;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;

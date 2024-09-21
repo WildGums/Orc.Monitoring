@@ -6,6 +6,8 @@ using ReportOutputs;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Core.Abstractions;
+using Core.Models;
 
 public class EnhancedDataPostProcessor(IMonitoringLoggerFactory loggerFactory) : IEnhancedDataPostProcessor
 {

@@ -4,6 +4,8 @@ using NUnit.Framework;
 using System;
 using System.Linq;
 using System.Threading;
+using Core.Diagnostics;
+using Core.Models;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 

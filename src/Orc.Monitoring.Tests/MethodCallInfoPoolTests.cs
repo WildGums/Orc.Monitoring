@@ -5,6 +5,9 @@ using Moq;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Core.Abstractions;
+using Core.Pooling;
+using Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Reporters;
 

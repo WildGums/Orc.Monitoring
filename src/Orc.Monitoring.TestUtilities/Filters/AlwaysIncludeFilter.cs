@@ -1,6 +1,8 @@
 ﻿namespace Orc.Monitoring.TestUtilities.Filters;
 
 using System;
+using Core.Abstractions;
+using Core.Models;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Filters;
 

@@ -5,11 +5,15 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using IO;
+using Core.Abstractions;
+using Core.IO;
+using Core.Logging;
+using Core.MethodLifecycle;
+using Core.Utilities;
 using Microsoft.Extensions.Logging;
-using MethodLifeCycleItems;
-using Reporters;
+using Orc.Monitoring.Core.Attributes;
 
+[DefaultOutput(false)]
 public sealed class CsvReportOutput : IReportOutput
 {
     private readonly ILogger<CsvReportOutput> _logger;

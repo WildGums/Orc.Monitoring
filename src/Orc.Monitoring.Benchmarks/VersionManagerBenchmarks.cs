@@ -6,6 +6,8 @@ using System;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Linq;
+using Core.Controllers;
+using Core.Models;
 
 [MemoryDiagnoser]
 public class VersionManagerBenchmarks

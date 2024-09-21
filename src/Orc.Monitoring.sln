@@ -36,7 +36,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{199C3FF9-7D2C-4A9B-931F-AD1210A201C9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.TestUtilities", "Orc.Monitoring.TestUtilities\Orc.Monitoring.TestUtilities.csproj", "{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.TestUtilities", "Orc.Monitoring.TestUtilities\Orc.Monitoring.TestUtilities.csproj", "{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Core", "Orc.Monitoring.Core\Orc.Monitoring.Core.csproj", "{4B2EB693-0C41-452C-AA7B-93156F8587EA}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -64,6 +66,10 @@ Global
 		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4B2EB693-0C41-452C-AA7B-93156F8587EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4B2EB693-0C41-452C-AA7B-93156F8587EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4B2EB693-0C41-452C-AA7B-93156F8587EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4B2EB693-0C41-452C-AA7B-93156F8587EA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -74,6 +80,7 @@ Global
 		{39A7B12A-2C9D-49C7-84A1-6D3134662082} = {3D15B798-F1D3-423B-96C2-44DA6A2B71FD}
 		{D5A6FA79-F4F6-41F3-A5C2-A954630807D9} = {199C3FF9-7D2C-4A9B-931F-AD1210A201C9}
 		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4} = {E29D99FE-7061-462A-96D6-BE688290E9FE}
+		{4B2EB693-0C41-452C-AA7B-93156F8587EA} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D2551B40-153E-4B5D-987F-0F958BBD65D9}
