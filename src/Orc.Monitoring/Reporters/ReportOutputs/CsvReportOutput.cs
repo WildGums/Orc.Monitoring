@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Core.Abstractions;
+using Core.Factories;
 using Core.IO;
 using Core.Logging;
 using Core.MethodLifecycle;

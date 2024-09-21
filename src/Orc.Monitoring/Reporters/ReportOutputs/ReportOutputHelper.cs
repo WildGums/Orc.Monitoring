@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Core.Abstractions;
+using Core.Factories;
 using Core.MethodLifecycle;
 using Core.Models;
 using Reporters;

@@ -1,13 +1,14 @@
-namespace Orc.Monitoring.Reporters.ReportOutputs;
+﻿namespace Orc.Monitoring.Core.Factories;
 
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Core.Abstractions;
-using Core.MethodLifecycle;
-using Core.Models;
 using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Core.Abstractions;
+using Orc.Monitoring.Core.Constants;
+using Orc.Monitoring.Core.MethodLifecycle;
+using Orc.Monitoring.Core.Models;
 
 public class ReportItemFactory : IReportItemFactory
 {
@@ -20,10 +21,9 @@ public class ReportItemFactory : IReportItemFactory
         _logger = loggerFactory.CreateLogger<ReportItemFactory>();
     }
 
-    public ReportItem CloneReportItemWithOverrides(ReportItem item, MethodOverrideManager methodOverrideManager)
+    public ReportItem CloneReportItemWithOverrides(ReportItem item, Dictionary<string, string> overrides)
     {
         var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
-        var overrides = methodOverrideManager.GetOverridesForMethod(fullName, item.IsStaticParameter);
         _logger.LogInformation($"Applying overrides for {fullName}: {string.Join(", ", overrides.Select(x => $"{x.Key}={x.Value}"))}");
         var newParameters = new Dictionary<string, string>(item.Parameters, StringComparer.OrdinalIgnoreCase);
         foreach (var kvp in overrides)
@@ -139,9 +139,9 @@ public class ReportItemFactory : IReportItemFactory
             Report = reporter?.FullName ?? string.Empty,
             ThreadId = string.Empty,
             Level = string.Empty,
-            ClassName = MethodCallParameter.Types.Gap,
-            MethodName = MethodCallParameter.Types.Gap,
-            FullName = MethodCallParameter.Types.Gap,
+            ClassName = ReportItemType.Gap,
+            MethodName = ReportItemType.Gap,
+            FullName = ReportItemType.Gap,
             Parameters = gap.Parameters
         };
 

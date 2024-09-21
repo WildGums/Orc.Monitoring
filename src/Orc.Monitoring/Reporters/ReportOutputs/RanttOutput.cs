@@ -12,6 +12,7 @@ using Monitoring;
 using Reporters;
 using System.Security.Cryptography;
 using Core.Abstractions;
+using Core.Factories;
 using Core.IO;
 using Core.Logging;
 using Core.MethodLifecycle;
@@ -244,7 +245,12 @@ public sealed class RanttOutput : IReportOutput
                 _logger.LogInformation($"Applied limit: Writing {itemsToWrite.Count} items");
             }
 
-            var itemsWithOverrides = itemsToWrite.Select(item => _reportItemFactory.CloneReportItemWithOverrides(item, _overrideManager)).ToList();
+            var itemsWithOverrides = itemsToWrite.Select(item =>
+            {
+                var fullName = item.Parameters.TryGetValue("FullName", out var fn) ? fn : item.FullName ?? string.Empty;
+                var overrides = _overrideManager.GetOverridesForMethod(fullName, item.IsStaticParameter);
+                return _reportItemFactory.CloneReportItemWithOverrides(item, overrides);
+            }).ToList();
 
             _logger.LogInformation($"Number of items with overrides: {itemsWithOverrides.Count}");
 

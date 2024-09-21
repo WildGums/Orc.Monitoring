@@ -25,10 +25,6 @@
     <ProjectReference Include="..\Orc.Monitoring.Core\Orc.Monitoring.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="MethodLifeCycleItems\" />
-  </ItemGroup>
-
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.nullable.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.nullable.props')" />
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props')" />
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props')" />
