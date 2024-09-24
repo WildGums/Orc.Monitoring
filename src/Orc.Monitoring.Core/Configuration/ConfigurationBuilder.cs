@@ -4,6 +4,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using Abstractions;
+using Controllers;
 using Monitoring.Utilities.Metadata;
 
 public class ConfigurationBuilder

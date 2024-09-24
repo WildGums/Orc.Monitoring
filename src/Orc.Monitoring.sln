@@ -38,11 +38,17 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{19
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.TestUtilities", "Orc.Monitoring.TestUtilities\Orc.Monitoring.TestUtilities.csproj", "{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Core", "Orc.Monitoring.Core\Orc.Monitoring.Core.csproj", "{4B2EB693-0C41-452C-AA7B-93156F8587EA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.Core", "Orc.Monitoring.Core\Orc.Monitoring.Core.csproj", "{4B2EB693-0C41-452C-AA7B-93156F8587EA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Reporters", "Orc.Monitoring.Reporters\Orc.Monitoring.Reporters.csproj", "{AB499122-CDD3-4CE2-B599-E305940FBDEE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.Reporters", "Orc.Monitoring.Reporters\Orc.Monitoring.Reporters.csproj", "{AB499122-CDD3-4CE2-B599-E305940FBDEE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Utilities", "Orc.Monitoring.Utilities\Orc.Monitoring.Utilities.csproj", "{38687704-ADA5-4B3A-AB34-67D62ED3B513}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.Utilities", "Orc.Monitoring.Utilities\Orc.Monitoring.Utilities.csproj", "{38687704-ADA5-4B3A-AB34-67D62ED3B513}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Configuration", "Orc.Monitoring.Configuration\Orc.Monitoring.Configuration.csproj", "{A6987AE4-634D-4937-B2B9-5F47B37A40E5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Diagnostics", "Orc.Monitoring.Diagnostics\Orc.Monitoring.Diagnostics.csproj", "{3B69214B-5AB0-42D8-A165-81148907A8D1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.Filters", "Orc.Monitoring.Filters\Orc.Monitoring.Filters.csproj", "{998D96AB-09D7-4BDA-BC0F-FD88D90D5048}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -82,6 +88,18 @@ Global
 		{38687704-ADA5-4B3A-AB34-67D62ED3B513}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{38687704-ADA5-4B3A-AB34-67D62ED3B513}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{38687704-ADA5-4B3A-AB34-67D62ED3B513}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A6987AE4-634D-4937-B2B9-5F47B37A40E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A6987AE4-634D-4937-B2B9-5F47B37A40E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A6987AE4-634D-4937-B2B9-5F47B37A40E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A6987AE4-634D-4937-B2B9-5F47B37A40E5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B69214B-5AB0-42D8-A165-81148907A8D1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B69214B-5AB0-42D8-A165-81148907A8D1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B69214B-5AB0-42D8-A165-81148907A8D1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B69214B-5AB0-42D8-A165-81148907A8D1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{998D96AB-09D7-4BDA-BC0F-FD88D90D5048}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{998D96AB-09D7-4BDA-BC0F-FD88D90D5048}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{998D96AB-09D7-4BDA-BC0F-FD88D90D5048}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{998D96AB-09D7-4BDA-BC0F-FD88D90D5048}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -95,6 +113,9 @@ Global
 		{4B2EB693-0C41-452C-AA7B-93156F8587EA} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
 		{AB499122-CDD3-4CE2-B599-E305940FBDEE} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
 		{38687704-ADA5-4B3A-AB34-67D62ED3B513} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
+		{A6987AE4-634D-4937-B2B9-5F47B37A40E5} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
+		{3B69214B-5AB0-42D8-A165-81148907A8D1} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
+		{998D96AB-09D7-4BDA-BC0F-FD88D90D5048} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D2551B40-153E-4B5D-987F-0F958BBD65D9}

@@ -5,14 +5,13 @@ namespace Orc.Monitoring.Core.Controllers;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using Abstractions;
 using Configuration;
 using Diagnostics;
 using Microsoft.Extensions.Logging;
 using Models;
-using Monitoring.Utilities.Logging;
+using Utilities.Logging;
 using Versioning;
 
 public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMonitoringController
@@ -67,17 +66,7 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         }
     }
 
-    public void EnableFilterForReporterType(Type reporterType, Type filterType)
-    {
-        SetFilterStateForReporterType(reporterType, filterType, true);
-    }
-
-    public void DisableFilterForReporterType(Type reporterType, Type filterType)
-    {
-        SetFilterStateForReporterType(reporterType, filterType, false);
-    }
-
-    private void SetFilterStateForReporterType(Type reporterType, Type filterType, bool enabled)
+    public void SetFilterStateForReporterType(Type reporterType, Type filterType, bool enabled)
     {
         _reporterSpecificFilterStates[(reporterType, filterType)] = enabled;
         UpdateVersion();
@@ -88,17 +77,7 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         return _reporterSpecificFilterStates.TryGetValue((reporterType, filterType), out var isEnabled) && isEnabled;
     }
 
-    public void EnableFilterForReporter(string reporterId, Type filterType)
-    {
-        SetFilterStateForReporter(reporterId, filterType, true);
-    }
-
-    public void DisableFilterForReporter(string reporterId, Type filterType)
-    {
-        SetFilterStateForReporter(reporterId, filterType, false);
-    }
-
-    private void SetFilterStateForReporter(string reporterId, Type filterType, bool enabled)
+    public void SetFilterStateForReporter(string reporterId, Type filterType, bool enabled)
     {
         _reporterInstanceFilterStates[(reporterId, filterType)] = enabled;
         UpdateVersion();
@@ -184,12 +163,6 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         }
     }
 
-    public void EnableReporter<T>() where T : IMethodCallReporter => EnableReporter(typeof(T));
-
-    public void DisableReporter<T>() where T : IMethodCallReporter => DisableReporter(typeof(T));
-
-    public bool IsReporterEnabled<T>() where T : IMethodCallReporter => IsReporterEnabled(typeof(T));
-
     public void EnableReporter(Type reporterType)
     {
         if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
@@ -209,20 +182,6 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
 
         SetComponentState(MonitoringComponentType.Reporter, reporterType, false);
     }
-
-    public bool IsReporterEnabled(Type reporterType)
-    {
-        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
-        {
-            throw new ArgumentException("Type must implement IMethodCallReporter", nameof(reporterType));
-        }
-
-        return _reporterEffectiveStates.TryGetValue(reporterType, out var isEnabled) && isEnabled && IsEnabled;
-    }
-
-    public void EnableFilter<T>() where T : IMethodFilter => EnableFilter(typeof(T));
-    public void DisableFilter<T>() where T : IMethodFilter => DisableFilter(typeof(T));
-    public bool IsFilterEnabled<T>() where T : IMethodFilter => IsFilterEnabled(typeof(T));
 
     public void EnableFilter(Type filterType)
     {
@@ -254,10 +213,6 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         return IsComponentEnabled(_filterEffectiveStates, filterType);
     }
 
-    public void EnableOutputType<T>() where T : IReportOutput => EnableOutputType(typeof(T));
-    public void DisableOutputType<T>() where T : IReportOutput => DisableOutputType(typeof(T));
-    public bool IsOutputTypeEnabled<T>() where T : IReportOutput => IsOutputTypeEnabled(typeof(T));
-
     public void EnableOutputType(Type outputType)
     {
         if (!typeof(IReportOutput).IsAssignableFrom(outputType))
@@ -276,46 +231,6 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         }
 
         SetComponentState(MonitoringComponentType.OutputType, outputType, false);
-    }
-
-    public bool IsOutputTypeEnabled(Type outputType)
-    {
-        return _configuration.OutputTypeStates.TryGetValue(outputType, out var isEnabled) && isEnabled;
-    }
-
-    public bool ShouldTrack(MonitoringVersion version, Type? reporterType = null, Type? filterType = null, IEnumerable<string>? reporterIds = null)
-    {
-        var shouldTrack = IsEnabled && version == GetCurrentVersion();
-        _logger.LogDebug($"ShouldTrack called. IsEnabled: {IsEnabled}, VersionMatch: {version == GetCurrentVersion()}, Result: {shouldTrack}");
-
-        if (!shouldTrack) return false;
-
-        if (reporterType is not null)
-        {
-            shouldTrack = IsReporterEnabled(reporterType);
-            _logger.LogDebug($"Reporter check. Type: {reporterType.Name}, Enabled: {shouldTrack}");
-        }
-
-        if (shouldTrack && filterType is not null)
-        {
-            if (reporterIds is not null)
-            {
-                shouldTrack = reporterIds.Any(id => IsFilterEnabledForReporter(id, filterType));
-                _logger.LogDebug($"Filter check for reporters. FilterType: {filterType.Name}, Result: {shouldTrack}");
-            }
-            else if (reporterType is not null)
-            {
-                shouldTrack = IsFilterEnabledForReporterType(reporterType, filterType);
-                _logger.LogDebug($"Filter check for reporter type. ReporterType: {reporterType.Name}, FilterType: {filterType.Name}, Result: {shouldTrack}");
-            }
-            else
-            {
-                shouldTrack = IsFilterEnabled(filterType);
-                _logger.LogDebug($"General filter check. FilterType: {filterType.Name}, Result: {shouldTrack}");
-            }
-        }
-
-        return shouldTrack;
     }
 
     private void InvalidateShouldTrackCache()
@@ -357,16 +272,6 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         return new TemporaryStateChange(MonitoringComponentType.Reporter, typeof(T), this);
     }
 
-    public IDisposable TemporarilyEnableFilter<T>() where T : class
-    {
-        return new TemporaryStateChange(MonitoringComponentType.Filter, typeof(T), this);
-    }
-
-    public string GenerateVersionReport()
-    {
-        return MonitoringDiagnostics.GenerateVersionReport();
-    }
-
     private void NotifyVersionChanged(MonitoringVersion oldVersion, MonitoringVersion newVersion)
     {
         VersionChanged?.Invoke(this, new VersionChangedEventArgs(oldVersion, newVersion));
@@ -406,17 +311,12 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         StateChangedCallback += callback;
     }
 
-    public void RemoveStateChangedCallback(Action<MonitoringComponentType, string, bool, MonitoringVersion> callback)
-    {
-        StateChangedCallback -= callback;
-    }
-
     private void OnStateChanged(MonitoringComponentType componentType, string componentName, bool isEnabled, MonitoringVersion version)
     {
         StateChangedCallback?.Invoke(componentType, componentName, isEnabled, version);
     }
 
-    private void SetComponentState(MonitoringComponentType componentType, Type type, bool enabled)
+    public void SetComponentState(MonitoringComponentType componentType, Type type, bool enabled)
     {
         bool lockTaken = false;
         try
@@ -451,6 +351,17 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
                 _stateLock.ExitWriteLock();
             }
         }
+    }
+
+    public bool GetComponentState(MonitoringComponentType componentType, Type type)
+    {
+        return componentType switch
+        {
+            MonitoringComponentType.Reporter => _reporterEffectiveStates.TryGetValue(type, out var isEnabled) && isEnabled && IsEnabled,
+            MonitoringComponentType.Filter => _filterEffectiveStates.TryGetValue(type, out var isEnabled) && isEnabled && IsEnabled,
+            MonitoringComponentType.OutputType => _configuration.OutputTypeStates.TryGetValue(type, out var isEnabled) && isEnabled,
+            _ => throw new ArgumentOutOfRangeException(nameof(componentType), componentType, null)
+        };
     }
 
     private bool IsComponentEnabled(ConcurrentDictionary<Type, bool> statesDictionary, Type type)
@@ -527,39 +438,23 @@ public class MonitoringController(IMonitoringLoggerFactory loggerFactory) : IMon
         private readonly MonitoringComponentType _componentType;
         private readonly Type _type;
         private readonly bool _originalState;
-        private readonly MonitoringController _controller;
+        private readonly IMonitoringController _controller;
 
-        public TemporaryStateChange(MonitoringComponentType componentType, Type type, MonitoringController controller)
+        public TemporaryStateChange(MonitoringComponentType componentType, Type type, IMonitoringController controller)
         {
             _componentType = componentType;
             _type = type;
             _controller = controller;
-            _originalState = componentType == MonitoringComponentType.Reporter
-                ? _controller.IsReporterEnabled(type)
-                : _controller.IsFilterEnabled(type);
+            _originalState = _controller.GetComponentState(componentType, type);
 
-            if (componentType == MonitoringComponentType.Reporter)
-                _controller.EnableReporter(type);
-            else
-                _controller.EnableFilter(type);
+            // Enable the component temporarily
+            _controller.SetComponentState(componentType, type, true);
         }
 
         public void Dispose()
         {
-            if (_componentType == MonitoringComponentType.Reporter)
-            {
-                if (_originalState)
-                    _controller.EnableReporter(_type);
-                else
-                    _controller.DisableReporter(_type);
-            }
-            else
-            {
-                if (_originalState)
-                    _controller.EnableFilter(_type);
-                else
-                    _controller.DisableFilter(_type);
-            }
+            // Restore the original state
+            _controller.SetComponentState(_componentType, _type, _originalState);
         }
     }
 

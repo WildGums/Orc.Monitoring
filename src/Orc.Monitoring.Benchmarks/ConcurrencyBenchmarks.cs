@@ -122,7 +122,7 @@ public class ConcurrencyBenchmarks
         var tasks = Enumerable.Range(0, concurrentOperations).Select(_ => Task.Run(() =>
         {
             _monitoringController!.EnableReporter(typeof(WorkflowReporter));
-            versions.Add(_monitoringController.GetCurrentVersion());
+            versions.Add(_monitoringController!.GetCurrentVersion());
             _monitoringController.DisableReporter(typeof(WorkflowReporter));
         })).ToArray();
 
