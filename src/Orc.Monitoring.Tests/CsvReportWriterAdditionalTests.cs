@@ -8,6 +8,7 @@ using System.IO;
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using TestUtilities;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 
@@ -28,7 +29,7 @@ public class CsvReportWriterAdditionalTests
         _logger = new TestLogger<CsvReportWriterAdditionalTests>();
         _loggerFactory = new TestLoggerFactory<CsvReportWriterAdditionalTests>(_logger);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
         _stringWriter = new StringWriter();
         _overrideManager = new MethodOverrideManager(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);

@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
+using Orc.Monitoring.TestUtilities;
 
 [TestFixture]
 public class RanttOutputPostProcessingTests
@@ -39,7 +40,7 @@ public class RanttOutputPostProcessingTests
         _logger = new TestLogger<RanttOutputPostProcessingTests>();
         _loggerFactory = new TestLoggerFactory<RanttOutputPostProcessingTests>(_logger);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
         _testOutputPath = CreateTestOutputPath();
         _reporterMock = new Mock<IMethodCallReporter>();

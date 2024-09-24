@@ -1,29 +1,45 @@
 ﻿namespace Orc.Monitoring;
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using IO;
+using Microsoft.Extensions.Logging;
+using Orc.Monitoring.IO;
 
-public class CsvUtils(IFileSystem fileSystem)
+public class CsvUtils
 {
-    public static CsvUtils Instance { get; } = new(FileSystem.Instance);
+    private readonly IFileSystem _fileSystem;
+    private readonly ILogger<CsvUtils> _logger;
+
+    public CsvUtils(IFileSystem fileSystem, IMonitoringLoggerFactory loggerFactory)
+    {
+        this._fileSystem = fileSystem;
+        this._logger = loggerFactory.CreateLogger<CsvUtils>();
+    }
+
+    public static CsvUtils Instance { get; } = new(FileSystem.Instance, MonitoringLoggerFactory.Instance);
 
     public void WriteCsvLine(TextWriter writer, string?[] values)
     {
-        writer.WriteLine(string.Join(",", values.Select(EscapeCsvValue)));
+        var line = string.Join(",", values.Select(EscapeCsvValue));
+        _logger.LogDebug("Writing CSV line: {Line}", line);
+        writer.WriteLine(line);
     }
 
     public async Task WriteCsvLineAsync(TextWriter writer, string?[] values)
     {
-        await writer.WriteLineAsync(string.Join(",", values.Select(EscapeCsvValue)));
+        var line = string.Join(",", values.Select(EscapeCsvValue));
+        _logger.LogDebug("Writing CSV line asynchronously: {Line}", line);
+        await writer.WriteLineAsync(line);
     }
 
     public void WriteCsv<T>(string filePath, IEnumerable<T> data, string[] headers)
     {
-        using var writer = fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
+        _logger.LogInformation("Writing CSV to file: {FilePath}", filePath);
+        using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
 
         WriteCsvLine(writer, headers.Cast<string?>().ToArray());
 
@@ -36,7 +52,8 @@ public class CsvUtils(IFileSystem fileSystem)
 
     public async Task WriteCsvAsync<T>(string filePath, IEnumerable<T> data, string[] headers)
     {
-        await using var writer = fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
+        _logger.LogInformation("Writing CSV asynchronously to file: {FilePath}", filePath);
+        await using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
 
         await WriteCsvLineAsync(writer, headers.Cast<string?>().ToArray());
 
@@ -49,15 +66,28 @@ public class CsvUtils(IFileSystem fileSystem)
 
     public List<Dictionary<string, string>> ReadCsv(string filePath)
     {
+        _logger.LogInformation("Reading CSV from file: {FilePath}", filePath);
         var result = new List<Dictionary<string, string>>();
-        using var reader = fileSystem.CreateStreamReader(filePath);
+        using var reader = _fileSystem.CreateStreamReader(filePath);
 
-        var headers = ParseCsvLine(reader.ReadLine() ?? string.Empty);
+        var headerLine = reader.ReadLine();
+        if (headerLine is null)
+        {
+            _logger.LogWarning("The CSV file is empty.");
+            return result;
+        }
 
-        while (reader.ReadLine() is { } line)
+        var headers = ParseCsvLine(headerLine);
+
+        string? line;
+        while ((line = reader.ReadLine()) is not null)
         {
             var values = ParseCsvLine(line);
-            if (values.Length != headers.Length) continue;
+            if (values.Length != headers.Length)
+            {
+                _logger.LogWarning("Skipping line due to mismatched column count: {Line}", line);
+                continue;
+            }
 
             var row = new Dictionary<string, string>(headers.Length);
             for (int i = 0; i < headers.Length; i++)
@@ -72,16 +102,28 @@ public class CsvUtils(IFileSystem fileSystem)
 
     public async Task<List<Dictionary<string, string>>> ReadCsvAsync(string filePath)
     {
+        _logger.LogInformation("Reading CSV asynchronously from file: {FilePath}", filePath);
         var result = new List<Dictionary<string, string>>();
-        using var reader = fileSystem.CreateStreamReader(filePath);
+        using var reader = _fileSystem.CreateStreamReader(filePath);
 
         var headerLine = await reader.ReadLineAsync();
-        var headers = ParseCsvLine(headerLine ?? string.Empty);
+        if (headerLine is null)
+        {
+            _logger.LogWarning("The CSV file is empty.");
+            return result;
+        }
 
-        while (await reader.ReadLineAsync() is { } line)
+        var headers = ParseCsvLine(headerLine);
+
+        string? line;
+        while ((line = await reader.ReadLineAsync()) is not null)
         {
             var values = ParseCsvLine(line);
-            if (values.Length != headers.Length) continue;
+            if (values.Length != headers.Length)
+            {
+                _logger.LogWarning("Skipping line due to mismatched column count: {Line}", line);
+                continue;
+            }
 
             var row = new Dictionary<string, string>(headers.Length);
             for (int i = 0; i < headers.Length; i++)
@@ -101,14 +143,17 @@ public class CsvUtils(IFileSystem fileSystem)
             return string.Empty;
         }
 
-        if (value.Contains(",") || value.Contains("\"") || value.Contains("\n"))
+        bool mustQuote = value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r') || value.StartsWith(' ') || value.EndsWith(' ');
+
+        if (mustQuote)
         {
-            return $"\"{value.Replace("\"", "\"\"")}\"";
+            var escapedValue = value.Replace("\"", "\"\"");
+            return $"\"{escapedValue}\"";
         }
         return value;
     }
 
-    private string[] ParseCsvLine(string line)
+    public string[] ParseCsvLine(string line)
     {
         var result = new List<string>();
         var currentValue = new StringBuilder();
@@ -116,27 +161,46 @@ public class CsvUtils(IFileSystem fileSystem)
 
         for (int i = 0; i < line.Length; i++)
         {
-            if (line[i] == '"')
+            char c = line[i];
+
+            if (c == '"')
             {
-                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                if (inQuotes)
                 {
-                    currentValue.Append('"');
-                    i++;
+                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        // Escaped quote
+                        currentValue.Append('"');
+                        i++; // Skip the next quote
+                    }
+                    else
+                    {
+                        // Closing quote
+                        inQuotes = false;
+                    }
                 }
                 else
                 {
-                    inQuotes = !inQuotes;
+                    // Opening quote
+                    inQuotes = true;
                 }
             }
-            else if (line[i] == ',' && !inQuotes)
+            else if (c == ',' && !inQuotes)
             {
+                // Field delimiter
                 result.Add(currentValue.ToString());
                 currentValue.Clear();
             }
             else
             {
-                currentValue.Append(line[i]);
+                // Regular character
+                currentValue.Append(c);
             }
+        }
+
+        if (inQuotes)
+        {
+            throw new FormatException("Malformed CSV line: unmatched quote.");
         }
 
         result.Add(currentValue.ToString());
@@ -157,3 +221,4 @@ public class CsvUtils(IFileSystem fileSystem)
         return obj.GetType().GetProperty(propertyName)?.GetValue(obj, null);
     }
 }
+

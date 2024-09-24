@@ -38,7 +38,7 @@ public class CsvReportOutputLimitableTests
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
 

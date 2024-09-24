@@ -16,6 +16,7 @@ using System.Text;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
+using Orc.Monitoring.TestUtilities;
 
 [TestFixture]
 public class CsvReportOutputTests
@@ -43,7 +44,7 @@ public class CsvReportOutputTests
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
 
@@ -213,7 +214,7 @@ public class CsvReportOutputTests
         mockFileSystem.Setup(fs => fs.CreateStreamWriter(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<Encoding>()))
             .Throws(new IOException("Disk full"));
 
-        var csvUtils = new CsvUtils(mockFileSystem.Object);
+        var csvUtils = TestHelperMethods.CreateCsvUtils(mockFileSystem.Object, _loggerFactory);
 
         var csvReportOutput = new CsvReportOutput(_loggerFactory, new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory)),
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, mockFileSystem.Object, csvUtils), mockFileSystem.Object, _reportArchiver);

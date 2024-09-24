@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Moq;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
+using Orc.Monitoring.TestUtilities;
 
 [TestFixture]
 public class CsvReportWriterTests
@@ -33,7 +34,7 @@ public class CsvReportWriterTests
         _loggerFactory.EnableLoggingFor<CsvReportWriter>();
         _loggerFactory.EnableLoggingFor<MethodOverrideManager>();
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
         _stringWriter = new StringWriter();
         _overrideFilePath = _fileSystem.GetTempPath();
