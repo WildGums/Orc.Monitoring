@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading;
 using MethodLifeCycleItems;
 using Microsoft.Extensions.Logging;
+using Utilities;
 
 public class CallStack : IObservable<ICallStackItem>
 {
@@ -45,7 +46,7 @@ public class CallStack : IObservable<ICallStackItem>
 
     public MethodCallInfo CreateMethodCallInfo(IClassMonitor? classMonitor, Type callerType, MethodCallContextConfig config, MethodInfo? methodInfo = null, bool isExternalCall = false)
     {
-        methodInfo ??= FindMatchingMethod(config);
+        methodInfo ??= ReflectionHelper.FindMatchingMethod(config.ClassType, config.CallerMethodName, config.GenericArguments, config.ParameterTypes);
         if (methodInfo is null)
         {
             var classTypeName = config.ClassType?.Name ?? string.Empty;
@@ -259,132 +260,6 @@ public class CallStack : IObservable<ICallStackItem>
         });
 
         return anyEnabledReporterInterested && anyEnabledFilterAllows;
-    }
-
-    private MethodInfo? FindMatchingMethod(MethodCallContextConfig config)
-    {
-        var bindingFlags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-
-        var classType = config.ClassType;
-        var methodName = config.CallerMethodName;
-
-        if (classType is null)
-        {
-            return null;
-        }
-
-        // First, try to find the method in the current class
-        var currentClassMethods = classType.GetMethods(bindingFlags)
-            .Where(m => m.Name == methodName)
-            .ToList();
-
-        var matchedMethod = FindBestMatch(currentClassMethods, config);
-        if (matchedMethod is not null)
-        {
-            return matchedMethod;
-        }
-
-        // If not found in the current class, search through the hierarchy
-        var allMethods = new List<MethodInfo>();
-        var currentType = classType.BaseType;
-
-        while (currentType is not null)
-        {
-            allMethods.AddRange(currentType.GetMethods(bindingFlags).Where(m => m.Name == methodName));
-            currentType = currentType.BaseType;
-        }
-
-        matchedMethod = FindBestMatch(allMethods, config);
-        if (matchedMethod is not null)
-        {
-            return matchedMethod;
-        }
-
-        // If we still can't determine, throw an exception
-        var classTypeName = config.ClassType?.Name ?? string.Empty;
-        throw new InvalidOperationException($"No matching method named {methodName} found in {classTypeName} or its base classes that matches the provided configuration.");
-    }
-
-    private MethodInfo? FindBestMatch(List<MethodInfo> methods, MethodCallContextConfig config)
-    {
-        if (!methods.Any())
-        {
-            return null;
-        }
-
-        if (methods.Count == 1)
-        {
-            return methods[0];
-        }
-
-        // If we have multiple methods, try to match based on parameter types
-        if (config.ParameterTypes.Any())
-        {
-            var matchedMethod = methods.FirstOrDefault(m => ParametersMatch(m.GetParameters(), config.ParameterTypes));
-            if (matchedMethod is not null)
-            {
-                return matchedMethod;
-            }
-        }
-
-        // If we still can't determine, and it's a generic method, try to match based on generic arguments
-        if (config.GenericArguments.Any())
-        {
-            var matchedMethod = methods.FirstOrDefault(m => GenericArgumentsMatch(m, config.GenericArguments));
-            if (matchedMethod is not null)
-            {
-                return matchedMethod;
-            }
-        }
-
-        var classTypeName = config.ClassType?.Name ?? string.Empty;
-
-        throw new AmbiguousMatchException(
-            $"Multiple methods found in {classTypeName} with the name {methods[0].Name} that match the provided configuration.");
-    }
-
-    private bool ParametersMatch(ParameterInfo[] methodParams, IReadOnlyCollection<Type> configParams)
-    {
-        if (methodParams.Length != configParams.Count)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < methodParams.Length; i++)
-        {
-            if (!methodParams[i].ParameterType.IsAssignableFrom(configParams.ElementAt(i)))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private bool GenericArgumentsMatch(MethodInfo method, IReadOnlyCollection<Type> configGenericArgs)
-    {
-        if (!method.IsGenericMethod)
-        {
-            return false;
-        }
-
-        var genericArgs = method.GetGenericArguments();
-        if (genericArgs.Length != configGenericArgs.Count)
-        {
-            return false;
-        }
-
-        // Compare each generic argument type
-        var methodGenericArgs = method.GetGenericMethodDefinition().GetGenericArguments();
-        for (int i = 0; i < genericArgs.Length; i++)
-        {
-            if (genericArgs[i].Name != methodGenericArgs[i].Name)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private bool IsEmpty()
