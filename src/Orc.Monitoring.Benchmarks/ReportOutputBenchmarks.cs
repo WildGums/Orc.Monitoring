@@ -13,6 +13,8 @@ using MethodLifeCycleItems;
 using Tests;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
+using Castle.Core.Logging;
+using Orc.Monitoring.TestUtilities;
 
 [MemoryDiagnoser]
 public class ReportOutputBenchmarks
@@ -41,7 +43,7 @@ public class ReportOutputBenchmarks
 #pragma warning disable IDISP003
         _fileSystem = new InMemoryFileSystem(loggerFactory);
 #pragma warning restore IDISP003
-        var csvUtils = new CsvUtils(_fileSystem);
+        var csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, loggerFactory);
         var reportArchiver = new ReportArchiver(_fileSystem, loggerFactory);
 
         _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());

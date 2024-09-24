@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
+using Orc.Monitoring.TestUtilities;
 
 [TestFixture]
 public class MethodOverrideManagerAndRanttOutputTests
@@ -150,7 +151,7 @@ public class MethodOverrideManagerAndRanttOutputTests
 #pragma warning disable IDISP003
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
 #pragma warning restore IDISP003
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
     }
 

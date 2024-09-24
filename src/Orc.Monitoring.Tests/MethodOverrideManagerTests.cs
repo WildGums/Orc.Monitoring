@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
+using Orc.Monitoring.TestUtilities;
 
 [TestFixture]
 public class MethodOverrideManagerTests
@@ -28,7 +29,7 @@ public class MethodOverrideManagerTests
         _logger = new TestLogger<MethodOverrideManagerTests>();
         _loggerFactory = new TestLoggerFactory<MethodOverrideManagerTests>(_logger);
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
         _testOutputPath = _fileSystem.Combine(_fileSystem.GetTempPath(), _fileSystem.GetRandomFileName());
         _fileSystem.CreateDirectory(_testOutputPath);

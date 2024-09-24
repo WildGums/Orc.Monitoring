@@ -159,9 +159,9 @@
             return new ReportArchiver(fileSystem, loggerFactory);
         }
 
-        public static CsvUtils CreateCsvUtils(IFileSystem fileSystem)
+        public static CsvUtils CreateCsvUtils(IFileSystem fileSystem, IMonitoringLoggerFactory loggerFactory)
         {
-            return new CsvUtils(fileSystem);
+            return new CsvUtils(fileSystem, loggerFactory);
         }
 
         public static void SetupMockReporter(Mock<IMethodCallReporter> mockReporter, string name = "TestReporter")

@@ -51,11 +51,10 @@ public class CsvReportWriter
     public void WriteReportItemsCsv()
     {
         var headers = GetReportItemHeaders();
-        var escapedHeaders = headers.Select(EscapeCsvContent).ToArray();
-        _csvUtils.WriteCsvLine(_writer, escapedHeaders);
+        _csvUtils.WriteCsvLine(_writer, headers);
 
         Func<Dictionary<string, string>, string[]> selector = item =>
-            headers.Select(h => EscapeCsvContent(item.GetValueOrDefault(h, string.Empty))).ToArray();
+            headers.Select(h => item.GetValueOrDefault(h, string.Empty)).ToArray();
 
         var items = PrepareReportItems().ToList();
         int itemCount = items.Count;
@@ -86,11 +85,10 @@ public class CsvReportWriter
         try
         {
             var headers = GetReportItemHeaders();
-            var escapedHeaders = headers.Select(EscapeCsvContent).ToArray();
-            await _csvUtils.WriteCsvLineAsync(_writer, escapedHeaders);
+            await _csvUtils.WriteCsvLineAsync(_writer, headers);
 
             Func<Dictionary<string, string>, string[]> selector = item =>
-                headers.Select(h => EscapeCsvContent(item.GetValueOrDefault(h, string.Empty))).ToArray();
+                headers.Select(h => item.GetValueOrDefault(h, string.Empty)).ToArray();
 
             var items = PrepareReportItems().ToList();
             int itemCount = items.Count;
@@ -256,20 +254,5 @@ public class CsvReportWriter
             return result;
         }
         return defaultValue;
-    }
-
-    private string EscapeCsvContent(string? content)
-    {
-        if (string.IsNullOrEmpty(content))
-        {
-            return string.Empty;
-        }
-
-        content = content.Replace("\"", "\"\"");
-        if (content.Contains(',') || content.Contains('"') || content.Contains('\n') || content.Contains('\r'))
-        {
-            return $"\"{content}\"";
-        }
-        return content;
     }
 }

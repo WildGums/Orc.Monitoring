@@ -38,7 +38,7 @@ public class RanttOutputLimitableTests
         _loggerFactory.EnableLoggingFor<ReportOutputHelper>();
         _loggerFactory.EnableLoggingFor<RanttOutput>();
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
-        _csvUtils = new CsvUtils(_fileSystem);
+        _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
         _reportArchiver = new ReportArchiver(_fileSystem, _loggerFactory);
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
