@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using MethodLifeCycleItems;
+using Utilities;
 
 /// <summary>
 /// Monitors method calls within a class and reports them based on the monitoring configuration.
@@ -156,7 +157,7 @@ public class ClassMonitor : IClassMonitor
         MethodInfo? methodInfo = null;
         if (!isExternalCall)
         {
-            methodInfo = FindMethod(methodName, config, externalType);
+            methodInfo = ReflectionHelper.FindMatchingMethod(externalType ?? _classType, methodName, config.GenericArguments, config.ParameterTypes);
             if (methodInfo is null)
             {
                 _logger.LogWarning($"Method not found: {methodName}");
@@ -310,7 +311,7 @@ public class ClassMonitor : IClassMonitor
 
     private MethodCallInfo? CreateMethodCallInfo(MethodConfiguration config, string callerMethod)
     {
-        var methodInfo = FindMethod(callerMethod, config);
+        var methodInfo = ReflectionHelper.FindMatchingMethod(_classType, callerMethod, config.GenericArguments, config.ParameterTypes);
         if (methodInfo is null)
         {
             _logger.LogWarning($"Method not found: {callerMethod}");
@@ -325,109 +326,6 @@ public class ClassMonitor : IClassMonitor
             ParameterTypes = config.ParameterTypes,
             StaticParameters = config.StaticParameters
         });
-    }
-
-    private MethodInfo? FindMethod(string methodName, MethodConfiguration config, Type? externalType = null)
-    {
-        var type = externalType ?? _classType;
-        var methods = type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
-            .Where(m => m.Name == methodName)
-            .ToList();
-
-        if (methods.Count == 0)
-        {
-            _logger.LogWarning($"No methods found with name '{methodName}' in class '{type.Name}'.");
-            return null;
-        }
-
-        var matchingMethods = new List<MethodInfo>();
-
-        foreach (var method in methods)
-        {
-            MethodInfo methodToCompare = method;
-
-            if (method.IsGenericMethodDefinition)
-            {
-                if (config.GenericArguments.Any() && method.GetGenericArguments().Length == config.GenericArguments.Count)
-                {
-                    try
-                    {
-                        methodToCompare = method.MakeGenericMethod(config.GenericArguments.ToArray());
-                    }
-                    catch (ArgumentException ex)
-                    {
-                        _logger.LogWarning($"Failed to make generic method '{method.Name}' with specified generic arguments: {ex.Message}");
-                        continue;
-                    }
-                }
-                else
-                {
-                    // Generic argument count does not match; skip this method
-                    continue;
-                }
-            }
-            else if (config.GenericArguments.Any())
-            {
-                // Method is not generic but config specifies generic arguments; skip this method
-                continue;
-            }
-
-            if (!config.ParameterTypes.Any() || ParametersMatch(methodToCompare.GetParameters(), config.ParameterTypes))
-            {
-                matchingMethods.Add(methodToCompare);
-            }
-        }
-
-        if (matchingMethods.Count == 1)
-        {
-            return matchingMethods[0];
-        }
-        else if (matchingMethods.Count > 1)
-        {
-            // Ambiguous match
-            throw new InvalidOperationException($"Ambiguous method match for '{methodName}' in class '{type.Name}' with the specified configuration.");
-        }
-        else
-        {
-            _logger.LogWarning($"Method '{methodName}' not found in class '{type.Name}' with specified configuration.");
-            return null;
-        }
-    }
-
-    private bool ParametersMatch(ParameterInfo[] methodParams, List<Type> configParams)
-    {
-        if (methodParams.Length != configParams.Count)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < methodParams.Length; i++)
-        {
-            if (methodParams[i].ParameterType != configParams[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private bool GenericArgumentsMatch(MethodInfo method, List<Type> configGenericArgs)
-    {
-        if (!method.IsGenericMethod)
-        {
-            return false;
-        }
-
-        var genericArgs = method.GetGenericArguments();
-        if (genericArgs.Length != configGenericArgs.Count)
-        {
-            return false;
-        }
-
-        // Further comparison could be added here if necessary
-
-        return true;
     }
 
     private bool IsMonitoringEnabled(string callerMethod, MonitoringVersion currentVersion)
