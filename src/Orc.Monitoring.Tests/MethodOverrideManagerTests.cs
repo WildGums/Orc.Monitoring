@@ -254,10 +254,12 @@ public class MethodOverrideManagerTests
     }
 
     [Test]
-    public void MethodOverrideManager_ShouldOnlyOverrideStaticParameters()
+    public void MethodOverrideManager_ShouldOnlyOverrideStaticAndCustomParameters()
     {
         // Arrange
-        var overrideContent = "FullName,StaticParam,DynamicParam\nTestClass.TestMethod,StaticOverride,DynamicOverride";
+        var overrideContent = 
+            "FullName,StaticParam,DynamicParam,CustomParam\n" +
+            "TestClass.TestMethod,StaticOverride,DynamicOverride,CustomValue";
         _fileSystem.WriteAllText(_overrideFilePath, overrideContent);
         _overrideManager.ReadOverrides();
 
@@ -286,5 +288,6 @@ public class MethodOverrideManagerTests
         // Assert
         Assert.That(reportItem.Parameters["StaticParam"], Is.EqualTo("StaticOverride"));
         Assert.That(reportItem.Parameters["DynamicParam"], Is.EqualTo("OriginalDynamic"));
+        Assert.That(reportItem.Parameters["CustomParam"], Is.EqualTo("CustomValue"));
     }
 }
