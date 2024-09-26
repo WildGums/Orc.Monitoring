@@ -71,12 +71,10 @@ public class MonitoringControllerShouldTrackTests
 
         var version = _monitoringController.GetCurrentVersion();
 
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter1"]), Is.True);
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter2"]), Is.True);
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter3"]), Is.True);
+        Assert.That(_monitoringController.ShouldTrack(version, typeof(MockReporter)), Is.True);
 
         _monitoringController.DisableReporter(typeof(MockReporter));
-        Assert.That(_monitoringController.ShouldTrack(version, reporterIds: ["Reporter1"]), Is.False);
+        Assert.That(_monitoringController.ShouldTrack(version, typeof(MockReporter)), Is.False);
     }
 
     [Test]

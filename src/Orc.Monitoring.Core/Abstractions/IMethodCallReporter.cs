@@ -10,7 +10,7 @@ using Models;
 /// <summary>
 /// Defines a method for reporting performance data.
 /// </summary>
-public interface IMethodCallReporter : IOutputContainer
+public interface IMethodCallReporter : IOutputContainer, IMonitoringComponent
 {
     /// <summary>
     /// Gets the name of the reporter.
@@ -26,11 +26,6 @@ public interface IMethodCallReporter : IOutputContainer
     /// Gets the root method for this reporter.
     /// </summary>
     MethodInfo? RootMethod { get; }
-
-    /// <summary>
-    /// Gets or sets the unique identifier for this reporter instance.
-    /// </summary>
-    string Id { get; set; }
 
     /// <summary>
     /// Starts reporting on the provided call stack.

@@ -191,7 +191,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
 
         foreach (var reportOutput in _outputs)
         {
-            if (_monitoringController.IsOutputTypeEnabled(reportOutput.GetType()))
+            if (_monitoringController.IsOutputEnabled(reportOutput.GetType()))
             {
                 _disposables.Add(reportOutput.Initialize(this));
                 _logger.LogInformation($"Output initialized: {reportOutput.GetType().Name}");
@@ -221,8 +221,8 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
         }
 
         return _filterTypes
-            .Where(filterType => _monitoringController.IsFilterEnabledForReporterType(GetType(), filterType) || _monitoringController.IsFilterEnabledForReporter(Id, filterType))
-            .All(filterType => _monitoringConfiguration.FilterDictionary[filterType].ShouldInclude(methodCallInfo));
+            .Where(filterType => _monitoringController.IsFilterEnabledForReporterType(GetType(), filterType))
+            .All(filterType => ((IMethodFilter)_monitoringConfiguration.GetComponentInstance(filterType)).ShouldInclude(methodCallInfo));
     }
 
     private IAsyncDisposable CreateReportingObservable(IObservable<ICallStackItem> callStack)
@@ -443,7 +443,7 @@ public sealed class TestWorkflowReporter : IMethodCallReporter
     {
         foreach (var output in _outputs)
         {
-            if (_monitoringController.IsOutputTypeEnabled(output.GetType()))
+            if (_monitoringController.IsOutputEnabled(output.GetType()))
             {
                 action(output);
             }

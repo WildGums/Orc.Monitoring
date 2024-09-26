@@ -4,7 +4,7 @@ namespace Orc.Monitoring.Core.Abstractions;
 using System;
 using MethodLifecycle;
 
-public interface IReportOutput
+public interface IReportOutput : IMonitoringComponent
 {
     IAsyncDisposable Initialize(IMethodCallReporter reporter);
     void SetParameters(object? parameter = null);

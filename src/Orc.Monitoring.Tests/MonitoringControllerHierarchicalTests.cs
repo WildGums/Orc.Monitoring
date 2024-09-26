@@ -66,7 +66,7 @@ public class MonitoringControllerHierarchicalTests
         _monitoringController.Enable();
         _monitoringController.EnableReporter(typeof(TestWorkflowReporter));
         _monitoringController.EnableFilter(typeof(WorkflowItemFilter));
-        _monitoringController.EnableFilterForReporterType(typeof(TestWorkflowReporter), typeof(WorkflowItemFilter));
+        _monitoringController.EnableFilterForReporter(typeof(TestWorkflowReporter), typeof(WorkflowItemFilter));
 
         var currentVersion = _monitoringController.GetCurrentVersion();
 

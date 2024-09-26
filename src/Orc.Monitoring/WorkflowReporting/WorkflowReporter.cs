@@ -43,7 +43,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private MethodCallInfo? _rootMethodCallInfo;
     private CallProcessingContext? _callProcessingContext;
     private string? _rootWorkflowItemName;
-    private string? _id;
 
     private bool _disposing;
 #pragma warning disable IDISP006
@@ -110,16 +109,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
     public MethodInfo RootMethod => _rootMethod ?? throw new InvalidOperationException("Root method not set");
 
-    public string Id
-    {
-        get => _id ?? string.Empty;
-        set
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(value);
-            _id = value;
-        }
-    }
-
     public void SetRootMethod(MethodInfo methodInfo)
     {
         ArgumentNullException.ThrowIfNull(methodInfo);
@@ -134,7 +123,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
             throw new InvalidOperationException("Unable to start reporting when root method is not set");
         }
 
-        _logger.LogInformation($"WorkflowReporter (Id: {Id}) started reporting");
+        _logger.LogInformation($"WorkflowReporter started reporting");
 
         foreach (var disposable in _disposables ?? [])
         {
@@ -185,7 +174,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         foreach (var reportOutput in _outputs)
         {
-            if (_monitoringController.IsOutputTypeEnabled(reportOutput.GetType()))
+            if (_monitoringController.IsComponentEnabled(reportOutput.GetType()))
             {
                 _disposables.Add(reportOutput.Initialize(this));
             }
@@ -210,8 +199,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
         }
 
         return _filterTypes
-            .Where(filterType => _monitoringController.IsFilterEnabledForReporterType(GetType(), filterType) || _monitoringController.IsFilterEnabledForReporter(Id, filterType))
-            .All(filterType => _monitoringConfiguration.FilterDictionary[filterType].ShouldInclude(methodCallInfo));
+            .Where(filterType => _monitoringController.IsFilterEnabledForReporterType(GetType(), filterType))
+            .All(filterType => ((IMethodFilter)_monitoringConfiguration.GetComponentInstance(filterType)).ShouldInclude(methodCallInfo));
     }
 
     private IAsyncDisposable CreateReportingObservable(IObservable<ICallStackItem> callStack)
@@ -441,7 +430,7 @@ public sealed class WorkflowReporter : IMethodCallReporter
     {
         foreach (var output in _outputs)
         {
-            if (_monitoringController.IsOutputTypeEnabled(output.GetType()))
+            if (_monitoringController.IsComponentEnabled(output.GetType()))
             {
                 action(output);
             }

@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Abstractions;
 using Controllers;
@@ -18,11 +19,11 @@ public sealed class AsyncMethodCallContext : MethodCallContextBase
         IClassMonitor? classMonitor,
         MethodCallInfo methodCallInfo,
         List<IAsyncDisposable> disposables,
-        IEnumerable<string> reporterIds,
+        Type[] reporterTypes,
         IMonitoringLoggerFactory loggerFactory,
         IMonitoringController monitoringController,
         MethodCallInfoPool methodCallInfoPool)
-        : base(classMonitor, methodCallInfo, disposables, reporterIds, loggerFactory.CreateLogger<AsyncMethodCallContext>(), monitoringController, methodCallInfoPool)
+        : base(classMonitor, methodCallInfo, disposables, reporterTypes, loggerFactory.CreateLogger<AsyncMethodCallContext>(), monitoringController, methodCallInfoPool)
     {
     }
 
@@ -111,7 +112,7 @@ public sealed class AsyncMethodCallContext : MethodCallContextBase
             MethodCallInfo.Elapsed = _stopwatch.Elapsed;
             var endStatus = new MethodCallEnd(MethodCallInfo);
 
-            if (_monitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
+            if (_monitoringController.ShouldTrack(ContextVersion, ReporterTypes))
             {
                 (_classMonitor as ClassMonitor)?.LogStatus(endStatus);
             }

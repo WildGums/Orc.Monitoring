@@ -60,7 +60,7 @@ public class PerformanceMonitorIntegrationTests
         _performanceMonitor.Configure(config =>
         {
             config.TrackAssembly(typeof(PerformanceMonitorIntegrationTests).Assembly);
-            config.AddFilter(new AlwaysIncludeFilter(_loggerFactory));
+            config.AddFilterInstance(new AlwaysIncludeFilter(_loggerFactory));
             config.AddReporterType(typeof(MockReporter));
         });
 

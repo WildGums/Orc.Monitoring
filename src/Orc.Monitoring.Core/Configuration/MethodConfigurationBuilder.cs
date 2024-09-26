@@ -26,7 +26,7 @@ public class MethodConfigurationBuilder
 
     public MethodConfigurationBuilder AddReporter(IMethodCallReporter reporter)
     {
-        _logger.LogDebug($"Added reporter: {reporter.GetType().Name} with ID: {reporter.Id}");
+        _logger.LogDebug($"Added reporter: {reporter.GetType().Name}");
         _config.Reporters.Add(reporter);
         return this;
     }
@@ -35,10 +35,6 @@ public class MethodConfigurationBuilder
     {
         // TODO: we need to resolve reporter factory based on the type of reporter and then create the reporter
         var reporter = new TReporter();
-        if (string.IsNullOrEmpty(reporter.Id))
-        {
-            reporter.Id = Guid.NewGuid().ToString(); // Assign a unique Id only if one doesn't exist
-        }
 
         configAction?.Invoke(reporter);
 

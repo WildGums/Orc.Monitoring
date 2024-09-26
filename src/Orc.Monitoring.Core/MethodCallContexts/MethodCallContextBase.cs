@@ -24,13 +24,13 @@ public abstract class MethodCallContextBase : VersionedMonitoringContext, IMetho
     protected bool _isDisposed;
 
     public MethodCallInfo? MethodCallInfo { get; protected set; }
-    public IReadOnlyList<string> ReporterIds { get; protected set; } = Array.Empty<string>();
+    public Type[] ReporterTypes { get; protected set; } = Array.Empty<Type>();
 
     protected MethodCallContextBase(
         IClassMonitor? classMonitor,
         MethodCallInfo? methodCallInfo,
         List<IAsyncDisposable>? disposables,
-        IEnumerable<string>? reporterIds,
+        Type[] reporterTypes,
         ILogger logger,
         IMonitoringController monitoringController,
         MethodCallInfoPool methodCallInfoPool)
@@ -39,7 +39,7 @@ public abstract class MethodCallContextBase : VersionedMonitoringContext, IMetho
         _classMonitor = classMonitor;
         MethodCallInfo = methodCallInfo;
         _disposables = disposables;
-        ReporterIds = reporterIds?.ToArray() ?? [];
+        ReporterTypes = reporterTypes;
         _logger = logger;
         _monitoringController = monitoringController;
         _methodCallInfoPool = methodCallInfoPool;

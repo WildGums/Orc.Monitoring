@@ -17,10 +17,10 @@ public class MethodCallContextFactory(IMonitoringController monitoringController
         return NullMethodCallContext.Instance;
     }
 
-    public IMethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
+    public IMethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, params Type[] reporterTypes)
     {
 #pragma warning disable IDISP005
-        return new MethodCallContext(classMonitor, methodCallInfo, disposables, reporterIds, loggerFactory, monitoringController, methodCallInfoPool);
+        return new MethodCallContext(classMonitor, methodCallInfo, disposables, reporterTypes, loggerFactory, monitoringController, methodCallInfoPool);
 #pragma warning restore IDISP005
     }
 
@@ -29,10 +29,10 @@ public class MethodCallContextFactory(IMonitoringController monitoringController
         return NullMethodCallContext.Instance;
     }
 
-    public IMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
+    public IMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, params Type[] reporterTypes)
     {
 #pragma warning disable IDISP005
-        return new AsyncMethodCallContext(classMonitor, methodCallInfo, disposables, reporterIds, loggerFactory, monitoringController, methodCallInfoPool);
+        return new AsyncMethodCallContext(classMonitor, methodCallInfo, disposables, reporterTypes, loggerFactory, monitoringController, methodCallInfoPool);
 #pragma warning restore IDISP005
     }
 }

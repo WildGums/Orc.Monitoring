@@ -1,180 +1,405 @@
 ﻿namespace Orc.Monitoring.Core.Controllers;
 
-using Models;
-using System.Collections.Generic;
 using System;
-using System.Linq;
-using Abstractions;
-using Microsoft.Extensions.Logging;
-using Utilities.Logging;
-using static Orc.Monitoring.Core.Controllers.MonitoringController;
+using System.Threading.Tasks;
+using Orc.Monitoring.Core.Abstractions;
+using Orc.Monitoring.Core.Models;
 
+/// <summary>
+/// Extension methods for the <see cref="IMonitoringController"/> interface.
+/// </summary>
 public static class IMonitoringControllerExtensions
 {
-    private static readonly ILogger Logger = MonitoringLoggerFactory.Instance.CreateLogger(typeof(IMonitoringControllerExtensions));
-
-    // Filter Extensions
-    public static void EnableFilter<T>(this IMonitoringController controller) where T : IMethodFilter
+    /// <summary>
+    /// Enables a component of type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the component to enable.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    public static void EnableComponent<T>(this IMonitoringController controller) where T : IMonitoringComponent
     {
-        controller.SetComponentState(MonitoringComponentType.Filter, typeof(T), true);
+        controller.SetComponentState(typeof(T), true);
     }
 
-    public static void DisableFilter<T>(this IMonitoringController controller) where T : IMethodFilter
+    /// <summary>
+    /// Disables a component of type <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the component to disable.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    public static void DisableComponent<T>(this IMonitoringController controller) where T : IMonitoringComponent
     {
-        controller.SetComponentState(MonitoringComponentType.Filter, typeof(T), false);
+        controller.SetComponentState(typeof(T), false);
     }
 
-    public static bool IsFilterEnabled<T>(this IMonitoringController controller) where T : IMethodFilter
+    /// <summary>
+    /// Checks if a component of type <typeparamref name="T"/> is enabled.
+    /// </summary>
+    /// <typeparam name="T">The type of the component to check.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <returns>True if the component is enabled; otherwise, false.</returns>
+    public static bool IsComponentEnabled<T>(this IMonitoringController controller) where T : IMonitoringComponent
     {
-        return controller.GetComponentState(MonitoringComponentType.Filter, typeof(T));
+        return controller.GetComponentState(typeof(T));
     }
 
-    // Reporter Extensions
-    public static void EnableReporter<T>(this IMonitoringController controller) where T : IMethodCallReporter
+    /// <summary>
+    /// Enables a component of the specified type.
+    /// </summary>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <param name="componentType">The type of the component to enable.</param>
+    public static void EnableComponent(this IMonitoringController controller, Type componentType)
     {
-        controller.SetComponentState(MonitoringComponentType.Reporter, typeof(T), true);
+        ValidateComponentType(componentType);
+        controller.SetComponentState(componentType, true);
     }
 
-    public static void DisableReporter<T>(this IMonitoringController controller) where T : IMethodCallReporter
+    /// <summary>
+    /// Disables a component of the specified type.
+    /// </summary>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <param name="componentType">The type of the component to disable.</param>
+    public static void DisableComponent(this IMonitoringController controller, Type componentType)
     {
-        controller.SetComponentState(MonitoringComponentType.Reporter, typeof(T), false);
+        ValidateComponentType(componentType);
+        controller.SetComponentState(componentType, false);
     }
 
-    public static bool IsReporterEnabled<T>(this IMonitoringController controller) where T : IMethodCallReporter
+    /// <summary>
+    /// Checks if a component of the specified type is enabled.
+    /// </summary>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <param name="componentType">The type of the component to check.</param>
+    /// <returns>True if the component is enabled; otherwise, false.</returns>
+    public static bool IsComponentEnabled(this IMonitoringController controller, Type componentType)
     {
-        return controller.GetComponentState(MonitoringComponentType.Reporter, typeof(T));
+        ValidateComponentType(componentType);
+        return controller.GetComponentState(componentType);
     }
 
-    // Output Type Extensions
-    public static void EnableOutputType<T>(this IMonitoringController controller) where T : IReportOutput
+    /// <summary>
+    /// Applies a filter of type <typeparamref name="TFilter"/> to a reporter of type <typeparamref name="TReporter"/>.
+    /// </summary>
+    /// <typeparam name="TFilter">The type of the filter.</typeparam>
+    /// <typeparam name="TReporter">The type of the reporter.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    public static void ApplyFilterToReporter<TFilter, TReporter>(this IMonitoringController controller)
+        where TFilter : IMethodFilter
+        where TReporter : IMethodCallReporter
     {
-        controller.SetComponentState(MonitoringComponentType.OutputType, typeof(T), true);
+        var config = controller.Configuration;
+        config.ComponentRegistry.AddRelationship(typeof(TReporter), typeof(TFilter));
     }
 
-    public static void DisableOutputType<T>(this IMonitoringController controller) where T : IReportOutput
+    /// <summary>
+    /// Removes a filter of type <typeparamref name="TFilter"/> from a reporter of type <typeparamref name="TReporter"/>.
+    /// </summary>
+    /// <typeparam name="TFilter">The type of the filter.</typeparam>
+    /// <typeparam name="TReporter">The type of the reporter.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    public static void RemoveFilterFromReporter<TFilter, TReporter>(this IMonitoringController controller)
+        where TFilter : IMethodFilter
+        where TReporter : IMethodCallReporter
     {
-        controller.SetComponentState(MonitoringComponentType.OutputType, typeof(T), false);
+        var config = controller.Configuration;
+        config.ComponentRegistry.RemoveRelationship(typeof(TReporter), typeof(TFilter));
     }
 
-    public static bool IsOutputTypeEnabled<T>(this IMonitoringController controller) where T : IReportOutput
+    /// <summary>
+    /// Checks if a filter of type <typeparamref name="TFilter"/> is applied to a reporter of type <typeparamref name="TReporter"/>.
+    /// </summary>
+    /// <typeparam name="TFilter">The type of the filter.</typeparam>
+    /// <typeparam name="TReporter">The type of the reporter.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <returns>True if the filter is applied; otherwise, false.</returns>
+    public static bool IsFilterAppliedToReporter<TFilter, TReporter>(this IMonitoringController controller)
+        where TFilter : IMethodFilter
+        where TReporter : IMethodCallReporter
     {
-        return controller.GetComponentState(MonitoringComponentType.OutputType, typeof(T));
+        var config = controller.Configuration;
+        return config.ComponentRegistry.HasRelationship(typeof(TReporter), typeof(TFilter));
     }
 
-    // Methods for Type parameters
+    /// <summary>
+    /// Temporarily enables a component of type <typeparamref name="T"/> within a scope.
+    /// </summary>
+    /// <typeparam name="T">The type of the component to temporarily enable.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <returns>An <see cref="IDisposable"/> that, when disposed, restores the original state.</returns>
+    public static IDisposable TemporarilyEnableComponent<T>(this IMonitoringController controller) where T : IMonitoringComponent
+    {
+        return new TemporaryComponentState(controller, typeof(T), true);
+    }
+
+    /// <summary>
+    /// Temporarily disables a component of type <typeparamref name="T"/> within a scope.
+    /// </summary>
+    /// <typeparam name="T">The type of the component to temporarily disable.</typeparam>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <returns>An <see cref="IDisposable"/> that, when disposed, restores the original state.</returns>
+    public static IDisposable TemporarilyDisableComponent<T>(this IMonitoringController controller) where T : IMonitoringComponent
+    {
+        return new TemporaryComponentState(controller, typeof(T), false);
+    }
+
+    /// <summary>
+    /// Validates that the specified type implements <see cref="IMonitoringComponent"/>.
+    /// </summary>
+    /// <param name="componentType">The component type to validate.</param>
+    private static void ValidateComponentType(Type componentType)
+    {
+        if (componentType is null)
+        {
+            throw new ArgumentNullException(nameof(componentType));
+        }
+
+        if (!typeof(IMonitoringComponent).IsAssignableFrom(componentType))
+        {
+            throw new ArgumentException($"Type {componentType.FullName} does not implement IMonitoringComponent.", nameof(componentType));
+        }
+    }
+
+    /// <summary>
+    /// A private class used to temporarily change the state of a component.
+    /// </summary>
+    private sealed class TemporaryComponentState : IDisposable
+    {
+        private readonly IMonitoringController _controller;
+        private readonly Type _componentType;
+        private readonly bool _originalState;
+        private bool _disposed;
+
+        public TemporaryComponentState(IMonitoringController controller, Type componentType, bool temporaryState)
+        {
+            _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+            _componentType = componentType ?? throw new ArgumentNullException(nameof(componentType));
+
+            _originalState = controller.GetComponentState(componentType);
+            controller.SetComponentState(componentType, temporaryState);
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _controller.SetComponentState(_componentType, _originalState);
+                _disposed = true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Determines whether monitoring should track the current operation based on the version and component states.
+    /// </summary>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <param name="version">The monitoring version.</param>
+    /// <param name="componentTypes">Optional component types to check.</param>
+    /// <returns>True if the operation should be tracked; otherwise, false.</returns>
+    public static bool ShouldTrack(this IMonitoringController controller, MonitoringVersion? version, params Type[] componentTypes)
+    {
+        if (controller is null)
+        {
+            throw new ArgumentNullException(nameof(controller));
+        }
+
+        if (version is null)
+        {
+            throw new ArgumentNullException(nameof(version));
+        }
+
+        if (!controller.IsEnabled || version != controller.GetCurrentVersion())
+        {
+            return false;
+        }
+
+        foreach (var componentType in componentTypes)
+        {
+            if (!controller.GetComponentState(componentType))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Asynchronously performs an action if monitoring should track the current operation.
+    /// </summary>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <param name="version">The monitoring version.</param>
+    /// <param name="action">The action to perform.</param>
+    /// <param name="componentTypes">Optional component types to check.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public static async Task TrackAsync(this IMonitoringController controller, MonitoringVersion version, Func<Task> action, params Type[] componentTypes)
+    {
+        if (controller.ShouldTrack(version, componentTypes))
+        {
+            await action().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Synchronously performs an action if monitoring should track the current operation.
+    /// </summary>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <param name="version">The monitoring version.</param>
+    /// <param name="action">The action to perform.</param>
+    /// <param name="componentTypes">Optional component types to check.</param>
+    public static void Track(this IMonitoringController controller, MonitoringVersion version, Action action, params Type[] componentTypes)
+    {
+        if (controller.ShouldTrack(version, componentTypes))
+        {
+            action();
+        }
+    }
+
+    /// <summary>
+    /// Checks if a filter of the specified type is enabled for a reporter of the specified type.
+    /// </summary>
+    /// <param name="filterType">The type of the filter.</param>
+    /// <param name="controller">The monitoring controller.</param>
+    /// <param name="reporterType">The type of the reporter.</param>
+    /// <returns></returns>
+    public static bool IsFilterEnabledForReporterType(this IMonitoringController controller, Type reporterType, Type filterType)
+    {
+        var config = controller.Configuration;
+
+        // Check if the filter and reporter are enabled globally
+        var isFilterEnabled = controller.GetComponentState(filterType);
+        var isReporterEnabled = controller.GetComponentState(reporterType);
+
+        if (!isFilterEnabled || !isReporterEnabled)
+        {
+            return false;
+        }
+
+        // Check if the relationship exists
+        return config.ComponentRegistry.HasRelationship(reporterType, filterType);
+    }
+
     public static void EnableFilter(this IMonitoringController controller, Type filterType)
     {
-        controller.SetComponentState(MonitoringComponentType.Filter, filterType, true);
+        controller.SetComponentState(filterType, true);
     }
 
     public static void DisableFilter(this IMonitoringController controller, Type filterType)
     {
-        controller.SetComponentState(MonitoringComponentType.Filter, filterType, false);
-    }
-
-    public static bool IsFilterEnabled(this IMonitoringController controller, Type filterType)
-    {
-        return controller.GetComponentState(MonitoringComponentType.Filter, filterType);
+        controller.SetComponentState(filterType, false);
     }
 
     public static void EnableReporter(this IMonitoringController controller, Type reporterType)
     {
-        controller.SetComponentState(MonitoringComponentType.Reporter, reporterType, true);
+        controller.SetComponentState(reporterType, true);
     }
 
     public static void DisableReporter(this IMonitoringController controller, Type reporterType)
     {
-        controller.SetComponentState(MonitoringComponentType.Reporter, reporterType, false);
+        controller.SetComponentState(reporterType, false);
     }
 
-    public static bool IsReporterEnabled(this IMonitoringController controller, Type reporterType)
+    public static void EnableFilterForReporter(this IMonitoringController controller, Type filterType, Type reporterType)
     {
-        return controller.GetComponentState(MonitoringComponentType.Reporter, reporterType);
+        var config = controller.Configuration;
+        config.ComponentRegistry.AddRelationship(reporterType, filterType);
     }
 
-    public static void EnableOutputType(this IMonitoringController controller, Type outputType)
+    public static void DisableFilterForReporter(this IMonitoringController controller, Type filterType, Type reporterType)
     {
-        controller.SetComponentState(MonitoringComponentType.OutputType, outputType, true);
+        var config = controller.Configuration;
+        config.ComponentRegistry.RemoveRelationship(reporterType, filterType);
     }
 
-    public static void DisableOutputType(this IMonitoringController controller, Type outputType)
+    public static void EnableFilterForReporter<TFilter, TReporter>(this IMonitoringController controller)
+        where TFilter : IMethodFilter
+        where TReporter : IMethodCallReporter
     {
-        controller.SetComponentState(MonitoringComponentType.OutputType, outputType, false);
+        controller.EnableFilterForReporter(typeof(TFilter), typeof(TReporter));
     }
 
-    public static bool IsOutputTypeEnabled(this IMonitoringController controller, Type outputType)
+    public static void DisableFilterForReporter<TFilter, TReporter>(this IMonitoringController controller)
+        where TFilter : IMethodFilter
+        where TReporter : IMethodCallReporter
     {
-        return controller.GetComponentState(MonitoringComponentType.OutputType, outputType);
+        controller.DisableFilterForReporter(typeof(TFilter), typeof(TReporter));
     }
 
-    // ShouldTrack Method
-    public static bool ShouldTrack(this IMonitoringController monitoringController, MonitoringVersion version, Type? reporterType = null, Type? filterType = null, IEnumerable<string>? reporterIds = null)
+    public static void EnableReporter<TReporter>(this IMonitoringController controller) where TReporter : IMethodCallReporter
     {
-        var shouldTrack = monitoringController.IsEnabled && version == monitoringController.GetCurrentVersion();
-        Logger.LogDebug($"ShouldTrack called. IsEnabled: {monitoringController.IsEnabled}, VersionMatch: {version == monitoringController.GetCurrentVersion()}, Result: {shouldTrack}");
-
-        if (!shouldTrack) return false;
-
-        if (reporterType is not null)
-        {
-            shouldTrack = monitoringController.IsReporterEnabled(reporterType);
-            Logger.LogDebug($"Reporter check. Type: {reporterType.Name}, Enabled: {shouldTrack}");
-        }
-
-        if (shouldTrack && filterType is not null)
-        {
-            if (reporterIds is not null)
-            {
-                shouldTrack = reporterIds.Any(id => monitoringController.IsFilterEnabledForReporter(id, filterType));
-                Logger.LogDebug($"Filter check for reporters. FilterType: {filterType.Name}, Result: {shouldTrack}");
-            }
-            else if (reporterType is not null)
-            {
-                shouldTrack = monitoringController.IsFilterEnabledForReporterType(reporterType, filterType);
-                Logger.LogDebug($"Filter check for reporter type. ReporterType: {reporterType.Name}, FilterType: {filterType.Name}, Result: {shouldTrack}");
-            }
-            else
-            {
-                shouldTrack = monitoringController.IsFilterEnabled(filterType);
-                Logger.LogDebug($"General filter check. FilterType: {filterType.Name}, Result: {shouldTrack}");
-            }
-        }
-
-        return shouldTrack;
+        controller.EnableReporter(typeof(TReporter));
     }
 
-    // Reporter-Specific Filter Extensions
-    public static void EnableFilterForReporterType(this IMonitoringController controller, Type reporterType, Type filterType)
+    public static void DisableReporter<TReporter>(this IMonitoringController controller) where TReporter : IMethodCallReporter
     {
-        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
-        {
-            throw new ArgumentException("ReporterType must implement IMethodCallReporter", nameof(reporterType));
-        }
-        if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
-        {
-            throw new ArgumentException("FilterType must implement IMethodFilter", nameof(filterType));
-        }
-
-        controller.SetFilterStateForReporterType(reporterType, filterType, true);
+        controller.DisableReporter(typeof(TReporter));
     }
 
-    public static void DisableFilterForReporterType(this IMonitoringController controller, Type reporterType, Type filterType)
+    public static void EnableFilter<TFilter>(this IMonitoringController controller) where TFilter : IMethodFilter
     {
-        if (!typeof(IMethodCallReporter).IsAssignableFrom(reporterType))
-        {
-            throw new ArgumentException("ReporterType must implement IMethodCallReporter", nameof(reporterType));
-        }
-        if (!typeof(IMethodFilter).IsAssignableFrom(filterType))
-        {
-            throw new ArgumentException("FilterType must implement IMethodFilter", nameof(filterType));
-        }
-
-        controller.SetFilterStateForReporterType(reporterType, filterType, false);
+        controller.EnableFilter(typeof(TFilter));
     }
 
-    public static bool IsFilterEnabledForReporterType(this IMonitoringController controller, Type reporterType, Type filterType)
+    public static void DisableFilter<TFilter>(this IMonitoringController controller) where TFilter : IMethodFilter
+    {
+        controller.DisableFilter(typeof(TFilter));
+    }
+
+    public static bool IsFilterEnabledForReporter<TReporter, TFilter>(this IMonitoringController controller)
+        where TReporter : IMethodCallReporter
+        where TFilter : IMethodFilter
+    {
+        return controller.IsFilterEnabledForReporterType(typeof(TReporter), typeof(TFilter));
+    }
+
+    public static bool IsFilterEnabledForReporter(this IMonitoringController controller, Type filterType, Type reporterType)
     {
         return controller.IsFilterEnabledForReporterType(reporterType, filterType);
     }
 
+    public static bool IsReporterEnabled<TReporter>(this IMonitoringController controller) where TReporter : IMethodCallReporter
+    {
+        return controller.GetComponentState(typeof(TReporter));
+    }
+
+    public static bool IsReporterEnabled(this IMonitoringController controller, Type type)
+    {
+        return controller.GetComponentState(type);
+    }
+
+    public static bool IsFilterEnabled<TFilter>(this IMonitoringController controller) where TFilter : IMethodFilter
+    {
+        return controller.GetComponentState(typeof(TFilter));
+    }
+    public static bool IsFilterEnabled(this IMonitoringController controller, Type type)
+    {
+        return controller.GetComponentState(type);
+    }
+
+    public static void EnableOutput<TOutput>(this IMonitoringController controller) where TOutput : IReportOutput
+    {
+        controller.SetComponentState(typeof(TOutput), true);
+    }
+
+    public static void DisableOutput<TOutput>(this IMonitoringController controller) where TOutput : IReportOutput
+    {
+        controller.SetComponentState(typeof(TOutput), false);
+    }
+
+    public static bool IsOutputEnabled<TOutput>(this IMonitoringController controller) where TOutput : IReportOutput
+    {
+        return controller.GetComponentState(typeof(TOutput));
+    }
+
+    public static void EnableOutput(this IMonitoringController controller, Type outputType)
+    {
+        controller.SetComponentState(outputType, true);
+    }
+
+    public static void DisableOutput(this IMonitoringController controller, Type outputType)
+    {
+        controller.SetComponentState(outputType, false);
+    }
+
+    public static bool IsOutputEnabled(this IMonitoringController controller, Type outputType)
+    {
+        return controller.GetComponentState(outputType);
+    }
 }

@@ -120,38 +120,38 @@ public class ClassMonitor : IClassMonitor
             }
 
             var disposables = new List<IAsyncDisposable>();
-            var enabledReporterIds = new List<string>();
 
+            var reporterTypes = config.Reporters.Select(x => x.GetType()).ToArray();
             foreach (var reporter in config.Reporters)
             {
                 reporter.Initialize(_monitoringConfig, methodCallInfo);
 
                 methodCallInfo.AddAssociatedReporter(reporter);
 
-                if (_monitoringController.IsReporterEnabled(reporter.GetType()))
+                if (_monitoringController.IsComponentEnabled(reporter.GetType()))
                 {
-                    _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
+                    _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
                     var reporterDisposable = reporter.StartReporting(_callStack);
                     disposables.Add(reporterDisposable);
-                    enabledReporterIds.Add(reporter.Id);
-                    _logger.LogDebug($"Reporter started: {reporter.GetType().Name} (Id: {reporter.Id})");
+
+                    _logger.LogDebug($"Reporter started: {reporter.GetType().Name}");
                 }
                 else
                 {
-                    _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name} (Id: {reporter.Id})");
+                    _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name}");
                 }
             }
 
             _callStack.Push(methodCallInfo);
 
-            if (!ShouldTrackMethod(methodCallInfo, operationVersion, enabledReporterIds))
+            if (!ShouldTrackMethod(methodCallInfo, operationVersion, reporterTypes))
             {
-                _logger.LogDebug($"External method filtered out, returning Dummy context. Method: {externalMethodName}, Filters: {string.Join(", ", _monitoringConfig.Filters.Select(f => f.GetType().Name))}");
+                _logger.LogDebug($"External method filtered out, returning Dummy context. Method: {externalMethodName}, Filters: {string.Join(", ", _monitoringConfig.GetComponentInstances().OfType<IMethodFilter>().Select(f => f.GetType().Name))}");
                 return GetDummyContext(async);
             }
 
             _logger.LogDebug($"Returning {(async ? "async" : "sync")} context for external method");
-            return CreateMethodCallContext(async, methodCallInfo, disposables, enabledReporterIds);
+            return CreateMethodCallContext(async, methodCallInfo, disposables, reporterTypes);
         }
         catch (Exception ex)
         {
@@ -222,7 +222,6 @@ public class ClassMonitor : IClassMonitor
             HandleSpecialMethodTypes(methodInfo, methodCallInfo);
 
             var disposables = new List<IAsyncDisposable>();
-            var enabledReporterIds = new List<string>();
 
             foreach (var reporter in config.Reporters)
             {
@@ -230,32 +229,31 @@ public class ClassMonitor : IClassMonitor
 
                 methodCallInfo.AddAssociatedReporter(reporter);
 
-                if (_monitoringController.IsReporterEnabled(reporter.GetType()))
+                if (_monitoringController.IsComponentEnabled(reporter.GetType()))
                 {
-                    _logger.LogDebug($"Starting reporter: {reporter.GetType().Name} (Id: {reporter.Id})");
+                    _logger.LogDebug($"Starting reporter: {reporter.GetType().Name}");
                     var reporterDisposable = reporter.StartReporting(_callStack);
                     disposables.Add(reporterDisposable);
-                    enabledReporterIds.Add(reporter.Id);
-                    _logger.LogDebug($"Reporter started: {reporter.GetType().Name} (Id: {reporter.Id})");
+                    _logger.LogDebug($"Reporter started: {reporter.GetType().Name}");
                 }
                 else
                 {
-                    _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name} (Id: {reporter.Id})");
+                    _logger.LogWarning($"Reporter not enabled: {reporter.GetType().Name}");
                 }
             }
 
             _callStack.Push(methodCallInfo);
-
-            if (!ShouldTrackMethod(methodCallInfo, operationVersion, enabledReporterIds))
+            var reporterTypes = config.Reporters.Select(x => x.GetType()).ToArray();
+            if (!ShouldTrackMethod(methodCallInfo, operationVersion, reporterTypes))
             {
-                _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}, Filters: {string.Join(", ", _monitoringConfig.Filters.Select(f => f.GetType().Name))}");
+                _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}, Filters: {string.Join(", ", _monitoringConfig.GetComponentInstances().OfType<IMethodFilter>().Select(f => f.GetType().Name))}");
                 return GetDummyContext(async);
             }
 
             PopulateAttributeParameters(methodCallInfo);
 
             _logger.LogDebug($"Returning {(async ? "async" : "sync")} context");
-            return CreateMethodCallContext(async, methodCallInfo, disposables, enabledReporterIds);
+            return CreateMethodCallContext(async, methodCallInfo, disposables, reporterTypes);
         }
         catch (Exception ex)
         {
@@ -364,25 +362,25 @@ public class ClassMonitor : IClassMonitor
             : _methodCallContextFactory.GetDummyMethodCallContext();
     }
 
-    private IMethodCallContext CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds)
+    private IMethodCallContext CreateMethodCallContext(bool async, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, params Type[] reporterTypes)
     {
         return async
-            ? _methodCallContextFactory.CreateAsyncMethodCallContext(this, methodCallInfo, disposables, reporterIds)
-            : _methodCallContextFactory.CreateMethodCallContext(this, methodCallInfo, disposables, reporterIds);
+            ? _methodCallContextFactory.CreateAsyncMethodCallContext(this, methodCallInfo, disposables, reporterTypes)
+            : _methodCallContextFactory.CreateMethodCallContext(this, methodCallInfo, disposables, reporterTypes);
     }
 
-    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion, IReadOnlyCollection<string> reporterIds)
+    private bool ShouldTrackMethod(MethodCallInfo methodCallInfo, MonitoringVersion operationVersion, params Type[] reporterTypes)
     {
         _logger.LogDebug($"ShouldTrackMethod called for {methodCallInfo.MethodName}");
-        var shouldTrack = _monitoringController.ShouldTrack(operationVersion, reporterIds: reporterIds);
+        var shouldTrack = _monitoringController.ShouldTrack(operationVersion, reporterTypes);
 
         if (shouldTrack)
         {
-            _logger.LogDebug($"ShouldTrack returned true for reporters: {string.Join(", ", reporterIds)}");
+            _logger.LogDebug($"ShouldTrack returned true for reporters: {string.Join(", ", reporterTypes.Select(x => x.Name))}");
             return true;
         }
 
-        _logger.LogDebug($"Method should not be tracked: {methodCallInfo.MethodName}. Checked reporters: {string.Join(", ", reporterIds)}");
+        _logger.LogDebug($"Method should not be tracked: {methodCallInfo.MethodName}. Checked reporters: {string.Join(", ", reporterTypes.Select(x => x.Name))}");
         return false;
     }
 

@@ -11,6 +11,7 @@ using Core.Models;
 using Moq;
 using Filters;
 using Microsoft.Extensions.Logging;
+using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
 using Utilities.Logging;
@@ -18,19 +19,18 @@ using Utilities.Logging;
 [TestFixture]
 public class MonitoringControllerTests
 {
-    private Mock<IMonitoringLoggerFactory> _mockLoggerFactory;
-    private Mock<ILogger<MonitoringController>> _mockLogger;
+    private TestLoggerFactory<MonitoringControllerTests> _loggerFactory;
+    private TestLogger<MonitoringControllerTests> _logger;
     private MonitoringController _controller;
 
     [SetUp]
     public void Setup()
     {
-        _mockLoggerFactory = new Mock<IMonitoringLoggerFactory>();
-        _mockLogger = new Mock<ILogger<MonitoringController>>();
+        _logger = new TestLogger<MonitoringControllerTests>();
+        _loggerFactory = new TestLoggerFactory<MonitoringControllerTests>(_logger);
+        _loggerFactory.EnableLoggingFor<MonitoringController>();
 
-        _mockLoggerFactory.Setup(f => f.CreateLogger(It.IsAny<Type>())).Returns(_mockLogger.Object);
-
-        _controller = new MonitoringController(_mockLoggerFactory.Object);
+        _controller = new MonitoringController(_loggerFactory);
     }
 
     [TearDown]
@@ -126,7 +126,6 @@ public class MonitoringControllerTests
     {
         // Arrange
         var reporterType = typeof(TestWorkflowReporter);
-        var reporterId = "TestReporter";
 
         if (monitoringEnabled)
             _controller.Enable();
@@ -140,7 +139,7 @@ public class MonitoringControllerTests
 
         // Act
         var currentVersion = _controller.GetCurrentVersion(); // Get the current version before calling ShouldTrack
-        return _controller.ShouldTrack(currentVersion, reporterType, null, [reporterId]);
+        return _controller.ShouldTrack(currentVersion, reporterType);
     }
 
     [Test]
@@ -153,7 +152,7 @@ public class MonitoringControllerTests
 
         // Act & Assert
         Assert.That(_controller.IsReporterEnabled(reporterType), Is.False);
-        using (var _ = _controller.TemporarilyEnableReporter<TestWorkflowReporter>())
+        using (var _ = _controller.TemporarilyEnableComponent<TestWorkflowReporter>())
         {
             Assert.That(_controller.IsReporterEnabled(reporterType), Is.True);
         }

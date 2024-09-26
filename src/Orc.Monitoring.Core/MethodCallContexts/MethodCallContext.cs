@@ -18,11 +18,11 @@ public sealed class MethodCallContext : MethodCallContextBase
         IClassMonitor? classMonitor,
         MethodCallInfo methodCallInfo,
         List<IAsyncDisposable> disposables,
-        IEnumerable<string> reporterIds,
+        Type[] reporterTypes,
         IMonitoringLoggerFactory loggerFactory,
         IMonitoringController monitoringController,
         MethodCallInfoPool methodCallInfoPool)
-        : base(classMonitor, methodCallInfo, disposables, reporterIds, loggerFactory.CreateLogger<MethodCallContext>(), monitoringController, methodCallInfoPool)
+        : base(classMonitor, methodCallInfo, disposables, reporterTypes, loggerFactory.CreateLogger<MethodCallContext>(), monitoringController, methodCallInfoPool)
     {
     }
 
@@ -113,7 +113,7 @@ public sealed class MethodCallContext : MethodCallContextBase
             MethodCallInfo.Elapsed = _stopwatch.Elapsed;
             var endStatus = new MethodCallEnd(MethodCallInfo);
 
-            if (_monitoringController.ShouldTrack(ContextVersion, reporterIds: ReporterIds))
+            if (_monitoringController.ShouldTrack(ContextVersion, ReporterTypes))
             {
                 (_classMonitor as ClassMonitor)?.LogStatus(endStatus);
             }

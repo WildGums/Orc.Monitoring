@@ -87,7 +87,6 @@ public class MonitoringRobustnessTests
 
             Assert.That(context.GetType(), Is.EqualTo(dummyAsyncMethodCallContext.GetType()), "Context types should match");
             Assert.That(context.MethodCallInfo, Is.EqualTo(dummyAsyncMethodCallContext.MethodCallInfo), "MethodCallInfo should match");
-            Assert.That(context.ReporterIds, Is.EquivalentTo(dummyAsyncMethodCallContext.ReporterIds), "ReporterIds should match");
         });
     }
 

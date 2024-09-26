@@ -8,9 +8,9 @@ public interface IMethodCallContextFactory
 {
     IMethodCallContext GetDummyMethodCallContext();
 
-    IMethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds);
+    IMethodCallContext CreateMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, params Type[] reporterTypes);
 
     IMethodCallContext GetDummyAsyncMethodCallContext();
 
-    IMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, IEnumerable<string> reporterIds);
+    IMethodCallContext CreateAsyncMethodCallContext(IClassMonitor? classMonitor, MethodCallInfo methodCallInfo, List<IAsyncDisposable> disposables, params Type[] reporterTypes);
 }

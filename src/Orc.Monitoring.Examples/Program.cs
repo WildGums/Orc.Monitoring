@@ -22,7 +22,7 @@ class Program
         {
             conf.AddReporterType<WorkflowReporter>()
                 .AddFilter<WorkflowItemFilter>()
-                .AddFilter(new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
+                .AddFilterInstance(new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
                 .TrackAssembly(typeof(ComplexWorkflow).Assembly);
         });
 
@@ -31,11 +31,11 @@ class Program
         Performance.Controller.EnableFilter(typeof(WorkflowItemFilter));
         Performance.Controller.EnableFilter(typeof(WorkflowItemGranularityFilter));
 
-        Performance.Controller.EnableFilterForReporterType(typeof(WorkflowReporter), typeof(WorkflowItemFilter));
-        Performance.Controller.EnableFilterForReporterType(typeof(WorkflowReporter), typeof(WorkflowItemGranularityFilter));
+        Performance.Controller.EnableFilterForReporter(typeof(WorkflowReporter), typeof(WorkflowItemFilter));
+        Performance.Controller.EnableFilterForReporter(typeof(WorkflowReporter), typeof(WorkflowItemGranularityFilter));
 
-        Performance.Controller.EnableOutputType<CsvReportOutput>();
-        Performance.Controller.EnableOutputType<TxtReportOutput>();
+        Performance.Controller.EnableOutput<CsvReportOutput>();
+        Performance.Controller.EnableOutput<TxtReportOutput>();
 
         Performance.Controller.EnableReporter(typeof(WorkflowReporter));
 

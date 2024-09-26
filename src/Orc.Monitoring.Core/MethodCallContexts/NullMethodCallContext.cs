@@ -13,6 +13,7 @@ public sealed class NullMethodCallContext : IMethodCallContext
     private NullMethodCallContext() { }
 
     public MethodCallInfo? MethodCallInfo => null;
+    public Type[] ReporterTypes { get; } = Array.Empty<Type>();
     public IReadOnlyList<string> ReporterIds => Array.Empty<string>();
 
     public void LogException(Exception exception) { /* No-op */ }
