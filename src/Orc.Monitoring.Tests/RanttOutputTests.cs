@@ -1,4 +1,4 @@
-#pragma warning disable CL0001
+﻿#pragma warning disable CL0001
 #pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
@@ -18,6 +18,7 @@ using Core.MethodLifecycle;
 using Core.Models;
 using Core.Pooling;
 using Microsoft.Extensions.Logging;
+using TestUtilities;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;

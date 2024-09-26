@@ -1,4 +1,4 @@
-namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Reporters.ReportOutputs;
@@ -9,6 +9,7 @@ using System;
 using System.Text;
 using Core.Models;
 using Microsoft.Extensions.Logging;
+using TestUtilities;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using Utilities.Serialization;

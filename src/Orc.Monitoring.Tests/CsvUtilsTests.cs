@@ -1,4 +1,4 @@
-namespace Orc.Monitoring.Tests;
+﻿namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
 using Orc.Monitoring.TestUtilities.Logging;
@@ -6,11 +6,9 @@ using Orc.Monitoring.TestUtilities.Mocks;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using TestUtilities.Logging;
-using TestUtilities.Mocks;
+using TestUtilities;
 using Utilities.Serialization;
 
 [TestFixture]

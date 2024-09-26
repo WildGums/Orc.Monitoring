@@ -1,4 +1,4 @@
-#pragma warning disable CL0002
+﻿#pragma warning disable CL0002
 namespace Orc.Monitoring.Tests;
 
 using NUnit.Framework;
@@ -16,6 +16,7 @@ using Core.Controllers;
 using Core.Factories;
 using Core.MethodLifecycle;
 using Core.Pooling;
+using TestUtilities;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;

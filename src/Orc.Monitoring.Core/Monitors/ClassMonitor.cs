@@ -1,4 +1,4 @@
-#pragma warning disable IDISP005
+﻿#pragma warning disable IDISP005
 namespace Orc.Monitoring.Core.Monitors;
 
 using System;
@@ -17,6 +17,7 @@ using Models;
 using Monitoring.Utilities.Logging;
 using Monitoring.Utilities.Metadata;
 using Pooling;
+using Utilities;
 
 /// <summary>
 /// Monitors method calls within a class and reports them based on the monitoring configuration.

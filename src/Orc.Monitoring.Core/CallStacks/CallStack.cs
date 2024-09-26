@@ -1,4 +1,4 @@
-#pragma warning disable CTL0011
+﻿#pragma warning disable CTL0011
 namespace Orc.Monitoring.Core.CallStacks;
 
 using System;
@@ -19,6 +19,7 @@ using Models;
 using Monitoring.Utilities.Logging;
 using Monitoring.Utilities.Metadata;
 using Pooling;
+using Utilities;
 
 public class CallStack : IObservable<ICallStackItem>
 {

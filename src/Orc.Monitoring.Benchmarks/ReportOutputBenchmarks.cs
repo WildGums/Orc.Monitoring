@@ -1,4 +1,4 @@
-#pragma warning disable CL0002
+﻿#pragma warning disable CL0002
 namespace Orc.Monitoring.Benchmarks;
 
 using BenchmarkDotNet.Attributes;
@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 using Reporters;
 using Reporters.ReportOutputs;
 using Tests;
+using TestUtilities;
 using TestUtilities.Mocks;
 using TestUtilities.TestHelpers;
 using Utilities.Logging;
