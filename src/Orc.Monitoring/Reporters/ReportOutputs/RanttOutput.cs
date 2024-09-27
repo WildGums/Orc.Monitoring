@@ -12,6 +12,7 @@ using Monitoring;
 using Reporters;
 using System.Security.Cryptography;
 using Core.Abstractions;
+using Core.Configuration;
 using Core.Factories;
 using Core.MethodLifecycle;
 using Core.Models;
@@ -21,8 +22,8 @@ using Utilities.Metadata;
 using Utilities.Serialization;
 using Utilities.Threading;
 
-[DefaultOutput]
-public sealed class RanttOutput : IReportOutput
+[DefaultComponent(false)]
+public sealed class RanttOutput : MonitoringComponentBase, IReportOutput
 {
     private const string RanttProjectContents = @"<?xml version=""1.0"" encoding=""utf-8""?>
 <Project RanttVersion=""3.5.0.0"" MinimumRanttVersion=""2.0"">

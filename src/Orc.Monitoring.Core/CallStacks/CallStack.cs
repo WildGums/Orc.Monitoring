@@ -251,11 +251,11 @@ public class CallStack : IObservable<ICallStackItem>
             return false;
         }
 
-        var applicableReporters = _monitoringConfig.GetRegisteredComponentTypes<IMethodCallReporter>();
-        var applicableFilters = _monitoringConfig.GetComponentInstances().OfType<IMethodFilter>();
+        var applicableReporters = methodCallInfo.AssociatedReporters;
+        var applicableFilters = applicableReporters.SelectMany(x => x.GetComponents().OfType<IMethodFilter>()).Distinct().ToArray();
 
         // Check if any enabled reporter is interested in this status
-        var anyEnabledReporterInterested = !applicableReporters.Any() || applicableReporters.Any(x => _monitoringController.IsComponentEnabled(x));
+        var anyEnabledReporterInterested = !applicableReporters.Any() || applicableReporters.Any(x => _monitoringController.IsComponentEnabled(x.GetType()));
 
         // Check if any enabled filter allows this status
         var anyEnabledFilterAllows = !applicableFilters.Any() || applicableFilters.Any(filter =>

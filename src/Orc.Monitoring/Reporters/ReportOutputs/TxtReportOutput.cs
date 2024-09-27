@@ -10,6 +10,7 @@ using Core.Abstractions;
 using Core.Factories;
 using Core.MethodLifecycle;
 using Microsoft.Extensions.Logging;
+using Orc.Monitoring.Core.Configuration;
 using Reporters;
 using Utilities.IO;
 using Utilities.Logging;
@@ -19,8 +20,8 @@ using Utilities.Threading;
 /// <summary>
 /// Provides functionality to output report data in TXT format.
 /// </summary>
-[DefaultOutput]
-public sealed class TxtReportOutput : IReportOutput
+[DefaultComponent(false)]
+public sealed class TxtReportOutput : MonitoringComponentBase, IReportOutput
 {
     private readonly ILogger<TxtReportOutput> _logger;
     private readonly ReportOutputHelper _helper;

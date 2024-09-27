@@ -9,7 +9,7 @@ using Reporters;
 /// <summary>
 /// Filters method calls based on their granularity level.
 /// </summary>
-public class WorkflowItemGranularityFilter : IMethodFilter
+public class WorkflowItemGranularityFilter : MonitoringComponentBase, IMethodFilter
 {
     private readonly int _level;
 

@@ -1,13 +1,14 @@
 ﻿namespace Orc.Monitoring.Filters;
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Core.Abstractions;
 using Core.Models;
 using Monitoring;
 using Reporters;
 
-public class WorkflowItemFilter : IMethodFilter
+public class WorkflowItemFilter : MonitoringComponentBase, IMethodFilter
 {
     public bool ShouldInclude(MethodCallInfo methodCallInfo)
     {

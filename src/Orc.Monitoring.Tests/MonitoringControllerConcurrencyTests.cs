@@ -303,6 +303,7 @@ public class MonitoringControllerConcurrencyTests
             .Select(g => g.Select(v => v.Counter).OrderBy(c => c).ToList())
             .ToList();
 
-        Assert.That(sequenceUsage, Is.All.Matches<List<int>>(seq => seq.SequenceEqual(Enumerable.Range(0, seq.Count))), "Sequence numbers should start from 0 and increase consecutively for each timestamp");
+        Assert.That(sequenceUsage, Is.All.Matches<List<int>>(seq => seq.SequenceEqual(Enumerable.Range(0, seq.Count))), 
+            "Sequence numbers should start from 0 and increase consecutively for each timestamp");
     }
 }

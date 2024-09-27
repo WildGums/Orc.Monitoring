@@ -16,7 +16,7 @@ using Utilities.Serialization;
 using Utilities.Threading;
 
 [DefaultOutput(false)]
-public sealed class CsvReportOutput : IReportOutput
+public sealed class CsvReportOutput : MonitoringComponentBase, IReportOutput
 {
     private readonly ILogger<CsvReportOutput> _logger;
     private readonly ReportOutputHelper _helper;

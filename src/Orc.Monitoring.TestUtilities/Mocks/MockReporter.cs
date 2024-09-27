@@ -14,7 +14,7 @@ using Reporters.ReportOutputs;
 using Utilities.Logging;
 using Utilities.Threading;
 
-public class MockReporter : IMethodCallReporter
+public class MockReporter : MonitoringComponentBase, IMethodCallReporter
 {
     private readonly ILogger<MockReporter> _logger;
 
@@ -104,19 +104,6 @@ public class MockReporter : IMethodCallReporter
             _logger.LogWarning($"Attempted to set root method again. Ignoring call for {methodInfo.Name}");
         }
     }
-
-    public IOutputContainer AddFilter<T>() where T : IMethodFilter
-    {
-        OperationSequence.Add($"AddFilter: {typeof(T).Name}");
-
-        return this;
-    }
-
-    public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
-    {
-        return this;
-    }
-
 
     public void Reset()
     {

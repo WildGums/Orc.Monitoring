@@ -10,7 +10,7 @@ using Models;
 /// <summary>
 /// Defines a method for reporting performance data.
 /// </summary>
-public interface IMethodCallReporter : IOutputContainer, IMonitoringComponent
+public interface IMethodCallReporter : IMonitoringComponent
 {
     /// <summary>
     /// Gets the name of the reporter.

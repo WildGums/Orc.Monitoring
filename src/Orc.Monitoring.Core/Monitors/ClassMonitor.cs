@@ -146,7 +146,7 @@ public class ClassMonitor : IClassMonitor
 
             if (!ShouldTrackMethod(methodCallInfo, operationVersion, reporterTypes))
             {
-                _logger.LogDebug($"External method filtered out, returning Dummy context. Method: {externalMethodName}, Filters: {string.Join(", ", _monitoringConfig.GetComponentInstances().OfType<IMethodFilter>().Select(f => f.GetType().Name))}");
+                _logger.LogDebug($"External method filtered out, returning Dummy context. Method: {externalMethodName}");
                 return GetDummyContext(async);
             }
 
@@ -246,7 +246,7 @@ public class ClassMonitor : IClassMonitor
             var reporterTypes = config.Reporters.Select(x => x.GetType()).ToArray();
             if (!ShouldTrackMethod(methodCallInfo, operationVersion, reporterTypes))
             {
-                _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}, Filters: {string.Join(", ", _monitoringConfig.GetComponentInstances().OfType<IMethodFilter>().Select(f => f.GetType().Name))}");
+                _logger.LogDebug($"Method filtered out, returning Dummy context. MethodInfo: {methodInfo.Name}");
                 return GetDummyContext(async);
             }
 

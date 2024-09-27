@@ -53,9 +53,6 @@ public class ExternalMethodCallTests
         _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
-        _config.RegisterComponentType(_mockReporter.GetType());
-        _config.AddComponentInstance(_mockFilter.Object);
-
         _monitoringController.Configuration = _config;
         _monitoringController.Enable();
         _monitoringController.EnableReporter(_mockReporter.GetType());

@@ -24,10 +24,10 @@ public class AsyncOperations
 
         await using var context = _monitor.AsyncStart(config => config
             .AddReporter<WorkflowReporter>(x => x
-                .AddFilter<WorkflowItemFilter>()
-                .AddFilter<WorkflowItemGranularityFilter>()
-                .AddOutput<TxtReportOutput>(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName))
-                .AddOutput<CsvReportOutput>(CsvReportOutput.CreateParameters(logFolder, "MonitoredAsyncMethod.csv"))));
+                .AddFilter(() => new WorkflowItemFilter())
+                .AddFilter(() => new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
+                .AddOutput(() => new TxtReportOutput(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName)))
+                .AddOutput(() => new CsvReportOutput(CsvReportOutput.CreateParameters(logFolder, "MonitoredAsyncMethod.csv"))));
 
         Console.WriteLine("Starting MonitoredAsyncMethod");
         await Task.Delay(1000); // Simulate async work

@@ -23,7 +23,7 @@ using Core.Pooling;
 using Utilities.Logging;
 using Utilities.Threading;
 
-public sealed class WorkflowReporter : IMethodCallReporter
+public sealed class WorkflowReporter : MonitoringComponentBase, IMethodCallReporter
 {
     private readonly IMonitoringController _monitoringController;
     private readonly MethodCallInfoPool _methodCallInfoPool;
@@ -34,7 +34,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
     private readonly StringBuilder _messageBuilder = new();
     private readonly Queue<IMethodLifeCycleItem> _itemBatch = new(BatchSize);
     private readonly List<IReportOutput> _outputs = [];
-    private readonly HashSet<Type> _filterTypes = [];
     private readonly Dictionary<int, int> _activeThreads = new();
     private readonly TaskCompletionSource _tcs = new();
 
@@ -68,8 +67,8 @@ public sealed class WorkflowReporter : IMethodCallReporter
 
         Name = "Workflow";
 
-        // Add default WorkflowItemFilter
-        _filterTypes.Add(typeof(WorkflowItemFilter));
+        // Add default filter
+        AddComponent(() => new WorkflowItemFilter());
     }
 
     public void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod)
@@ -82,14 +81,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
         SetRootMethod(rootMethod.MethodInfo);
         _rootMethodCallInfo = rootMethod;
     }
-
-    public IOutputContainer AddFilter<T>() where T : IMethodFilter
-    {
-        _filterTypes.Add(typeof(T));
-
-        return this;
-    }
-
 
     public string Name { get; }
     public string FullName => $"{Name} - {GetRootWorkflowItemName() ?? string.Empty}";
@@ -181,15 +172,6 @@ public sealed class WorkflowReporter : IMethodCallReporter
         }
     }
 
-    public IOutputContainer AddOutput<TOutput>(object? parameter = null) where TOutput : IReportOutput, new()
-    {
-        var output = new TOutput();
-        output.SetParameters(parameter);
-        _outputs.Add(output);
-        _logger.LogInformation($"Added output of type {typeof(TOutput).Name}");
-        return this;
-    }
-
     private bool ShouldIncludeMethodCall(MethodCallInfo methodCallInfo)
     {
         if (_monitoringConfiguration is null)
@@ -198,9 +180,9 @@ public sealed class WorkflowReporter : IMethodCallReporter
             throw new InvalidOperationException("Monitoring configuration is not set");
         }
 
-        return _filterTypes
-            .Where(filterType => _monitoringController.IsFilterEnabledForReporterType(GetType(), filterType))
-            .All(filterType => ((IMethodFilter)_monitoringConfiguration.GetComponentInstance(filterType)).ShouldInclude(methodCallInfo));
+        return GetComponents().OfType<IMethodFilter>()
+            .Where(filter => _monitoringController.IsFilterEnabledForReporterType(GetType(), filter.GetType()))
+            .All(filter => filter.ShouldInclude(methodCallInfo));
     }
 
     private IAsyncDisposable CreateReportingObservable(IObservable<ICallStackItem> callStack)

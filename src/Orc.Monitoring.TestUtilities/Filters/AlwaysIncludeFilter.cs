@@ -5,9 +5,10 @@ using Core.Abstractions;
 using Core.Models;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Filters;
+using Reporters;
 using Utilities.Logging;
 
-public class AlwaysIncludeFilter : IMethodFilter
+public class AlwaysIncludeFilter : MonitoringComponentBase, IMethodFilter
 {
     private readonly ILogger<AlwaysIncludeFilter> _logger;
 

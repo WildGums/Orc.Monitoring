@@ -117,7 +117,6 @@ public class MonitoringController : IMonitoringController
             try
             {
                 _configuration = value ?? throw new ArgumentNullException(nameof(value));
-                ApplyConfiguration(_configuration);
                 UpdateVersionNoLock();
                 OnStateChanged(new ComponentStateChangedEventArgs(null, true, _currentVersion));
             }
@@ -191,21 +190,6 @@ public class MonitoringController : IMonitoringController
         {
             _stateLock.ExitWriteLock();
         }
-    }
-
-    private void ApplyConfiguration(MonitoringConfiguration config)
-    {
-        // Set global state
-        SetGlobalState(config.IsGloballyEnabled);
-
-        // Apply component states
-        foreach (var kvp in config.ComponentStates)
-        {
-            _componentStates[kvp.Key] = kvp.Value;
-            _logger.LogDebug($"Component {kvp.Key.Name} state set to {(kvp.Value ? "enabled" : "disabled")} via configuration.");
-        }
-
-        // Relationships are managed externally via the ComponentRegistry in the configuration
     }
 
     private void UpdateVersionNoLock()

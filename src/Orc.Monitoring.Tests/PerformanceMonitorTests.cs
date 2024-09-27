@@ -140,7 +140,9 @@ public class PerformanceMonitorTests
     [Test]
     public void Configure_ShouldEnableDefaultOutputTypes()
     {
-        _performanceMonitor.Configure(_ => { });
+        _performanceMonitor.Configure(config => config
+            .AddComponent(typeof(RanttOutput))
+            .AddComponent(typeof(TxtReportOutput)));
 
         Assert.That(_monitoringController.IsOutputEnabled(typeof(RanttOutput)), Is.True);
         Assert.That(_monitoringController.IsOutputEnabled(typeof(TxtReportOutput)), Is.True);
