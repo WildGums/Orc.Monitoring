@@ -6,6 +6,6 @@ using Configuration;
 
 public interface IClassMonitorFactory
 {
-    IClassMonitor CreateClassMonitor(Type type, CallStack callStack, MonitoringConfiguration configuration);
+    IClassMonitor CreateClassMonitor(Type type, CallStack callStack);
     IClassMonitor CreateNullClassMonitor();
 }

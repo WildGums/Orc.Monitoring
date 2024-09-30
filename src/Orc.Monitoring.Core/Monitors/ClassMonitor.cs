@@ -27,7 +27,6 @@ public class ClassMonitor : IClassMonitor
     private readonly IMonitoringController _monitoringController;
     private readonly Type _classType;
     private readonly CallStack _callStack;
-    private readonly MonitoringConfiguration _monitoringConfig;
     private readonly IMethodCallContextFactory _methodCallContextFactory;
     private readonly MethodCallInfoPool _methodCallInfoPool;
     private readonly ILogger<ClassMonitor> _logger;
@@ -38,7 +37,6 @@ public class ClassMonitor : IClassMonitor
         IMonitoringController monitoringController,
         Type classType,
         CallStack callStack,
-        MonitoringConfiguration monitoringConfig,
         IMonitoringLoggerFactory loggerFactory,
         IMethodCallContextFactory methodCallContextFactory,
         MethodCallInfoPool methodCallInfoPool)
@@ -46,7 +44,6 @@ public class ClassMonitor : IClassMonitor
         ArgumentNullException.ThrowIfNull(monitoringController);
         ArgumentNullException.ThrowIfNull(classType);
         ArgumentNullException.ThrowIfNull(callStack);
-        ArgumentNullException.ThrowIfNull(monitoringConfig);
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(methodCallContextFactory);
         ArgumentNullException.ThrowIfNull(methodCallInfoPool);
@@ -54,7 +51,6 @@ public class ClassMonitor : IClassMonitor
         _monitoringController = monitoringController;
         _classType = classType;
         _callStack = callStack;
-        _monitoringConfig = monitoringConfig;
         _methodCallContextFactory = methodCallContextFactory;
         _methodCallInfoPool = methodCallInfoPool;
         _logger = loggerFactory.CreateLogger<ClassMonitor>();
@@ -124,7 +120,7 @@ public class ClassMonitor : IClassMonitor
             var reporterTypes = config.Reporters.Select(x => x.GetType()).ToArray();
             foreach (var reporter in config.Reporters)
             {
-                reporter.Initialize(_monitoringConfig, methodCallInfo);
+                reporter.Initialize(methodCallInfo);
 
                 methodCallInfo.AddAssociatedReporter(reporter);
 
@@ -225,7 +221,7 @@ public class ClassMonitor : IClassMonitor
 
             foreach (var reporter in config.Reporters)
             {
-                reporter.Initialize(_monitoringConfig, methodCallInfo);
+                reporter.Initialize(methodCallInfo);
 
                 methodCallInfo.AddAssociatedReporter(reporter);
 

@@ -113,7 +113,7 @@ public sealed class RanttOutput : MonitoringComponentBase, IReportOutput
         });
     }
 
-    public void SetParameters(object? parameter = null)
+    public IReportOutput SetParameters(object? parameter = null)
     {
         ArgumentNullException.ThrowIfNull(parameter, "Parameters cannot be null");
 
@@ -125,6 +125,8 @@ public sealed class RanttOutput : MonitoringComponentBase, IReportOutput
         SetLimitOptions(parameters.LimitOptions);
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}");
+
+        return this;
     }
 
     public void WriteSummary(string message)

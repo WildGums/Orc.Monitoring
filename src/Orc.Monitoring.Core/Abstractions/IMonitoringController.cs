@@ -13,6 +13,8 @@ public interface IMonitoringController
     /// </summary>
     bool IsEnabled { get; }
 
+    MonitoringComponentRegistry ComponentRegistry { get; }
+
     /// <summary>
     /// Event that is triggered when the monitoring version changes.
     /// </summary>
@@ -46,11 +48,6 @@ public interface IMonitoringController
     /// </summary>
     /// <param name="context">The <see cref="VersionedMonitoringContext"/> to register.</param>
     void RegisterContext(VersionedMonitoringContext context);
-
-    /// <summary>
-    /// Gets or sets the monitoring configuration.
-    /// </summary>
-    MonitoringConfiguration Configuration { get; set; }
 
     /// <summary>
     /// Adds a callback that is invoked when a component's state changes.

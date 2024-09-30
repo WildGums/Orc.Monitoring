@@ -67,11 +67,10 @@
 
         public static CallStack CreateTestCallStack(
             IMonitoringController monitoringController,
-            MonitoringConfiguration config,
             MethodCallInfoPool methodCallInfoPool,
             IMonitoringLoggerFactory loggerFactory)
         {
-            return new CallStack(monitoringController, config, methodCallInfoPool, loggerFactory);
+            return new CallStack(monitoringController, methodCallInfoPool, loggerFactory);
         }
 
         public static MethodCallInfo CreateExternalMethodCallInfo(
@@ -110,11 +109,6 @@
             return new MethodCallStart(methodCallInfo);
         }
 
-        public static MonitoringConfiguration CreateTestConfiguration()
-        {
-            return new MonitoringConfiguration();
-        }
-
         public static AlwaysIncludeFilter CreateAlwaysIncludeFilter(IMonitoringLoggerFactory loggerFactory)
         {
             return new AlwaysIncludeFilter(loggerFactory);
@@ -143,8 +137,7 @@
         {
             return new PerformanceMonitor(monitoringController, loggerFactory,
                 callStackFactory,
-                classMonitorFactory,
-                () => new ConfigurationBuilder(monitoringController));
+                classMonitorFactory);
         }
 
         public static IAsyncDisposable CreateTestReportOutput<T>(

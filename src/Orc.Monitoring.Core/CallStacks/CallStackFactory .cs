@@ -8,9 +8,9 @@ using Pooling;
 
 public class CallStackFactory(IMonitoringController monitoringController, IMonitoringLoggerFactory loggerFactory, MethodCallInfoPool methodCallInfoPool) : ICallStackFactory
 {
-    public CallStack CreateCallStack(MonitoringConfiguration configuration)
+    public CallStack CreateCallStack()
     {
-        return new CallStack(monitoringController, configuration, methodCallInfoPool, loggerFactory);
+        return new CallStack(monitoringController, methodCallInfoPool, loggerFactory);
     }
 
     internal static CallStackFactory Instance { get; } = new(

@@ -85,8 +85,7 @@ public static class IMonitoringControllerExtensions
         where TFilter : IMethodFilter
         where TReporter : IMethodCallReporter
     {
-        var config = controller.Configuration;
-        config.ComponentRegistry.AddRelationship(typeof(TReporter), typeof(TFilter));
+        controller.ComponentRegistry.AddRelationship(typeof(TReporter), typeof(TFilter));
     }
 
     /// <summary>
@@ -99,8 +98,7 @@ public static class IMonitoringControllerExtensions
         where TFilter : IMethodFilter
         where TReporter : IMethodCallReporter
     {
-        var config = controller.Configuration;
-        config.ComponentRegistry.RemoveRelationship(typeof(TReporter), typeof(TFilter));
+        controller.ComponentRegistry.RemoveRelationship(typeof(TReporter), typeof(TFilter));
     }
 
     /// <summary>
@@ -114,8 +112,7 @@ public static class IMonitoringControllerExtensions
         where TFilter : IMethodFilter
         where TReporter : IMethodCallReporter
     {
-        var config = controller.Configuration;
-        return config.ComponentRegistry.HasRelationship(typeof(TReporter), typeof(TFilter));
+        return controller.ComponentRegistry.HasRelationship(typeof(TReporter), typeof(TFilter));
     }
 
     /// <summary>
@@ -261,8 +258,6 @@ public static class IMonitoringControllerExtensions
     /// <returns></returns>
     public static bool IsFilterEnabledForReporterType(this IMonitoringController controller, Type reporterType, Type filterType)
     {
-        var config = controller.Configuration;
-
         // Check if the filter and reporter are enabled globally
         var isFilterEnabled = controller.GetComponentState(filterType);
         var isReporterEnabled = controller.GetComponentState(reporterType);
@@ -273,7 +268,7 @@ public static class IMonitoringControllerExtensions
         }
 
         // Check if the relationship exists
-        return config.ComponentRegistry.HasRelationship(reporterType, filterType);
+        return controller.ComponentRegistry.HasRelationship(reporterType, filterType);
     }
 
     public static void EnableFilter(this IMonitoringController controller, Type filterType)
@@ -298,14 +293,12 @@ public static class IMonitoringControllerExtensions
 
     public static void EnableFilterForReporter(this IMonitoringController controller, Type filterType, Type reporterType)
     {
-        var config = controller.Configuration;
-        config.ComponentRegistry.AddRelationship(reporterType, filterType);
+        controller.ComponentRegistry.AddRelationship(reporterType, filterType);
     }
 
     public static void DisableFilterForReporter(this IMonitoringController controller, Type filterType, Type reporterType)
     {
-        var config = controller.Configuration;
-        config.ComponentRegistry.RemoveRelationship(reporterType, filterType);
+        controller.ComponentRegistry.RemoveRelationship(reporterType, filterType);
     }
 
     public static void EnableFilterForReporter<TFilter, TReporter>(this IMonitoringController controller)

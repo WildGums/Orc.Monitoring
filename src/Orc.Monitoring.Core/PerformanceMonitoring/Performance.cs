@@ -16,8 +16,7 @@ public static class Performance
         Monitor = new PerformanceMonitor(monitoringController, 
             MonitoringLoggerFactory.Instance, 
             CallStackFactory.Instance, 
-            ClassMonitorFactory.Instance,
-            () => new ConfigurationBuilder(monitoringController));
+            ClassMonitorFactory.Instance);
 
         Controller = monitoringController;
     }
@@ -25,9 +24,4 @@ public static class Performance
     public static IPerformanceMonitor Monitor { get; }
 
     public static IMonitoringController Controller { get; }
-
-    public static void Configure(Action<ConfigurationBuilder> configAction)
-    {
-        Monitor.Configure(configAction);
-    }
 }

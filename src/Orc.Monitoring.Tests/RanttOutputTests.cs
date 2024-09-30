@@ -310,7 +310,7 @@ public class RanttOutputTests
 
         rootMethodInfo.AddAssociatedReporter(_mockReporter);
 
-        _mockReporter.Initialize(new MonitoringConfiguration(), rootMethodInfo);
+        _mockReporter.Initialize(rootMethodInfo);
 
         // Act
         await using (var _ = _ranttOutput.Initialize(_mockReporter))

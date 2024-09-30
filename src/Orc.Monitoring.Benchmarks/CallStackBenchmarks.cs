@@ -21,7 +21,6 @@ public class CallStackBenchmarks
 {
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;
-    private MonitoringConfiguration? _config;
     private IMonitoringController? _monitoringController;
     private MethodCallInfoPool? _methodCallInfoPool;
 
@@ -29,11 +28,10 @@ public class CallStackBenchmarks
     public void Setup()
     {
         var loggerFactory = MonitoringLoggerFactory.Instance;
-        _config = new MonitoringConfiguration();
         _monitoringController = new MonitoringController(loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, loggerFactory);
 
-        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, loggerFactory);
+        _callStack = new CallStack(_monitoringController, _methodCallInfoPool, loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
 
         _monitoringController.Enable();

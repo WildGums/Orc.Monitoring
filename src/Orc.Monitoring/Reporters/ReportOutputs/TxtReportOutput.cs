@@ -132,11 +132,11 @@ public sealed class TxtReportOutput : MonitoringComponentBase, IReportOutput
     /// Sets the parameters for the TXT report output.
     /// </summary>
     /// <param name="parameters">The parameters to set.</param>
-    public void SetParameters(object? parameters)
+    public IReportOutput SetParameters(object? parameters)
     {
         if (parameters is null)
         {
-            return;
+            return this;
         }
 
         var txtParameters = (TxtReportParameters)parameters;
@@ -145,6 +145,8 @@ public sealed class TxtReportOutput : MonitoringComponentBase, IReportOutput
         SetLimitOptions(txtParameters.LimitOptions);
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, DisplayNameParameter = {_displayNameParameter}");
+
+        return this;
     }
 
     /// <summary>
@@ -378,4 +380,15 @@ public sealed class TxtReportOutput : MonitoringComponentBase, IReportOutput
         public string Category { get; } = category;
         public string Message { get; } = message;
     }
+}
+
+
+public interface IMonitoringComponentFactory
+{
+    /// <summary>
+    /// Creates a new instance of the specified component type.
+    /// </summary>
+    /// <typeparam name="T">The type of component to create.</typeparam>
+    /// <returns>A new instance of the specified component type.</returns>
+    T Create<T>() where T : IMonitoringComponent;
 }

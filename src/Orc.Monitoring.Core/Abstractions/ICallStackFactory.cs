@@ -5,5 +5,5 @@ using Configuration;
 
 public interface ICallStackFactory
 {
-    CallStack CreateCallStack(MonitoringConfiguration configuration);
+    CallStack CreateCallStack();
 }

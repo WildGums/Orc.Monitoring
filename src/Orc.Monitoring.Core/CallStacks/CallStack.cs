@@ -31,7 +31,6 @@ public class CallStack : IObservable<ICallStackItem>
     private readonly object _idLock = new();
     private readonly ConcurrentDictionary<IObserver<ICallStackItem>, object?> _observers = new();
     private readonly IMonitoringController _monitoringController;
-    private readonly MonitoringConfiguration _monitoringConfig;
     private readonly ConcurrentDictionary<int, MethodCallInfo> _threadRootMethods = new();
     private readonly object _globalLock = new();
 
@@ -39,15 +38,13 @@ public class CallStack : IObservable<ICallStackItem>
     private int _idCounter;
     private readonly ThreadLocal<int> _currentDepth = new(() => 0);
 
-    public CallStack(IMonitoringController monitoringController, MonitoringConfiguration monitoringConfig, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
+    public CallStack(IMonitoringController monitoringController, MethodCallInfoPool methodCallInfoPool, IMonitoringLoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(monitoringController);
-        ArgumentNullException.ThrowIfNull(monitoringConfig);
         ArgumentNullException.ThrowIfNull(methodCallInfoPool);
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
         _monitoringController = monitoringController;
-        _monitoringConfig = monitoringConfig;
         _methodCallInfoPool = methodCallInfoPool;
         _logger = loggerFactory.CreateLogger<CallStack>();
     }

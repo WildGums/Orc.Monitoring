@@ -41,8 +41,7 @@ public class MonitoringRobustnessTests
 
         _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
             _callStackFactory,
-            _classMonitorFactory,
-            () => new ConfigurationBuilder(_monitoringController));
+            _classMonitorFactory);
 
         // Ensure monitoring is not configured
         _monitoringController.Disable();

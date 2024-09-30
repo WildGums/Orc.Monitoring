@@ -29,7 +29,6 @@ public class CallStackParentChildTests
     private TestLoggerFactory<CallStackParentChildTests> _loggerFactory;
     private CallStack _callStack;
     private Mock<IClassMonitor> _mockClassMonitor;
-    private MonitoringConfiguration _config;
     private IMonitoringController _monitoringController;
     private MethodCallInfoPool _methodCallInfoPool;
 
@@ -38,11 +37,10 @@ public class CallStackParentChildTests
     {
         _logger = new TestLogger<CallStackParentChildTests>();
         _loggerFactory = new TestLoggerFactory<CallStackParentChildTests>(_logger);
-        _config = new MonitoringConfiguration();
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
 
-        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
+        _callStack = new CallStack(_monitoringController, _methodCallInfoPool, _loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
 
         _monitoringController.Enable();

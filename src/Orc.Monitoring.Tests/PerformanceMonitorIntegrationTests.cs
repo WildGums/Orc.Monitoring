@@ -52,17 +52,9 @@ public class PerformanceMonitorIntegrationTests
 
         _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
             _callStackFactory,
-            _classMonitorFactory,
-            () => new ConfigurationBuilder(_monitoringController));
+            _classMonitorFactory);
 
         _mockReporter = new MockReporter(_loggerFactory) { Id = "TestReporter" };
-
-        _performanceMonitor.Configure(config =>
-        {
-            config.TrackAssembly(typeof(PerformanceMonitorIntegrationTests).Assembly);
-            config.AddFilterInstance(new AlwaysIncludeFilter(_loggerFactory));
-            config.AddReporterType(typeof(MockReporter));
-        });
 
         _monitoringController.Enable();
         _monitoringController.EnableReporter(typeof(MockReporter));

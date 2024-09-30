@@ -33,13 +33,12 @@ public class ClassMonitorFactory : IClassMonitorFactory
     internal static IClassMonitorFactory Instance { get; } = new ClassMonitorFactory(MonitoringController.Instance, MonitoringLoggerFactory.Instance,
         MethodCallContextFactory.Instance, MethodCallInfoPool.Instance);
 
-    public IClassMonitor CreateClassMonitor(Type type, CallStack callStack, MonitoringConfiguration configuration)
+    public IClassMonitor CreateClassMonitor(Type type, CallStack callStack)
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(callStack);
-        ArgumentNullException.ThrowIfNull(configuration);
 
-        return new ClassMonitor(_monitoringController, type, callStack, configuration, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
+        return new ClassMonitor(_monitoringController, type, callStack, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
     }
 
     public IClassMonitor CreateNullClassMonitor()

@@ -31,7 +31,6 @@ public class MissingEndTimeAndEmptyDurationTests
     private TestLoggerFactory<MissingEndTimeAndEmptyDurationTests> _loggerFactory;
     private CallStack _callStack;
     private Mock<IClassMonitor> _mockClassMonitor;
-    private MonitoringConfiguration _config;
     private ReportOutputHelper _reportOutputHelper;
     private List<ICallStackItem> _callStackItems;
     private IDisposable _callStackObserver;
@@ -46,10 +45,9 @@ public class MissingEndTimeAndEmptyDurationTests
         _loggerFactory.EnableLoggingFor<CallStack>();
         _loggerFactory.EnableLoggingFor<MonitoringController>();
         _loggerFactory.EnableLoggingFor<MethodCallInfoPool>();
-        _config = new MonitoringConfiguration();
         _monitoringController = new MonitoringController(_loggerFactory);
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
-        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
+        _callStack = new CallStack(_monitoringController, _methodCallInfoPool, _loggerFactory);
         _callStackItems = [];
 
         _callStackObserver = StartObservingCallStack();

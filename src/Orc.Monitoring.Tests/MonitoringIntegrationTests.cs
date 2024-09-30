@@ -52,8 +52,7 @@ public class MonitoringIntegrationTests
 
         _performanceMonitor = new PerformanceMonitor(_monitoringController, _loggerFactory,
             _callStackFactory,
-            _classMonitorFactory,
-            () => new ConfigurationBuilder(_monitoringController));
+            _classMonitorFactory);
 
         _mockReporter = new MockReporter(_loggerFactory)
         {
@@ -61,27 +60,13 @@ public class MonitoringIntegrationTests
             FullName = "MockSequenceReporter"
         };
 
-        _performanceMonitor.Configure(config =>
-        {
-            config.AddReporterType(_mockReporter.GetType());
-            config.TrackAssembly(typeof(MonitoringIntegrationTests).Assembly);
-        });
-
         _monitoringController.Enable();
         _monitoringController.EnableReporter(_mockReporter.GetType());
-
-        // Force re-initialization of the CallStack
-        _monitoringController.Configuration = new MonitoringConfiguration();
     }
 
     [Test]
     public void PerformanceMonitor_RespectsHierarchicalControl()
     {
-        _performanceMonitor.Configure(config =>
-        {
-            config.AddReporterType<MockReporter>();
-        });
-
         _monitoringController.EnableReporter(typeof(MockReporter));
 
         var monitor = _performanceMonitor.ForClass<MonitoringIntegrationTests>();
@@ -98,10 +83,9 @@ public class MonitoringIntegrationTests
     [Test]
     public void CallStack_RespectsHierarchicalControl()
     {
-        var configuration = _performanceMonitor.GetCurrentConfiguration();
-        var callStack = new CallStack(_monitoringController, configuration!, _methodCallInfoPool, _loggerFactory);
+        var callStack = new CallStack(_monitoringController, _methodCallInfoPool, _loggerFactory);
         var observer = new TestObserver();
-        var classMonitor = _classMonitorFactory.CreateClassMonitor(GetType(), callStack, configuration!);
+        var classMonitor = _classMonitorFactory.CreateClassMonitor(GetType(), callStack);
 
         using (callStack.Subscribe(observer))
         {
@@ -190,7 +174,6 @@ public class MonitoringIntegrationTests
         Assert.That(afterFirstEnableVersion, Is.GreaterThan(initialVersion), "Version should increase after enabling first reporter");
 
         // Force a version change
-        _monitoringController.Configuration = new MonitoringConfiguration();
         Task.Delay(50).Wait(); // Add a small delay
         var afterConfigChangeVersion = _monitoringController.GetCurrentVersion();
         _logger.LogInformation($"After Config Change Version: {afterConfigChangeVersion}");

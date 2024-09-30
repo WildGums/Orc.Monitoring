@@ -24,7 +24,6 @@ public class CallStackExternalMethodTests
     private Mock<IMonitoringLoggerFactory> _mockLoggerFactory;
     private Mock<ILogger<CallStack>> _mockLogger;
     private Mock<IClassMonitor> _mockClassMonitor;
-    private MonitoringConfiguration _config;
     private MethodCallInfoPool _methodCallInfoPool;
 
     [SetUp]
@@ -34,14 +33,13 @@ public class CallStackExternalMethodTests
         _mockLoggerFactory = new Mock<IMonitoringLoggerFactory>();
         _mockLogger = new Mock<ILogger<CallStack>>();
         _mockClassMonitor = new Mock<IClassMonitor>();
-        _config = new MonitoringConfiguration();
 
         _mockLoggerFactory.Setup(f => f.CreateLogger<CallStack>()).Returns(_mockLogger.Object);
         _mockController.Setup(c => c.IsEnabled).Returns(TestConstants.DefaultIsEnabled);
         _mockController.Setup(c => c.GetCurrentVersion()).Returns(new MonitoringVersion(TestConstants.DefaultVersionTimestamp, TestConstants.DefaultVersionCounter, TestConstants.DefaultTestGuid));
 
         _methodCallInfoPool = new MethodCallInfoPool(_mockController.Object, _mockLoggerFactory.Object);
-        _callStack = new CallStack(_mockController.Object, _config, _methodCallInfoPool, _mockLoggerFactory.Object);
+        _callStack = new CallStack(_mockController.Object, _methodCallInfoPool, _mockLoggerFactory.Object);
     }
 
     [Test]

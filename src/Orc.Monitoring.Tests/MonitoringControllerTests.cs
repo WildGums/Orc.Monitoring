@@ -254,20 +254,6 @@ public class MonitoringControllerTests
     }
 
     [Test]
-    public void Configuration_WhenSet_TriggersVersionChange()
-    {
-        // Arrange
-        var initialVersion = _controller.GetCurrentVersion();
-        var newConfig = new MonitoringConfiguration();
-
-        // Act
-        _controller.Configuration = newConfig;
-
-        // Assert
-        Assert.That(_controller.GetCurrentVersion(), Is.Not.EqualTo(initialVersion));
-    }
-
-    [Test]
     public async Task LongRunningOperation_HandlesVersionChangesAsync()
     {
         // Arrange

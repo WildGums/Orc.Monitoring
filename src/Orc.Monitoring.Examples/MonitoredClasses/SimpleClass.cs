@@ -25,10 +25,10 @@ public class SimpleClass
 
         using var context = _monitor.Start(config => config
             .AddReporter<WorkflowReporter>(x => x
-                .AddFilter<WorkflowItemFilter>()
-                .AddFilter<WorkflowItemGranularityFilter>()
-                .AddOutput<TxtReportOutput>(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName))
-                .AddOutput<CsvReportOutput>(CsvReportOutput.CreateParameters(logFolder, "MonitoredMethod.csv"))));
+                .AddFilter(() => new WorkflowItemFilter())
+                .AddFilter(() => new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
+                .AddOutput(() => new TxtReportOutput().SetParameters(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName)))
+                .AddOutput(() => new CsvReportOutput().SetParameters(CsvReportOutput.CreateParameters(logFolder, "MonitoredMethod.csv")))));
         Console.WriteLine("Executing MonitoredMethod");
         // Simulate some work
         Thread.Sleep(100);
@@ -41,10 +41,11 @@ public class SimpleClass
 
         using var context = _monitor.Start(config => config
             .AddReporter<WorkflowReporter>(x => x
-                .AddFilter<WorkflowItemFilter>()
-                .AddFilter<WorkflowItemGranularityFilter>()
-                .AddOutput<TxtReportOutput>(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName))
-                .AddOutput<CsvReportOutput>(CsvReportOutput.CreateParameters(logFolder, "MonitoredMethodWithParameters.csv"))));
+                    .AddFilter(() => new WorkflowItemFilter())
+                    .AddFilter(() => new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
+                    .AddOutput(() => new TxtReportOutput().SetParameters(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName)))
+                    .AddOutput(() => new CsvReportOutput().SetParameters(CsvReportOutput.CreateParameters(logFolder, "MonitoredMethodWithParameters.csv")))));
+
         Console.WriteLine($"Executing MonitoredMethodWithParameters: {intParam}, {stringParam}");
         context.SetParameter("IntParam", intParam.ToString());
         context.SetParameter("StringParam", stringParam);
@@ -59,10 +60,11 @@ public class SimpleClass
 
         using var context = _monitor.Start(config => config
             .AddReporter<WorkflowReporter>(x => x
-                .AddFilter<WorkflowItemFilter>()
-                .AddFilter<WorkflowItemGranularityFilter>()
-                .AddOutput<TxtReportOutput>(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName))
-                .AddOutput<CsvReportOutput>(CsvReportOutput.CreateParameters(logFolder, "MonitoredMethodWithException.csv"))));
+                .AddFilter(() => new WorkflowItemFilter())
+                .AddFilter(() => new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
+                .AddOutput(() => new TxtReportOutput().SetParameters(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName)))
+                .AddOutput(() => new CsvReportOutput().SetParameters(CsvReportOutput.CreateParameters(logFolder, "MonitoredMethodWithException.csv")))));
+
         Console.WriteLine("Executing MonitoredMethodWithException");
         // Simulate some work before exception
         Thread.Sleep(50);

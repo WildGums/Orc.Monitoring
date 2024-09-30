@@ -27,10 +27,10 @@ public class ComplexWorkflow
 
         await using var context = _monitor.AsyncStart(config => config
             .AddReporter<WorkflowReporter>(x => x
-                .AddFilter<WorkflowItemFilter>()
-                .AddFilter<WorkflowItemGranularityFilter>()
-                .AddOutput<TxtReportOutput>(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName))
-                .AddOutput<CsvReportOutput>(CsvReportOutput.CreateParameters(logFolder, "ComplexWorkflow.csv"))));
+                .AddFilter(() => new WorkflowItemFilter())
+                .AddFilter(() => new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Coarse))
+                .AddOutput(() => new TxtReportOutput().SetParameters(TxtReportOutput.CreateParameters(logFolder, MethodCallParameter.WorkflowItemName)))
+                .AddOutput(() => new CsvReportOutput().SetParameters(CsvReportOutput.CreateParameters(logFolder, "ComplexWorkflow.csv")))));
 
         Console.WriteLine("Starting Complex Workflow");
 

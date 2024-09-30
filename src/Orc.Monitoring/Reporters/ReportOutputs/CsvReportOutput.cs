@@ -109,7 +109,7 @@ public sealed class CsvReportOutput : MonitoringComponentBase, IReportOutput
         }
     }
 
-    public void SetParameters(object? parameter = null)
+    public IReportOutput SetParameters(object? parameter = null)
     {
         ArgumentNullException.ThrowIfNull(parameter, "Parameter cannot be null");
 
@@ -127,6 +127,8 @@ public sealed class CsvReportOutput : MonitoringComponentBase, IReportOutput
         _methodOverrideManager.ReadOverrides();
 
         _logger.LogInformation($"Parameters set: FolderPath = {_folderPath}, FileName = {_fileName}");
+
+        return this;
     }
 
     public void WriteSummary(string message)

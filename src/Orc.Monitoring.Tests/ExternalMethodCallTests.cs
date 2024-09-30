@@ -24,7 +24,6 @@ public class ExternalMethodCallTests
 {
     private MockReporter _mockReporter;
     private Mock<IMethodFilter> _mockFilter;
-    private MonitoringConfiguration _config;
     private CallStack _callStack;
     private MethodCallInfoPool _methodCallInfoPool;
     private TestLogger<ExternalMethodCallTests> _logger;
@@ -48,18 +47,16 @@ public class ExternalMethodCallTests
 
         _mockReporter = new MockReporter(_loggerFactory);
         _mockFilter = new Mock<IMethodFilter>();
-        _config = new MonitoringConfiguration();
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
-        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
+        _callStack = new CallStack(_monitoringController, _methodCallInfoPool, _loggerFactory);
         _methodCallContextFactory = new MethodCallContextFactory(_monitoringController, _loggerFactory, _methodCallInfoPool);
 
-        _monitoringController.Configuration = _config;
         _monitoringController.Enable();
         _monitoringController.EnableReporter(_mockReporter.GetType());
 
         _mockFilter.Setup(f => f.ShouldInclude(It.IsAny<MethodCallInfo>())).Returns(true);
 
-        _monitor = new ClassMonitor(_monitoringController, typeof(ExternalDependency), _callStack, _config, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
+        _monitor = new ClassMonitor(_monitoringController, typeof(ExternalDependency), _callStack, _loggerFactory, _methodCallContextFactory, _methodCallInfoPool);
 
         _logger.LogInformation($"Initial setup - IsEnabled: {_monitoringController.IsEnabled}, MockReporter enabled: {_monitoringController.IsReporterEnabled(_mockReporter.GetType())}");
     }

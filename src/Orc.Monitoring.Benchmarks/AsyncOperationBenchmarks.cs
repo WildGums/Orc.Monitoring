@@ -37,14 +37,7 @@ public class AsyncOperationBenchmarks
 
         var performanceMonitor = new PerformanceMonitor(_monitoringController, loggerFactory,
             callStackFactory,
-            classMonitorFactory,
-            () => new ConfigurationBuilder(_monitoringController));
-
-        performanceMonitor.Configure(config =>
-        {
-            config.AddReporterType<WorkflowReporter>();
-            config.TrackAssembly(typeof(AsyncOperationBenchmarks).Assembly);
-        });
+            classMonitorFactory);
 
         _classMonitor = performanceMonitor.ForClass<AsyncOperationBenchmarks>();
         _monitoringController.Enable();

@@ -33,8 +33,6 @@ public class MonitoringController : IMonitoringController
     // Stores callbacks for state changes.
     private event Action<ComponentStateChangedEventArgs>? StateChangedCallback;
 
-    private MonitoringConfiguration _configuration = new();
-
     // Stores the root operation scope.
     private OperationScope? _rootOperationScope;
 
@@ -55,6 +53,9 @@ public class MonitoringController : IMonitoringController
 
     /// <inheritdoc/>
     public bool IsEnabled => Interlocked.CompareExchange(ref _isEnabled, 0, 0) == 1;
+
+    public MonitoringComponentRegistry ComponentRegistry { get; } = new MonitoringComponentRegistry();
+
 
     /// <inheritdoc/>
     public event EventHandler<VersionChangedEventArgs>? VersionChanged;
@@ -105,26 +106,6 @@ public class MonitoringController : IMonitoringController
     public void RegisterContext(VersionedMonitoringContext context)
     {
         _activeContexts.Add(new WeakReference<VersionedMonitoringContext>(context));
-    }
-
-    /// <inheritdoc/>
-    public MonitoringConfiguration Configuration
-    {
-        get => _configuration;
-        set
-        {
-            _stateLock.EnterWriteLock();
-            try
-            {
-                _configuration = value ?? throw new ArgumentNullException(nameof(value));
-                UpdateVersionNoLock();
-                OnStateChanged(new ComponentStateChangedEventArgs(null, true, _currentVersion));
-            }
-            finally
-            {
-                _stateLock.ExitWriteLock();
-            }
-        }
     }
 
     /// <inheritdoc/>

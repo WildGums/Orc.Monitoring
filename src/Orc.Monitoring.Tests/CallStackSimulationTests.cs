@@ -24,7 +24,6 @@ public class CallStackSimulationTests
     private TestLoggerFactory<CallStackSimulationTests> _loggerFactory;
     private CallStack? _callStack;
     private Mock<IClassMonitor>? _mockClassMonitor;
-    private MonitoringConfiguration? _config;
     private List<MethodCallInfo> _methodCalls;
     private IMonitoringController _monitoringController;
     private MethodCallInfoPool _methodCallInfoPool;
@@ -37,9 +36,8 @@ public class CallStackSimulationTests
 
         _monitoringController = new MonitoringController(_loggerFactory);
 
-        _config = new MonitoringConfiguration();
         _methodCallInfoPool = new MethodCallInfoPool(_monitoringController, _loggerFactory);
-        _callStack = new CallStack(_monitoringController, _config, _methodCallInfoPool, _loggerFactory);
+        _callStack = new CallStack(_monitoringController, _methodCallInfoPool, _loggerFactory);
         _mockClassMonitor = new Mock<IClassMonitor>();
         _methodCalls = [];
 

@@ -39,17 +39,9 @@ public class ConcurrencyBenchmarks
 
         _performanceMonitor = new PerformanceMonitor(_monitoringController, loggerFactory,
             callStackFactory,
-            classMonitorFactory,
-            () => new ConfigurationBuilder(_monitoringController));
+            classMonitorFactory);
 
-        _performanceMonitor.Configure(config =>
-        {
-            config.AddReporterType<WorkflowReporter>();
-            config.AddFilter<WorkflowItemFilter>();
-            config.TrackAssembly(typeof(ConcurrencyBenchmarks).Assembly);
-        });
-
-        _callStack = callStackFactory.CreateCallStack(_performanceMonitor!.GetCurrentConfiguration()!);
+        _callStack = callStackFactory.CreateCallStack();
 
         _monitoringController.Enable();
     }

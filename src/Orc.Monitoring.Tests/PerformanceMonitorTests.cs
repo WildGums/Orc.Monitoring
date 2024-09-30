@@ -49,8 +49,7 @@ public class PerformanceMonitorTests
             _monitoringController,
             _loggerFactory,
             callStackFactory,
-            _classMonitorFactory,
-            () => new ConfigurationBuilder(_monitoringController));
+            _classMonitorFactory);
 
         _performanceMonitor.Reset();
         _mockReporter = new MockReporter(_loggerFactory);
@@ -70,12 +69,7 @@ public class PerformanceMonitorTests
         Assert.That(GetCallStackInstance(), Is.Null, "CallStack should be null initially");
 
         // Step 2: Configure PerformanceMonitor
-        _logger.LogDebug("Step 2: Configuring PerformanceMonitor");
-        _performanceMonitor.Configure(config =>
-        {
-            _logger.LogDebug("Inside configuration action");
-            config.AddReporterType(_mockReporter.GetType());
-        });
+        // Skipped after refactoring
 
         // Step 3: Check post-configuration state
         _logger.LogDebug("Step 3: Checking post-configuration state");
@@ -111,166 +105,28 @@ public class PerformanceMonitorTests
     [Test]
     public void ForClass_WhenConfigured_ShouldReturnClassMonitor()
     {
-        _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         var monitor = _performanceMonitor.ForClass<PerformanceMonitorTests>();
         Assert.That(monitor, Is.InstanceOf<ClassMonitor>());
     }
 
     [Test]
-    public void Reset_ShouldClearConfigurationAndCallStack()
+    public void Reset_ShouldClearCallStack()
     {
-        _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         Assert.That(_performanceMonitor.IsConfigured, Is.True);
 
         _performanceMonitor.Reset();
 
         Assert.That(_performanceMonitor.IsConfigured, Is.False);
-        Assert.That(_performanceMonitor.GetCurrentConfiguration(), Is.Null);
         Assert.That(GetCallStackInstance(), Is.Null);
-    }
-
-    [Test]
-    public void Configure_ShouldEnableMonitoring()
-    {
-        _monitoringController.Disable();
-        _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
-        Assert.That(_monitoringController.IsEnabled, Is.True);
-    }
-
-    [Test]
-    public void Configure_ShouldEnableDefaultOutputTypes()
-    {
-        _performanceMonitor.Configure(config => config
-            .AddComponent(typeof(RanttOutput))
-            .AddComponent(typeof(TxtReportOutput)));
-
-        Assert.That(_monitoringController.IsOutputEnabled(typeof(RanttOutput)), Is.True);
-        Assert.That(_monitoringController.IsOutputEnabled(typeof(TxtReportOutput)), Is.True);
-    }
-
-    [Test]
-    public void Configure_WithCustomConfiguration_ShouldApplyConfiguration()
-    {
-        var mockFilter = new AlwaysIncludeFilter(_loggerFactory);
-
-        _performanceMonitor.Configure(config =>
-        {
-            config.AddReporterType(_mockReporter.GetType());
-            config.AddFilterInstance(mockFilter);
-        });
-
-        var configuration = _performanceMonitor.GetCurrentConfiguration();
-        Assert.That(configuration, Is.Not.Null);
-        Assert.That(_monitoringController.IsReporterEnabled(_mockReporter.GetType()), Is.True);
-        Assert.That(_monitoringController.IsFilterEnabled(mockFilter.GetType()), Is.True);
     }
 
     [Test]
     public void ForCurrentClass_ShouldReturnClassMonitorForCallingType()
     {
-        _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
         var monitor = _performanceMonitor.ForCurrentClass();
         Assert.That(monitor, Is.InstanceOf<ClassMonitor>());
     }
 
-    [Test]
-    public void Configure_WithMultipleReporters_ShouldEnableAllReporters()
-    {
-        var secondMockReporter = new MockReporter(_loggerFactory);
-
-        _performanceMonitor.Configure(config =>
-        {
-            config.AddReporterType(_mockReporter.GetType());
-            config.AddReporterType(secondMockReporter.GetType());
-        });
-
-        Assert.That(_monitoringController.IsReporterEnabled(_mockReporter.GetType()), Is.True);
-        Assert.That(_monitoringController.IsReporterEnabled(secondMockReporter.GetType()), Is.True);
-    }
-
-    [Test]
-    public async Task Configure_ShouldHandleConcurrentAccessAsync()
-    {
-        var configTask1 = Task.Run(() => _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); }));
-        var configTask2 = Task.Run(() => _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); }));
-
-        await Task.WhenAll(configTask1, configTask2);
-
-        Assert.That(_performanceMonitor.IsConfigured, Is.True);
-        Assert.That(_monitoringController.IsReporterEnabled(_mockReporter.GetType()), Is.True);
-    }
-
-    [Test]
-    public void GetCurrentConfiguration_AfterConfigure_ShouldReturnNonNullConfiguration()
-    {
-        _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
-        var configuration = _performanceMonitor.GetCurrentConfiguration();
-        Assert.That(configuration, Is.Not.Null);
-    }
-
-    [Test]
-    public void IsConfigured_BeforeAndAfterConfigure_ShouldReturnCorrectValue()
-    {
-        Assert.That(_performanceMonitor.IsConfigured, Is.False, "Should not be configured initially");
-
-        _performanceMonitor.Configure(config => { config.AddReporterType(_mockReporter.GetType()); });
-
-        Assert.That(_performanceMonitor.IsConfigured, Is.True, "Should be configured after Configure is called");
-    }
-
-    [Test]
-    [Ignore("Not implemented yet")]
-    public void Configure_WithAssemblyTracking_ShouldTrackAssembly()
-    {
-        var assembly = typeof(PerformanceMonitorTests).Assembly;
-
-        _performanceMonitor.Configure(config =>
-        {
-            config.TrackAssembly(assembly);
-        });
-
-        var configuration = _performanceMonitor.GetCurrentConfiguration();
-        Assert.That(configuration, Is.Not.Null);
-     //   Assert.That(configuration.TrackedAssemblies, Does.Contain(assembly));
-    }
-
-    [Test]
-    public void Configure_WithMultipleFilters_ShouldAddAllFilters()
-    {
-        var filter1 = new AlwaysIncludeFilter(_loggerFactory);
-        var filter2 = new WorkflowItemFilter();
-
-        _performanceMonitor.Configure(config =>
-        {
-            config.AddFilterInstance(filter1);
-            config.AddFilterInstance(filter2);
-        });
-
-        var configuration = _performanceMonitor.GetCurrentConfiguration();
-        Assert.That(configuration, Is.Not.Null);
-
-        var filters = configuration.GetComponentInstances().OfType<IMethodFilter>().ToList();
-        Assert.That(filters, Does.Contain(filter1));
-        Assert.That(filters, Does.Contain(filter2));
-    }
-
-    [Test]
-    public void Configure_WithGlobalState_ShouldSetGlobalState()
-    {
-        _performanceMonitor.Configure(config =>
-        {
-            config.SetGlobalState(false);
-        });
-
-        Assert.That(_monitoringController.IsEnabled, Is.False);
-
-        _performanceMonitor.Configure(config =>
-        {
-            config.SetGlobalState(true);
-        });
-
-        Assert.That(_monitoringController.IsEnabled, Is.True);
-    }
 
     private CallStack? GetCallStackInstance()
     {

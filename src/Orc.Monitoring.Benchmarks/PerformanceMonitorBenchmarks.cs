@@ -37,19 +37,13 @@ public class PerformanceMonitorBenchmarks
 
         _performanceMonitor = new PerformanceMonitor(_monitoringController, loggerFactory,
             _callStackFactory,
-            _classMonitorFactory,
-            () => new ConfigurationBuilder(_monitoringController));
+            _classMonitorFactory);
     }
 
     [Benchmark]
     public void ConfigureBenchmark()
     {
-        _performanceMonitor!.Configure(config =>
-        {
-            config.AddReporterType<WorkflowReporter>();
-            config.AddFilter<WorkflowItemFilter>();
-            config.TrackAssembly(typeof(PerformanceMonitorBenchmarks).Assembly);
-        });
+
     }
 
     [Benchmark]
@@ -75,14 +69,7 @@ public class PerformanceMonitorBenchmarks
     [Benchmark]
     public void ComplexMonitoringScenarioBenchmark()
     {
-        _performanceMonitor!.Configure(config =>
-        {
-            config.AddReporterType<WorkflowReporter>();
-            config.AddFilter<WorkflowItemFilter>();
-            config.TrackAssembly(typeof(PerformanceMonitorBenchmarks).Assembly);
-        });
-
-        var monitor = _performanceMonitor.ForClass<PerformanceMonitorBenchmarks>();
+        var monitor = _performanceMonitor!.ForClass<PerformanceMonitorBenchmarks>();
 
         using (var context = monitor.Start(builder => builder.AddReporter(new WorkflowReporter())))
         {

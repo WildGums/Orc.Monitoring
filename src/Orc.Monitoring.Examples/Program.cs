@@ -17,15 +17,6 @@ class Program
         Console.WriteLine("Orc.Monitoring Example Application");
         Console.WriteLine("----------------------------------");
 
-        // Configure PerformanceMonitor
-        Performance.Monitor.Configure(conf =>
-        {
-            conf.AddReporterType<WorkflowReporter>()
-                .AddFilter<WorkflowItemFilter>()
-                .AddFilterInstance(new WorkflowItemGranularityFilter(MethodCallParameter.Granularity.Fine))
-                .TrackAssembly(typeof(ComplexWorkflow).Assembly);
-        });
-
         Performance.Controller.Enable();
 
         Performance.Controller.EnableFilter(typeof(WorkflowItemFilter));

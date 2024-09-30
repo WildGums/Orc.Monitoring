@@ -27,7 +27,6 @@ public class ClassMonitorTests
     private TestLogger<ClassMonitorTests> _logger;
     private IMethodCallContextFactory _contextFactory;
     private MethodCallInfoPool _methodCallInfoPool;
-    private MonitoringConfiguration _config;
     private ClassMonitor _classMonitor;
 
     [SetUp]
@@ -39,9 +38,8 @@ public class ClassMonitorTests
 
         _methodCallInfoPool = new MethodCallInfoPool(_controller, _loggerFactory);
         _contextFactory = new MethodCallContextFactory(_controller, _loggerFactory, _methodCallInfoPool);
-        _config = new MonitoringConfiguration();
-        _callStack = new CallStack(_controller, _config, _methodCallInfoPool, _loggerFactory);
-        _classMonitor = new ClassMonitor(_controller, typeof(ClassMonitorTests), _callStack, _config, _loggerFactory, _contextFactory, _methodCallInfoPool);
+        _callStack = new CallStack(_controller, _methodCallInfoPool, _loggerFactory);
+        _classMonitor = new ClassMonitor(_controller, typeof(ClassMonitorTests), _callStack, _loggerFactory, _contextFactory, _methodCallInfoPool);
 
         _controller.Enable();
     }

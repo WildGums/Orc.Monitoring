@@ -34,5 +34,5 @@ public interface IMethodCallReporter : IMonitoringComponent
     /// <returns>An IAsyncDisposable that can be used to stop reporting.</returns>
     IAsyncDisposable StartReporting(IObservable<ICallStackItem> callStack);
 
-    void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod);
+    void Initialize(MethodCallInfo rootMethod);
 }

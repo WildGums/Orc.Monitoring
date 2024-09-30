@@ -37,7 +37,6 @@ public sealed class WorkflowReporter : MonitoringComponentBase, IMethodCallRepor
     private readonly Dictionary<int, int> _activeThreads = new();
     private readonly TaskCompletionSource _tcs = new();
 
-    private MonitoringConfiguration? _monitoringConfiguration;
     private MethodInfo? _rootMethod;
     private MethodCallInfo? _rootMethodCallInfo;
     private CallProcessingContext? _callProcessingContext;
@@ -71,13 +70,11 @@ public sealed class WorkflowReporter : MonitoringComponentBase, IMethodCallRepor
         AddComponent(() => new WorkflowItemFilter());
     }
 
-    public void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod)
+    public void Initialize(MethodCallInfo rootMethod)
     {
-        ArgumentNullException.ThrowIfNull(monitoringConfiguration);
         ArgumentNullException.ThrowIfNull(rootMethod);
         ArgumentNullException.ThrowIfNull(rootMethod.MethodInfo);
         
-        _monitoringConfiguration = monitoringConfiguration;
         SetRootMethod(rootMethod.MethodInfo);
         _rootMethodCallInfo = rootMethod;
     }
@@ -174,12 +171,6 @@ public sealed class WorkflowReporter : MonitoringComponentBase, IMethodCallRepor
 
     private bool ShouldIncludeMethodCall(MethodCallInfo methodCallInfo)
     {
-        if (_monitoringConfiguration is null)
-        {
-            _logger.LogError("Monitoring configuration is not set");
-            throw new InvalidOperationException("Monitoring configuration is not set");
-        }
-
         return GetComponents().OfType<IMethodFilter>()
             .Where(filter => _monitoringController.IsFilterEnabledForReporterType(GetType(), filter.GetType()))
             .All(filter => filter.ShouldInclude(methodCallInfo));

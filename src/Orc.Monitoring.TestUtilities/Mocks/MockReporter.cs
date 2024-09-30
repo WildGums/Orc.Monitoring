@@ -86,7 +86,7 @@ public class MockReporter : MonitoringComponentBase, IMethodCallReporter
         });
     }
 
-    public void Initialize(MonitoringConfiguration monitoringConfiguration, MethodCallInfo rootMethod)
+    public void Initialize(MethodCallInfo rootMethod)
     {
         RootMethod = rootMethod.MethodInfo;
     }
