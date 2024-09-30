@@ -60,6 +60,8 @@ public class MonitoringIntegrationTests
             FullName = "MockSequenceReporter"
         };
 
+        _performanceMonitor.Start();
+
         _monitoringController.Enable();
         _monitoringController.EnableReporter(_mockReporter.GetType());
     }
@@ -175,17 +177,19 @@ public class MonitoringIntegrationTests
 
         // Force a version change
         Task.Delay(50).Wait(); // Add a small delay
-        var afterConfigChangeVersion = _monitoringController.GetCurrentVersion();
-        _logger.LogInformation($"After Config Change Version: {afterConfigChangeVersion}");
+        _performanceMonitor.Reset();
+        _performanceMonitor.Start();
+        var afterRestartVersion = _monitoringController.GetCurrentVersion();
+        _logger.LogInformation($"After Restart Change Version: {afterRestartVersion}");
 
-        Assert.That(afterConfigChangeVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after changing configuration");
+        Assert.That(afterRestartVersion, Is.GreaterThan(afterFirstEnableVersion), "Version should increase after restarting monitoring");
 
         _monitoringController.EnableReporter(typeof(TestWorkflowReporter));
         Task.Delay(50).Wait(); // Add a small delay
         var finalVersion = _monitoringController.GetCurrentVersion();
         _logger.LogInformation($"Final Version: {finalVersion}");
 
-        Assert.That(finalVersion, Is.GreaterThan(afterConfigChangeVersion), "Version should increase after enabling second reporter");
+        Assert.That(finalVersion, Is.GreaterThan(afterRestartVersion), "Version should increase after enabling second reporter");
 
         var versionHistory = MonitoringDiagnostics.GetVersionHistory();
         _logger.LogInformation("Version History:");

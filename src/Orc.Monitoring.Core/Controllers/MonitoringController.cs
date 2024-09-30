@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Diagnostics;
 using Microsoft.Extensions.Logging;
 using Orc.Monitoring.Core.Abstractions;
 using Orc.Monitoring.Core.Configuration;
@@ -43,7 +44,10 @@ public class MonitoringController : IMonitoringController
     public MonitoringController(IMonitoringLoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<MonitoringController>();
+        var initialVersion = _currentVersion;
         _currentVersion = _versionManager.GetNextVersion();
+
+        MonitoringDiagnostics.LogVersionChange(initialVersion, _currentVersion);
     }
 
     /// <summary>
@@ -179,6 +183,9 @@ public class MonitoringController : IMonitoringController
         _currentVersion = _versionManager.GetNextVersion();
         VersionChanged?.Invoke(this, new VersionChangedEventArgs(oldVersion, _currentVersion));
         _logger.LogDebug($"Monitoring version updated from {oldVersion} to {_currentVersion}");
+
+        MonitoringDiagnostics.LogVersionChange(oldVersion, _currentVersion);
+
         PropagateVersionChange(_currentVersion);
     }
 

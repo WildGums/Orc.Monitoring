@@ -56,6 +56,8 @@ public class PerformanceMonitorIntegrationTests
 
         _mockReporter = new MockReporter(_loggerFactory) { Id = "TestReporter" };
 
+        _performanceMonitor.Start();
+
         _monitoringController.Enable();
         _monitoringController.EnableReporter(typeof(MockReporter));
     }

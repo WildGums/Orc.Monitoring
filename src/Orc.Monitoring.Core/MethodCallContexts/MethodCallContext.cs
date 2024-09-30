@@ -92,7 +92,7 @@ public sealed class MethodCallContext : MethodCallContextBase
     {
         // Handle version update if necessary
         // For example, we might want to log this event
-        Log("VersionUpdate", $"Context updated to version {ContextVersion}");
+       // Log("VersionUpdate", $"Context updated to version {ContextVersion}");
     }
 
     /// <summary>
