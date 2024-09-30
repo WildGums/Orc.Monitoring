@@ -84,13 +84,13 @@ public class PerformanceMonitor(
         }
     }
 
-    public bool IsConfigured
+    public bool IsActivated
     {
         get
         {
-            var isConfigured = _callStack is not null;
-            _logger.LogDebug($"IsConfigured called, returning: {isConfigured}. CallStack: {_callStack is not null}");
-            return isConfigured;
+            var isActivated = _callStack is not null;
+            _logger.LogDebug($"IsActivated called, returning: {isActivated}. CallStack: {_callStack is not null}");
+            return isActivated;
         }
     }
 }

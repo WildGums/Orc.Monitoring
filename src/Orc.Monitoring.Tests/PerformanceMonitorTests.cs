@@ -1,29 +1,21 @@
 ﻿namespace Orc.Monitoring.Tests;
 
-using System.Linq;
 using NUnit.Framework;
 using System.Reflection;
-using Filters;
-using Reporters.ReportOutputs;
-using System.Threading.Tasks;
-using Castle.Core.Internal;
 using Core.Abstractions;
 using Core.CallStacks;
-using Core.Configuration;
 using Core.Controllers;
 using Core.MethodCallContexts;
 using Core.Monitors;
 using Core.PerformanceMonitoring;
 using Core.Pooling;
 using Microsoft.Extensions.Logging;
-using TestUtilities.Filters;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 
 [TestFixture]
 public class PerformanceMonitorTests
 {
-    private MockReporter _mockReporter;
     private TestLogger<PerformanceMonitorTests> _logger;
     private TestLoggerFactory<PerformanceMonitorTests> _loggerFactory;
     private IMonitoringController _monitoringController;
@@ -52,31 +44,30 @@ public class PerformanceMonitorTests
             _classMonitorFactory);
 
         _performanceMonitor.Reset();
-        _mockReporter = new MockReporter(_loggerFactory);
         _logger.LogInformation("Test setup complete");
 
         _monitoringController.Enable();
     }
 
     [Test]
-    public void Configure_ShouldCreateSingleCallStackInstance()
+    public void Start_ShouldCreateSingleCallStackInstance()
     {
-        _logger.LogInformation("Starting Configure_ShouldCreateSingleCallStackInstance test");
+        _logger.LogInformation("Starting Start_ShouldCreateSingleCallStackInstance test");
 
         // Step 1: Check initial state
         _logger.LogDebug("Step 1: Checking initial state");
-        Assert.That(_performanceMonitor.IsConfigured, Is.False, "PerformanceMonitor should not be configured initially");
+        Assert.That(_performanceMonitor.IsActivated, Is.False, "PerformanceMonitor should not be activated initially");
         Assert.That(GetCallStackInstance(), Is.Null, "CallStack should be null initially");
 
-        // Step 2: Configure PerformanceMonitor
-        // Skipped after refactoring
+        // Step 2: Start PerformanceMonitor
+        _performanceMonitor.Start();
 
         // Step 3: Check post-configuration state
-        _logger.LogDebug("Step 3: Checking post-configuration state");
-        Assert.That(_performanceMonitor.IsConfigured, Is.True, "PerformanceMonitor should be configured after Configure");
+        _logger.LogDebug("Step 3: Checking post-start state");
+        Assert.That(_performanceMonitor.IsActivated, Is.True, "PerformanceMonitor should be activated after Start");
         var callStackAfterConfigure = GetCallStackInstance();
-        _logger.LogDebug($"CallStack after Configure: {callStackAfterConfigure}");
-        Assert.That(callStackAfterConfigure, Is.Not.Null, "CallStack should be created during configuration");
+        _logger.LogDebug($"CallStack after Start: {callStackAfterConfigure}");
+        Assert.That(callStackAfterConfigure, Is.Not.Null, "CallStack should be created during Start");
 
         // Step 4: Create monitors
         _logger.LogDebug("Step 4: Creating monitors");
@@ -92,19 +83,23 @@ public class PerformanceMonitorTests
         Assert.That(finalCallStack, Is.Not.Null, "CallStack should be accessible after creating monitors");
         Assert.That(finalCallStack, Is.SameAs(callStackAfterConfigure), "CallStack instance should remain the same");
 
-        _logger.LogInformation("Configure_ShouldCreateSingleCallStackInstance test completed");
+        _logger.LogInformation("Start_ShouldCreateSingleCallStackInstance test completed");
     }
 
     [Test]
-    public void ForClass_WhenNotConfigured_ShouldReturnNullClassMonitor()
+    public void ForClass_WhenNotStarted_ShouldReturnNullClassMonitor()
     {
+        _performanceMonitor.Reset();
+
         var monitor = _performanceMonitor.ForClass<PerformanceMonitorTests>();
         Assert.That(monitor, Is.InstanceOf<NullClassMonitor>());
     }
 
     [Test]
-    public void ForClass_WhenConfigured_ShouldReturnClassMonitor()
+    public void ForClass_WhenStarted_ShouldReturnClassMonitor()
     {
+        _performanceMonitor.Start();
+
         var monitor = _performanceMonitor.ForClass<PerformanceMonitorTests>();
         Assert.That(monitor, Is.InstanceOf<ClassMonitor>());
     }
@@ -112,17 +107,21 @@ public class PerformanceMonitorTests
     [Test]
     public void Reset_ShouldClearCallStack()
     {
-        Assert.That(_performanceMonitor.IsConfigured, Is.True);
+        _performanceMonitor.Start();
+
+        Assert.That(_performanceMonitor.IsActivated, Is.True);
 
         _performanceMonitor.Reset();
 
-        Assert.That(_performanceMonitor.IsConfigured, Is.False);
+        Assert.That(_performanceMonitor.IsActivated, Is.False);
         Assert.That(GetCallStackInstance(), Is.Null);
     }
 
     [Test]
     public void ForCurrentClass_ShouldReturnClassMonitorForCallingType()
     {
+        _performanceMonitor.Start();
+
         var monitor = _performanceMonitor.ForCurrentClass();
         Assert.That(monitor, Is.InstanceOf<ClassMonitor>());
     }

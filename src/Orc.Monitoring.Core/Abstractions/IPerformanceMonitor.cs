@@ -5,7 +5,7 @@ using Configuration;
 
 public interface IPerformanceMonitor
 {
-    bool IsConfigured { get; }
+    bool IsActivated { get; }
     IClassMonitor ForClass<T>();
 
     void Start();
