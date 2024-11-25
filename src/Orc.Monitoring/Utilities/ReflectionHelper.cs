@@ -101,10 +101,29 @@ public static class ReflectionHelper
 
         for (var i = 0; i < methodParams.Length; i++)
         {
-            if (!methodParams[i].ParameterType.IsAssignableFrom(configParams.ElementAt(i)))
+            var methodParameterType = methodParams[i].ParameterType;
+            var parameterType = configParams.ElementAt(i);
+            if (methodParameterType.IsAssignableFrom(parameterType))
+            {
+                continue;
+            }
+
+            if (!methodParameterType.IsGenericParameter)
             {
                 return false;
             }
+
+            if(methodParameterType.BaseType is null)
+            {
+                return false;
+            }
+
+            if (methodParameterType.BaseType.IsAssignableFrom(parameterType))
+            {
+                continue;
+            }
+
+            return false;
         }
 
         return true;

@@ -1,4 +1,4 @@
-namespace Orc.Monitoring.Reporters.ReportOutputs;
+﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
 using System.Collections.Generic;
@@ -112,7 +112,7 @@ public class ReportItemFactory : IReportItemFactory
             reportItem = CreateReportItem(end, reporter);
             
             id = reportItem.Id;
-            existingReportItems.Add(id, reportItem);
+            existingReportItems[id] = reportItem;
         }
 
         var endTime = end.TimeStamp;
