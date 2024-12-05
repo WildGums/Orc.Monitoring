@@ -7,6 +7,7 @@ using Reporters.ReportOutputs;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
 using Orc.Monitoring.TestUtilities;
@@ -99,7 +100,7 @@ public class MethodOverrideManagerTests
     [TestCase("TestNamespace.TestClass.TestMethod", true, false, "CustomValue1")]
     [TestCase("TestNamespace.TestClass.AnotherMethod", false, true, "CustomValue2")]
     [TestCase("TestNamespace.TestClass.GenericMethod<T>", false, false, "CustomValue3")]
-    public void SaveOverrides_CreatesTemplateFileWithCorrectColumns(string methodName, bool isStatic, bool isExtension, string customValue)
+    public async Task SaveOverrides_CreatesTemplateFileWithCorrectColumnsAsync(string methodName, bool isStatic, bool isExtension, string customValue)
     {
         // Arrange
         var reportItems = new List<ReportItem>
@@ -118,11 +119,11 @@ public class MethodOverrideManagerTests
         };
 
         // Act
-        _overrideManager.SaveOverrides(reportItems);
+        await _overrideManager.SaveOverridesAsync(reportItems);
 
         // Assert
         Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var templateContent = _fileSystem.ReadAllLines(_overrideTemplateFilePath);
+        var templateContent = await _fileSystem.ReadAllLinesAsync(_overrideTemplateFilePath);
 
         var headerLine = templateContent[0];
         var headers = headerLine.Split(',').ToList();
@@ -193,7 +194,7 @@ public class MethodOverrideManagerTests
     }
 
     [Test]
-    public void SaveOverrides_ExcludesGapsFromTemplate()
+    public async Task SaveOverrides_ExcludesGapsFromTemplateAsync()
     {
         // Arrange
         var reportItems = new List<ReportItem>
@@ -204,11 +205,11 @@ public class MethodOverrideManagerTests
         };
 
         // Act
-        _overrideManager.SaveOverrides(reportItems);
+        await _overrideManager.SaveOverridesAsync(reportItems);
 
         // Assert
         Assert.That(_fileSystem.FileExists(_overrideTemplateFilePath), Is.True, "Template file should be created");
-        var templateContent = _fileSystem.ReadAllText(_overrideTemplateFilePath);
+        var templateContent = await _fileSystem.ReadAllTextAsync(_overrideTemplateFilePath);
         var lines = templateContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(3), "Template should have header and two data lines");
@@ -233,7 +234,7 @@ public class MethodOverrideManagerTests
     }
 
     [Test]
-    public void SaveOverrides_DoesNotWriteDuplicates()
+    public async Task SaveOverrides_DoesNotWriteDuplicatesAsync()
     {
         // Arrange
         var reportItems = new List<ReportItem>
@@ -244,10 +245,10 @@ public class MethodOverrideManagerTests
         };
 
         // Act
-        _overrideManager.SaveOverrides(reportItems);
+        await _overrideManager.SaveOverridesAsync(reportItems);
 
         // Assert
-        var overrides = _csvUtils.ReadCsv(_overrideTemplateFilePath);
+        var overrides = await _csvUtils.ReadCsvAsync(_overrideTemplateFilePath);
         Assert.That(overrides.Count, Is.EqualTo(2), "Should have only 2 entries (no duplicates)");
         Assert.That(overrides.Any(r => r["FullName"] == "Method1" && r["CustomParam"] == "Value1"), Is.True, "Should contain Method1");
         Assert.That(overrides.Any(r => r["FullName"] == "Method2" && r["CustomParam"] == "Value2"), Is.True, "Should contain Method2");

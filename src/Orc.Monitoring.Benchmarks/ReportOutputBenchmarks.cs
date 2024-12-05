@@ -53,14 +53,14 @@ public class ReportOutputBenchmarks
 
         _csvReportOutput = new CsvReportOutput(loggerFactory, _reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, loggerFactory, _fileSystem, csvUtils),
-            _fileSystem, reportArchiver);
+            _fileSystem, reportArchiver, csvUtils);
         _csvReportOutput.SetParameters(CsvReportOutput.CreateParameters(_testOutputPath, "CsvTest"));
 
         _ranttOutput = new RanttOutput(loggerFactory,
             () => new EnhancedDataPostProcessor(loggerFactory),
             _reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, loggerFactory, _fileSystem, csvUtils),
-            _fileSystem, reportArchiver, new ReportItemFactory(loggerFactory));
+            _fileSystem, reportArchiver, new ReportItemFactory(loggerFactory), csvUtils);
         _ranttOutput.SetParameters(RanttOutput.CreateParameters(_testOutputPath));
 
         _txtReportOutput = new TxtReportOutput(loggerFactory, _reportOutputHelper, reportArchiver, _fileSystem);

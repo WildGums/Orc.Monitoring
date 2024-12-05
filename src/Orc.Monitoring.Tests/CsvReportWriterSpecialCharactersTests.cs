@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TestUtilities.Logging;
 using TestUtilities.Mocks;
@@ -15,7 +16,7 @@ using Orc.Monitoring.TestUtilities;
 [TestFixture]
 public class CsvReportWriterSpecialCharactersTests
 {
-    private StringWriter _stringWriter;
+    private string _fileName;
     private MethodOverrideManager _overrideManager;
     private List<ReportItem> _reportItems;
     private TestLogger<CsvReportWriterSpecialCharactersTests> _logger;
@@ -32,8 +33,10 @@ public class CsvReportWriterSpecialCharactersTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
-        _stringWriter = new StringWriter();
-        _overrideManager = new MethodOverrideManager(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
+
+        var outputDirectory = _fileSystem.GetTempPath();
+        _fileName = _fileSystem.Combine(outputDirectory, "report.csv");
+        _overrideManager = new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
 
@@ -41,12 +44,11 @@ public class CsvReportWriterSpecialCharactersTests
     public void TearDown()
     {
         _fileSystem.Dispose();
-        _stringWriter.Dispose();
     }
 
     [Test]
     [Ignore("We are handling special characters in the CsvUlitls class")]
-    public void WriteReportItemsCsv_HandlesSpecialCharacters()
+    public async Task WriteReportItemsCsv_HandlesSpecialCharactersAsync()
     {
         // Arrange
         _reportItems.Add(new ReportItem
@@ -64,13 +66,13 @@ public class CsvReportWriterSpecialCharactersTests
             AttributeParameters = new HashSet<string> { "Param_With_Comma", "Param_With_Quotes" }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
-        writer.WriteReportItemsCsv();
+        await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 

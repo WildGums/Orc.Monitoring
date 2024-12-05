@@ -16,52 +16,24 @@ public class CsvUtils
 
     public CsvUtils(IFileSystem fileSystem, IMonitoringLoggerFactory loggerFactory)
     {
-        this._fileSystem = fileSystem;
-        this._logger = loggerFactory.CreateLogger<CsvUtils>();
+        _fileSystem = fileSystem;
+        _logger = loggerFactory.CreateLogger<CsvUtils>();
     }
 
     public static CsvUtils Instance { get; } = new(FileSystem.Instance, MonitoringLoggerFactory.Instance);
 
-    public void WriteCsvLine(TextWriter writer, string?[] values)
-    {
-        var line = string.Join(",", values.Select(EscapeCsvValue));
-        _logger.LogDebug("Writing CSV line: {Line}", line);
-        writer.WriteLine(line);
-    }
-
-    public async Task WriteCsvLineAsync(TextWriter writer, string?[] values)
-    {
-        var line = string.Join(",", values.Select(EscapeCsvValue));
-        _logger.LogDebug("Writing CSV line asynchronously: {Line}", line);
-        await writer.WriteLineAsync(line);
-    }
-
-    public void WriteCsv<T>(string filePath, IEnumerable<T> data, string[] headers)
-    {
-        _logger.LogInformation("Writing CSV to file: {FilePath}", filePath);
-        using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
-
-        WriteCsvLine(writer, headers.Cast<string?>().ToArray());
-
-        foreach (var item in data)
-        {
-            var values = headers.Select(h => GetPropertyValue(item, h)?.ToString()).ToArray();
-            WriteCsvLine(writer, values);
-        }
-    }
-
-    public async Task WriteCsvAsync<T>(string filePath, IEnumerable<T> data, string[] headers)
+    public async Task WriteCsvAsync(string filePath, IEnumerable<Dictionary<string, string>> data, string[] headers)
     {
         _logger.LogInformation("Writing CSV asynchronously to file: {FilePath}", filePath);
-        await using var writer = _fileSystem.CreateStreamWriter(filePath, false, Encoding.UTF8);
-
-        await WriteCsvLineAsync(writer, headers.Cast<string?>().ToArray());
-
+        var buffer = new StringBuilder();
+        buffer.AppendJoin(',', headers.Select(EscapeCsvValue));
         foreach (var item in data)
         {
-            var values = headers.Select(h => GetPropertyValue(item, h)?.ToString()).ToArray();
-            await WriteCsvLineAsync(writer, values);
+            var values = headers.Select(h => item[h]).ToArray();
+            buffer.AppendLine();
+            buffer.AppendJoin(',', values.Select(EscapeCsvValue));
         }
+        await _fileSystem.WriteAllTextAsync(filePath, buffer.ToString());
     }
 
     public List<Dictionary<string, string>> ReadCsv(string filePath)
@@ -205,20 +177,6 @@ public class CsvUtils
 
         result.Add(currentValue.ToString());
         return result.ToArray();
-    }
-
-    private object? GetPropertyValue(object? obj, string propertyName)
-    {
-        if (obj is null)
-        {
-            return null;
-        }
-
-        if (obj is IDictionary<string, string> dict)
-        {
-            return dict.TryGetValue(propertyName, out var value) ? value : null;
-        }
-        return obj.GetType().GetProperty(propertyName)?.GetValue(obj, null);
     }
 }
 

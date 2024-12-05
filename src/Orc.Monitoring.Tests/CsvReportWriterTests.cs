@@ -17,7 +17,7 @@ using Orc.Monitoring.TestUtilities;
 [TestFixture]
 public class CsvReportWriterTests
 {
-    private StringWriter _stringWriter;
+    private string _fileName;
     private MethodOverrideManager _overrideManager;
     private List<ReportItem> _reportItems;
     private TestLogger<CsvReportWriterTests> _logger;
@@ -36,8 +36,8 @@ public class CsvReportWriterTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
-        _stringWriter = new StringWriter();
         _overrideFilePath = _fileSystem.GetTempPath();
+        _fileName = _fileSystem.Combine(_overrideFilePath, "report.csv");
         _overrideManager = new MethodOverrideManager(_overrideFilePath, _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
@@ -46,16 +46,15 @@ public class CsvReportWriterTests
     public void TearDown()
     {
         _fileSystem.Dispose();
-        _stringWriter.Dispose();
     }
 
     [Test]
     public async Task WriteReportItemsCsvAsync_WritesCorrectHeaders()
     {
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
         await writer.WriteReportItemsCsvAsync();
 
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var headers = content.Split(Environment.NewLine)[0].Split(',');
 
         Assert.That(headers, Does.Contain("Id"));
@@ -86,13 +85,13 @@ public class CsvReportWriterTests
             AttributeParameters = new HashSet<string> { "StaticParam" }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
@@ -125,13 +124,13 @@ public class CsvReportWriterTests
             AttributeParameters = new HashSet<string> { "CustomColumn" }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
@@ -166,13 +165,13 @@ public class CsvReportWriterTests
             }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
@@ -198,10 +197,10 @@ public class CsvReportWriterTests
             }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
         await writer.WriteReportItemsCsvAsync();
 
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
@@ -213,10 +212,10 @@ public class CsvReportWriterTests
     [Test]
     public async Task WriteReportItemsCsvAsync_HandlesEmptyReportItems()
     {
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
         await writer.WriteReportItemsCsvAsync();
 
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(1), "Should only have header line");
@@ -226,22 +225,19 @@ public class CsvReportWriterTests
     public async Task WriteReportItemsCsvAsync_DoesNotAddEmptyLineAtEnd()
     {
         // Arrange
-#pragma warning disable IDISP001
-        var stringWriter = new StringWriter();
-#pragma warning restore IDISP001
         var reportItems = new List<ReportItem>
         {
             new() { Id = "1", MethodName = "Method1", StartTime = "2023-01-01 00:00:00" },
             new() { Id = "2", MethodName = "Method2", StartTime = "2023-01-01 00:00:01" }
         };
         var overrideManager = new Mock<MethodOverrideManager>(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils).Object;
-        var writer = new CsvReportWriter(stringWriter, reportItems, overrideManager, _loggerFactory, _csvUtils);
+        var writer = new CsvReportWriter(_fileName, reportItems, overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         _logger.LogInformation($"CSV Content:\n{content}");
 
         var lines = content.Split('\n');
@@ -268,13 +264,13 @@ public class CsvReportWriterTests
             AttributeParameters = new HashSet<string> { "StaticParam" }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(2), "Should have header and one data line");
@@ -303,13 +299,13 @@ public class CsvReportWriterTests
             AttributeParameters = new HashSet<string> { "StaticParam1", "StaticParam2" }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines[0], Does.Contain("StaticParam1"));
@@ -346,13 +342,13 @@ public class CsvReportWriterTests
         var overrideManager = new MethodOverrideManager(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
         overrideManager.ReadOverrides();
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, overrideManager, _loggerFactory, _csvUtils);
+        var writer = new CsvReportWriter(_fileName, _reportItems, overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines[0], Does.Contain("StaticParam"));

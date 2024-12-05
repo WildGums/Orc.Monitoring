@@ -15,7 +15,7 @@ using TestUtilities.Mocks;
 [TestFixture]
 public class CsvReportWriterAdditionalTests
 {
-    private StringWriter _stringWriter;
+    private string _fileName;
     private MethodOverrideManager _overrideManager;
     private List<ReportItem> _reportItems;
     private TestLogger<CsvReportWriterAdditionalTests> _logger;
@@ -31,8 +31,9 @@ public class CsvReportWriterAdditionalTests
         _fileSystem = new InMemoryFileSystem(_loggerFactory);
         _csvUtils = TestHelperMethods.CreateCsvUtils(_fileSystem, _loggerFactory);
 
-        _stringWriter = new StringWriter();
-        _overrideManager = new MethodOverrideManager(_fileSystem.GetTempPath(), _loggerFactory, _fileSystem, _csvUtils);
+        var outputDirectory = _fileSystem.GetTempPath();
+        _fileName = _fileSystem.Combine(outputDirectory, "report.csv");
+        _overrideManager = new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils);
         _reportItems = [];
     }
 
@@ -40,7 +41,6 @@ public class CsvReportWriterAdditionalTests
     public void TearDown()
     {
         _fileSystem.Dispose();
-        _stringWriter.Dispose();
     }
 
     [Test]
@@ -74,13 +74,13 @@ public class CsvReportWriterAdditionalTests
             AttributeParameters = new HashSet<string> { "CustomColumn1", "CustomColumn3" }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(3), "Should have header and two data lines");
@@ -102,13 +102,13 @@ public class CsvReportWriterAdditionalTests
         _reportItems.Add(new ReportItem { Id = "2", Parent = "1", MethodName = "ChildMethod", Parameters = new Dictionary<string, string> { { "IsExtension", "True" } } });
         _reportItems.Add(new ReportItem { Id = "3", Parent = "1", MethodName = "GenericMethod", Parameters = new Dictionary<string, string> { { "IsGeneric", "True" } } });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteRelationshipsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines[1], Does.Contain("Static"));
@@ -120,13 +120,13 @@ public class CsvReportWriterAdditionalTests
     public async Task WriteReportItemsCsvAsync_HandlesEmptyReportItems()
     {
         // Arrange
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
         Assert.That(lines.Length, Is.EqualTo(1), "Should only have header line");
@@ -148,13 +148,13 @@ public class CsvReportWriterAdditionalTests
             }
         });
 
-        var writer = new CsvReportWriter(_stringWriter, _reportItems, _overrideManager);
+        var writer = new CsvReportWriter(_fileName, _reportItems, _overrideManager, _loggerFactory, _csvUtils);
 
         // Act
         await writer.WriteReportItemsCsvAsync();
 
         // Assert
-        var content = _stringWriter.ToString();
+        var content = await _fileSystem.ReadAllTextAsync(_fileName);
         _logger.LogInformation($"CSV Content:\n{content}");
         var lines = content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 

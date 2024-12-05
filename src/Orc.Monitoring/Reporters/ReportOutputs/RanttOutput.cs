@@ -50,30 +50,36 @@ public sealed class RanttOutput : IReportOutput
     private string? _outputDirectory;
     private MethodOverrideManager? _overrideManager;
     private OutputLimitOptions _limitOptions = OutputLimitOptions.Unlimited;
+    private readonly IMonitoringLoggerFactory _loggerFactory;
     private readonly Func<IEnhancedDataPostProcessor> _enhancedDataPostProcessorFactory;
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
     private readonly IFileSystem _fileSystem;
     private readonly ReportArchiver _reportArchiver;
     private readonly IReportItemFactory _reportItemFactory;
+    private readonly CsvUtils _csvUtils;
 
     public RanttOutput()
     : this(MonitoringLoggerFactory.Instance, () => new EnhancedDataPostProcessor(MonitoringLoggerFactory.Instance),
             new ReportOutputHelper(MonitoringLoggerFactory.Instance, new ReportItemFactory(MonitoringLoggerFactory.Instance)), (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
-            FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance), new ReportItemFactory(MonitoringLoggerFactory.Instance))
+            FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance), new ReportItemFactory(MonitoringLoggerFactory.Instance),
+            CsvUtils.Instance)
     {
 
     }
 
-    public RanttOutput(IMonitoringLoggerFactory monitoringLoggerFactory, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
-        Func<string, MethodOverrideManager> methodOverrideManagerFactory, IFileSystem fileSystem, ReportArchiver reportArchiver, IReportItemFactory reportItemFactory)
+    public RanttOutput(IMonitoringLoggerFactory loggerFactory, Func<IEnhancedDataPostProcessor> enhancedDataPostProcessorFactory, ReportOutputHelper reportOutputHelper,
+        Func<string, MethodOverrideManager> methodOverrideManagerFactory, IFileSystem fileSystem, ReportArchiver reportArchiver, IReportItemFactory reportItemFactory,
+        CsvUtils csvUtils)
     {
-        _logger = monitoringLoggerFactory.CreateLogger<RanttOutput>();
+        _logger = loggerFactory.CreateLogger<RanttOutput>();
+        _loggerFactory = loggerFactory;
         _enhancedDataPostProcessorFactory = enhancedDataPostProcessorFactory;
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
         _fileSystem = fileSystem;
         _reportArchiver = reportArchiver;
         _reportItemFactory = reportItemFactory;
+        _csvUtils = csvUtils;
     }
 
     public static RanttReportParameters CreateParameters(
@@ -183,7 +189,7 @@ public sealed class RanttOutput : IReportOutput
                 _logger.LogInformation($"Output limited to {_limitOptions.MaxItems.Value} items");
             }
 
-            _overrideManager.SaveOverrides(_helper.ReportItems.ToList());
+            await _overrideManager.SaveOverridesAsync(_helper.ReportItems.ToList());
 
             await _reportArchiver.CreateTimestampedFolderCopyAsync(_outputDirectory);
         }
@@ -242,11 +248,8 @@ public sealed class RanttOutput : IReportOutput
 
             _logger.LogInformation($"Number of items with overrides: {itemsWithOverrides.Count}");
 
-            await using (var writer = _fileSystem.CreateStreamWriter(fullPath, false, Encoding.UTF8))
-            {
-                var csvReportWriter = new CsvReportWriter(writer, itemsWithOverrides, _overrideManager);
-                await csvReportWriter.WriteReportItemsCsvAsync();
-            }
+            var csvReportWriter = new CsvReportWriter(fullPath, itemsWithOverrides, _overrideManager, _loggerFactory, _csvUtils);
+            await csvReportWriter.WriteReportItemsCsvAsync();
 
             _logger.LogInformation($"CSV report written to {fullPath} with {itemsWithOverrides.Count} items");
 

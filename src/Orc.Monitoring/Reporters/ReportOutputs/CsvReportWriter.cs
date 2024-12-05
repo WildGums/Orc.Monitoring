@@ -9,108 +9,55 @@ using Microsoft.Extensions.Logging;
 
 public class CsvReportWriter
 {
-    private readonly TextWriter _writer;
+    private readonly string _fileName;
     private readonly IEnumerable<ReportItem> _reportItems;
     private readonly MethodOverrideManager _overrideManager;
     private readonly ILogger<CsvReportWriter> _logger;
     private readonly CsvUtils _csvUtils;
 
-    public CsvReportWriter(
-        TextWriter writer,
-        IEnumerable<ReportItem> reportItems,
-        MethodOverrideManager methodOverrideManager)
-        : this(
-            writer,
-            reportItems,
-            methodOverrideManager,
-            MonitoringLoggerFactory.Instance,
-            CsvUtils.Instance)
-    {
-    }
+    //public CsvReportWriter(
+    //    string fileName,
+    //    IEnumerable<ReportItem> reportItems,
+    //    MethodOverrideManager methodOverrideManager)
+    //    : this(
+    //        fileName,
+    //        reportItems,
+    //        methodOverrideManager,
+    //        MonitoringLoggerFactory.Instance,
+    //        CsvUtils.Instance)
+    //{
+    //}
 
     public CsvReportWriter(
-        TextWriter writer,
+        string fileName,
         IEnumerable<ReportItem> reportItems,
         MethodOverrideManager overrideManager,
         IMonitoringLoggerFactory loggerFactory,
         CsvUtils csvUtils)
     {
-        ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(reportItems);
         ArgumentNullException.ThrowIfNull(overrideManager);
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(csvUtils);
 
-        _writer = writer;
+        _fileName = fileName;
         _reportItems = reportItems;
         _overrideManager = overrideManager;
         _logger = loggerFactory.CreateLogger<CsvReportWriter>();
         _csvUtils = csvUtils;
     }
 
-    public void WriteReportItemsCsv()
-    {
-        var headers = GetReportItemHeaders();
-        _csvUtils.WriteCsvLine(_writer, headers);
-
-        Func<Dictionary<string, string>, string[]> selector = item =>
-            headers.Select(h => item.GetValueOrDefault(h, string.Empty)).ToArray();
-
-        var items = PrepareReportItems().ToList();
-        int itemCount = items.Count;
-        for (int i = 0; i < itemCount; i++)
-        {
-            var item = items[i];
-            var values = selector(item);
-
-            if (i < itemCount - 1)
-            {
-                // Write lines with newline character
-                _csvUtils.WriteCsvLine(_writer, values);
-            }
-            else
-            {
-                // Write last line without newline character
-                string line = string.Join(",", values);
-                _writer.Write(line);
-            }
-        }
-
-        _logger.LogInformation($"Wrote {itemCount} report items to CSV");
-    }
-
-
     public async Task WriteReportItemsCsvAsync()
     {
         try
         {
             var headers = GetReportItemHeaders();
-            await _csvUtils.WriteCsvLineAsync(_writer, headers);
 
-            Func<Dictionary<string, string>, string[]> selector = item =>
-                headers.Select(h => item.GetValueOrDefault(h, string.Empty)).ToArray();
+            var items = PrepareReportItems(headers).ToList();
 
-            var items = PrepareReportItems().ToList();
-            int itemCount = items.Count;
-            for (int i = 0; i < itemCount; i++)
-            {
-                var item = items[i];
-                var values = selector(item);
+            await _csvUtils.WriteCsvAsync(_fileName, items, headers);
 
-                if (i < itemCount - 1)
-                {
-                    // Write lines with newline character
-                    await _csvUtils.WriteCsvLineAsync(_writer, values);
-                }
-                else
-                {
-                    // Write last line without newline character
-                    string line = string.Join(",", values);
-                    await _writer.WriteAsync(line);
-                }
-            }
-
-            _logger.LogInformation($"Wrote {itemCount} report items to CSV asynchronously");
+            _logger.LogDebug($"Wrote {items.Count} report items to CSV asynchronously");
         }
         catch (Exception ex)
         {
@@ -123,26 +70,20 @@ public class CsvReportWriter
     {
         try
         {
-            var headers = new[] { "From", "To", "RelationType" };
-            await _csvUtils.WriteCsvLineAsync(_writer, headers);
-
+            var headers = GetRelationshipHeaders();
+            
             var relationships = _reportItems
                 .Where(r => !string.IsNullOrEmpty(r.Parent))
-                .Select(item => new
+                .Select(item => new Dictionary<string, string>
                 {
-                    From = item.Parent ?? string.Empty,
-                    To = item.Id ?? string.Empty,
-                    RelationType = DetermineRelationType(item)
-                });
+                    {"From", item.Parent ?? string.Empty },
+                    {"To", item.Id ?? string.Empty },
+                    {"RelationType", DetermineRelationType(item) }
+                }).ToArray();
 
-            var counter = 0;
-            foreach (var relationship in relationships)
-            {
-                await _csvUtils.WriteCsvLineAsync(_writer, new[] { relationship.From, relationship.To, relationship.RelationType });
-                counter++;
-            }
+            await _csvUtils.WriteCsvAsync(_fileName, relationships, headers);
 
-            _logger.LogInformation($"Wrote {counter} relationships to CSV asynchronously");
+            _logger.LogInformation($"Wrote {relationships.Length} relationships to CSV asynchronously");
         }
         catch (Exception ex)
         {
@@ -151,31 +92,99 @@ public class CsvReportWriter
         }
     }
 
-    private IEnumerable<Dictionary<string, string>> PrepareReportItems()
+    private IEnumerable<Dictionary<string, string>> PrepareReportItems(string[] headers)
     {
-        return _reportItems.Select(PrepareReportItem);
+        return _reportItems.Select(item => PrepareReportItem(item, headers));
     }
 
-    private Dictionary<string, string> PrepareReportItem(ReportItem item)
+    private Dictionary<string, string> PrepareReportItem(ReportItem item, string[] headers)
     {
-        var result = new Dictionary<string, string>
+        var result = new Dictionary<string, string>();
+
+        var attributeParameters = item.AttributeParameters;
+        var dynamicParameters = item.Parameters;
+
+        foreach (var header in headers)
         {
-            ["Id"] = item.Id ?? string.Empty,
-            ["ParentId"] = item.Parent ?? string.Empty,
-            ["StartTime"] = item.StartTime ?? string.Empty,
-            ["EndTime"] = item.EndTime ?? string.Empty,
-            ["Report"] = item.Report ?? string.Empty,
-            ["ClassName"] = item.ClassName ?? string.Empty,
-            ["MethodName"] = item.MethodName ?? string.Empty,
-            ["FullName"] = item.FullName ?? string.Empty,
-            ["Duration"] = item.Duration ?? string.Empty,
-            ["ThreadId"] = item.ThreadId ?? string.Empty,
-            ["ParentThreadId"] = item.ParentThreadId ?? string.Empty,
-            ["NestingLevel"] = item.Level ?? string.Empty,
-            ["IsStatic"] = GetBooleanPropertyOrDefault(item, "IsStatic", false).ToString(),
-            ["IsGeneric"] = GetBooleanPropertyOrDefault(item, "IsGeneric", false).ToString(),
-            ["IsExtension"] = GetBooleanPropertyOrDefault(item, "IsExtension", false).ToString()
-        };
+            switch (header)
+            {
+                case "Id":
+                    result["Id"] = item.Id ?? string.Empty;
+                    break;
+
+                case "ParentId":
+                    result["ParentId"] = item.Parent ?? string.Empty;
+                    break;
+
+                case "StartTime":
+                    result["StartTime"] = item.StartTime ?? string.Empty;
+                    break;
+
+                case "EndTime":
+                    result["EndTime"] = item.EndTime ?? string.Empty;
+                    break;
+
+                case "Report":
+                    result["Report"] = item.Report ?? string.Empty;
+                    break;
+
+                case "ClassName":
+                    result["ClassName"] = item.ClassName ?? string.Empty;
+                    break;
+
+                case "MethodName":
+                    result["MethodName"] = item.MethodName ?? string.Empty;
+                    break;
+
+                case "FullName":
+                    result["FullName"] = item.FullName ?? string.Empty;
+                    break;
+
+                case "Duration":
+                    result["Duration"] = item.Duration ?? string.Empty;
+                    break;
+
+                case "ThreadId":
+                    result["ThreadId"] = item.ThreadId ?? string.Empty;
+                    break;
+
+                case "ParentThreadId":
+                    result["ParentThreadId"] = item.ParentThreadId ?? string.Empty;
+                    break;
+
+                case "NestingLevel":
+                    result["NestingLevel"] = item.Level ?? string.Empty;
+                    break;
+
+                case "IsStatic":
+                    result["IsStatic"] = GetBooleanPropertyOrDefault(item, "IsStatic", false).ToString();
+                    break;
+
+                case "IsGeneric":
+                    result["IsGeneric"] = GetBooleanPropertyOrDefault(item, "IsGeneric", false).ToString();
+                    break;
+
+                case "IsExtension":
+                    result["IsExtension"] = GetBooleanPropertyOrDefault(item, "IsExtension", false).ToString();
+                    break;
+
+
+                default:
+                    if (attributeParameters.Contains(header))
+                    {
+                        result[header] = item.Parameters.TryGetValue(header, out var value) ? value : string.Empty;
+                    }
+                    else if (dynamicParameters.ContainsKey(header))
+                    {
+                        result[header] = item.Parameters.TryGetValue(header, out var value) ? value : string.Empty;
+                    }
+                    else 
+                    {
+                        result[header] = string.Empty;
+                    }
+                    break;
+            }
+        }
 
         var fullName = item.FullName ?? string.Empty;
         var overrides = _overrideManager.GetOverridesForMethod(fullName, item.IsStaticParameter);
@@ -234,6 +243,11 @@ public class CsvReportWriter
             .ToArray();
 
         return headers;
+    }
+
+    private string[] GetRelationshipHeaders()
+    {
+        return new[] { "From", "To", "RelationType" };
     }
 
     private string DetermineRelationType(ReportItem item)
