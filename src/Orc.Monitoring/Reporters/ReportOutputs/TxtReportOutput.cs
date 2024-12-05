@@ -239,36 +239,24 @@ public sealed class TxtReportOutput : IReportOutput
             var limitedEntries = ApplyLimits(_logEntries.ToList());
 
             _logger.LogInformation($"Writing {limitedEntries.Count} entries to file:");
-            await using (var writer = _fileSystem.CreateStreamWriter(_fileName, false, Encoding.UTF8))
-            {
-                for (int i = 0; i < limitedEntries.Count; i++)
-                {
-                    var entry = limitedEntries[i];
-                    var line = $"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Category}] {entry.Message}";
+            var buffer = new StringBuilder();
 
-                    if (i == limitedEntries.Count - 1)
-                    {
-                        // For the last entry, write without a newline
-                        await writer.WriteAsync(line);
-                    }
-                    else
-                    {
-                        await writer.WriteLineAsync(line);
-                    }
-                    _logger.LogInformation($"Writing entry: {line}");
+            for (var i = 0; i < limitedEntries.Count; i++)
+            {
+                var entry = limitedEntries[i];
+                buffer.Append($"{entry.Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{entry.Category}] {entry.Message}");
+
+                if (i != limitedEntries.Count - 1)
+                {
+                    buffer.AppendLine();
                 }
             }
 
+            await _fileSystem.WriteAllTextAsync(_fileName, buffer.ToString());
+
             _logger.LogInformation($"TXT report written to {_fileName} with {limitedEntries.Count} entries");
 
-            if (_fileSystem.FileExists(_fileName))
-            {
-                var fileContent = await _fileSystem.ReadAllTextAsync(_fileName);
-                _logger.LogInformation($"File content:\n{fileContent}");
-                var lineCount = fileContent.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
-                _logger.LogInformation($"Actual line count in file: {lineCount}");
-            }
-            else
+            if (!_fileSystem.FileExists(_fileName))
             {
                 _logger.LogWarning($"File not found after writing: {_fileName}");
             }
