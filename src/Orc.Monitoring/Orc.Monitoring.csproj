@@ -1,6 +1,6 @@
 ﻿<Project Sdk="MSBuild.Sdk.Extras">
   <PropertyGroup>
-    <TargetFrameworks>net8.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <AssemblyName>Orc.Monitoring</AssemblyName>
     <RootNamespace>Orc.Monitoring</RootNamespace>
     <DefaultLanguage>en-US</DefaultLanguage>
