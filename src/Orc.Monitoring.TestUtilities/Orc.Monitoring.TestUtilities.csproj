@@ -25,6 +25,11 @@
     <ProjectReference Include="..\Orc.Monitoring\Orc.Monitoring.csproj" />
   </ItemGroup>
 
+  <!-- MethodTimer not used -->
+  <ItemGroup>
+    <Compile Remove="..\MethodTimeLogger.cs" />
+  </ItemGroup>
+
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props')" />
   <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props')" />
 </Project>

@@ -11,4 +11,9 @@
     <ProjectReference Include="..\Orc.Monitoring\Orc.Monitoring.csproj" />
   </ItemGroup>
 
+  <!-- MethodTimer not used -->
+  <ItemGroup>
+    <Compile Remove="..\MethodTimeLogger.cs" />
+  </ItemGroup>
+
 </Project>
