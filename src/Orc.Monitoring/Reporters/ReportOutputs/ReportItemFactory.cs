@@ -1,4 +1,4 @@
-namespace Orc.Monitoring.Reporters.ReportOutputs;
+﻿namespace Orc.Monitoring.Reporters.ReportOutputs;
 
 using System;
 using System.Collections.Generic;
@@ -118,7 +118,7 @@ public class ReportItemFactory : IReportItemFactory
         var endTime = end.TimeStamp;
 
         reportItem.EndTime = endTime.ToString("yyyy-MM-dd HH:mm:ss.fff");
-        reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture);
+        reportItem.Duration = (endTime - DateTime.Parse(reportItem.StartTime ?? string.Empty)).TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture);
         reportItem.Parameters = end.MethodCallInfo.Parameters ?? new Dictionary<string, string>();
 
         _logger.LogDebug($"Updated report item: {reportItem.MethodName}, Id: {reportItem.Id}, StartTime: {reportItem.StartTime}, EndTime: {reportItem.EndTime}, Duration: {reportItem.Duration}ms");
@@ -133,7 +133,7 @@ public class ReportItemFactory : IReportItemFactory
             Id = Guid.NewGuid().ToString(),
             StartTime = gap.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss.fff"),
             EndTime = (gap.TimeStamp + gap.Elapsed).ToString("yyyy-MM-dd HH:mm:ss.fff"),
-            Duration = gap.Elapsed.TotalMilliseconds.ToString("N1", CultureInfo.InvariantCulture),
+            Duration = gap.Elapsed.TotalMilliseconds.ToString("F1", CultureInfo.InvariantCulture),
             Report = reporter?.FullName ?? string.Empty,
             ThreadId = string.Empty,
             Level = string.Empty,
