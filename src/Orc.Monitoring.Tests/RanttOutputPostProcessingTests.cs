@@ -216,7 +216,7 @@ public class RanttOutputPostProcessingTests
             _reportOutputHelper,
             (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils), 
             _fileSystem,
-            _reportArchiver, new ReportItemFactory(_loggerFactory));
+            _reportArchiver, new ReportItemFactory(_loggerFactory), _csvUtils);
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         output.SetParameters(parameters);
         return output;

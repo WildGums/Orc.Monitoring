@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using IO;
 using Microsoft.Extensions.Logging;
 
@@ -79,7 +80,7 @@ public class MethodOverrideManager
         }
     }
 
-    public void SaveOverrides(ICollection<ReportItem> reportItems)
+    public async Task SaveOverridesAsync(ICollection<ReportItem> reportItems)
     {
         var headers = new HashSet<string>();
 
@@ -94,8 +95,7 @@ public class MethodOverrideManager
         var sortedHeader = headers.OrderBy(h => h).ToList();
         sortedHeader.Insert(0, "FullName");
 
-        using var writer = _fileSystem.CreateStreamWriter(_overrideTemplateFilePath, false, System.Text.Encoding.UTF8);
-        _csvUtils.WriteCsvLine(writer, sortedHeader.ToArray());
+        var data = new List<Dictionary<string, string>>();
 
         var savedFullNames = new HashSet<string>();
 
@@ -107,18 +107,21 @@ public class MethodOverrideManager
                 continue;
             }
 
-            var values = new string[sortedHeader.Count];
-            values[0] = fullName;
+            var row = new Dictionary<string, string>();
+
+            row["FullName"] = fullName;
 
             for (var i = 1; i < sortedHeader.Count; i++)
             {
                 var header = sortedHeader[i];
                 var value = item.Parameters.TryGetValue(header, out var parameterValue) ? parameterValue : string.Empty;
-                values[i] = value;
+                row[header] = value;
             }
 
-            _csvUtils.WriteCsvLine(writer, values);
+            data.Add(row);
         }
+
+        await _csvUtils.WriteCsvAsync(_overrideTemplateFilePath, data, sortedHeader.ToArray());
 
         _logger.LogInformation($"Saved method override template to {_overrideTemplateFilePath}");
     }

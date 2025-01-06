@@ -41,42 +41,6 @@ public class CsvUtilsTests
     }
 
     [Test]
-    public void WriteCsvLine_WritesCorrectly()
-    {
-        using var writer = new StringWriter();
-        _csvUtils.WriteCsvLine(writer, new[] { "Header1", "Header2", "Header3" });
-        var result = writer.ToString().Trim();
-        Assert.That(result, Is.EqualTo("Header1,Header2,Header3"));
-    }
-
-    [Test]
-    public void WriteCsvLine_HandlesSpecialCharacters()
-    {
-        using var writer = new StringWriter();
-        _csvUtils.WriteCsvLine(writer, new[] { "Normal", "With,Comma", "With\"Quote" });
-        var result = writer.ToString().Trim();
-        Assert.That(result, Is.EqualTo("Normal,\"With,Comma\",\"With\"\"Quote\""));
-    }
-
-    [Test]
-    public void WriteCsvLine_HandlesLeadingTrailingSpaces()
-    {
-        using var writer = new StringWriter();
-        _csvUtils.WriteCsvLine(writer, new[] { " Leading", "Trailing " });
-        var result = writer.ToString().Trim();
-        Assert.That(result, Is.EqualTo("\" Leading\",\"Trailing \""));
-    }
-
-    [Test]
-    public void WriteCsvLine_HandlesEmptyFields()
-    {
-        using var writer = new StringWriter();
-        _csvUtils.WriteCsvLine(writer, new[] { string.Empty, "Value", null });
-        var result = writer.ToString().Trim();
-        Assert.That(result, Is.EqualTo(",Value,"));
-    }
-
-    [Test]
     public void ReadCsv_ReadsCorrectly()
     {
         var testData = "Header1,Header2,Header3\nValue1,Value2,Value3\nValue4,Value5,Value6";

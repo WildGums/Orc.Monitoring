@@ -13,10 +13,12 @@ using Reporters;
 public sealed class CsvReportOutput : IReportOutput
 {
     private readonly ILogger<CsvReportOutput> _logger;
+    private readonly IMonitoringLoggerFactory _loggerFactory;
     private readonly ReportOutputHelper _helper;
     private readonly Func<string, MethodOverrideManager> _methodOverrideManagerFactory;
     private readonly IFileSystem _fileSystem;
     private readonly ReportArchiver _reportArchiver;
+    private readonly CsvUtils _csvUtils;
 
     private string? _fileName;
     private string? _folderPath;
@@ -26,25 +28,28 @@ public sealed class CsvReportOutput : IReportOutput
     public CsvReportOutput()
     : this(MonitoringLoggerFactory.Instance, new ReportOutputHelper(MonitoringLoggerFactory.Instance, new ReportItemFactory(MonitoringLoggerFactory.Instance)),
         (outputFolder) => new MethodOverrideManager(outputFolder, MonitoringLoggerFactory.Instance, FileSystem.Instance, CsvUtils.Instance),
-        FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance))
+        FileSystem.Instance, new ReportArchiver(FileSystem.Instance, MonitoringLoggerFactory.Instance), CsvUtils.Instance)
     {
 
     }
 
     public CsvReportOutput(IMonitoringLoggerFactory loggerFactory, ReportOutputHelper reportOutputHelper, Func<string, MethodOverrideManager> methodOverrideManagerFactory,
-        IFileSystem fileSystem, ReportArchiver reportArchiver)
+        IFileSystem fileSystem, ReportArchiver reportArchiver, CsvUtils csvUtils)
     {
         ArgumentNullException.ThrowIfNull(loggerFactory);
         ArgumentNullException.ThrowIfNull(reportOutputHelper);
         ArgumentNullException.ThrowIfNull(methodOverrideManagerFactory);
         ArgumentNullException.ThrowIfNull(fileSystem);
         ArgumentNullException.ThrowIfNull(reportArchiver);
+        ArgumentNullException.ThrowIfNull(csvUtils);
 
         _logger = loggerFactory.CreateLogger<CsvReportOutput>();
+        _loggerFactory = loggerFactory;
         _helper = reportOutputHelper;
         _methodOverrideManagerFactory = methodOverrideManagerFactory;
         _fileSystem = fileSystem;
         _reportArchiver = reportArchiver;
+        _csvUtils = csvUtils;
 
         _logger.LogDebug($"Created {nameof(CsvReportOutput)}");
     }
@@ -173,11 +178,8 @@ public sealed class CsvReportOutput : IReportOutput
                 _logger.LogDebug($"Exporting item {i}: {item.ItemName ?? item.MethodName}, MethodName: {item.MethodName}, StartTime: {item.StartTime}");
             }
 
-            await using (var writer = _fileSystem.CreateStreamWriter(fullPath, false, System.Text.Encoding.UTF8))
-            {
-                var csvReportWriter = new CsvReportWriter(writer, sortedItems, _methodOverrideManager);
-                await csvReportWriter.WriteReportItemsCsvAsync();
-            }
+            var csvReportWriter = new CsvReportWriter(fullPath, sortedItems, _methodOverrideManager, _loggerFactory, _csvUtils);
+            await csvReportWriter.WriteReportItemsCsvAsync();
 
             _logger.LogInformation($"CSV report written to {fullPath} with {sortedItems.Count} items");
 

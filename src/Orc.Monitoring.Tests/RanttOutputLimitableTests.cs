@@ -50,7 +50,7 @@ public class RanttOutputLimitableTests
             new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory)),
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
             _fileSystem,
-            _reportArchiver, new ReportItemFactory(_loggerFactory));
+            _reportArchiver, new ReportItemFactory(_loggerFactory), _csvUtils);
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         _ranttOutput.SetParameters(parameters);
 

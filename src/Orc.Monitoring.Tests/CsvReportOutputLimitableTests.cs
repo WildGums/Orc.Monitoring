@@ -50,7 +50,7 @@ public class CsvReportOutputLimitableTests
 
         _csvReportOutput = new CsvReportOutput(_loggerFactory, reportOutputHelper,
             (outputDirectory) => new MethodOverrideManager(outputDirectory, _loggerFactory, _fileSystem, _csvUtils),
-            _fileSystem, _reportArchiver);
+            _fileSystem, _reportArchiver, _csvUtils);
         var parameters = CsvReportOutput.CreateParameters(_testOutputPath, TestConstants.DefaultReportName);
         _csvReportOutput.SetParameters(parameters);
     }

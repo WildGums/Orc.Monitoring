@@ -187,7 +187,7 @@ public class MethodOverrideManagerAndRanttOutputTests
             new ReportOutputHelper(_loggerFactory, new ReportItemFactory(_loggerFactory)),
             (outputFolder) => new MethodOverrideManager(outputFolder, _loggerFactory, _fileSystem, _csvUtils),
             _fileSystem,
-            _reportArchiver, new ReportItemFactory(_loggerFactory));
+            _reportArchiver, new ReportItemFactory(_loggerFactory), _csvUtils);
         var parameters = RanttOutput.CreateParameters(_testOutputPath);
         ranttOutput.SetParameters(parameters);
         return ranttOutput;
