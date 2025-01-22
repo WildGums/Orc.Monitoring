@@ -1,0 +1,84 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35122.118
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring", "Orc.Monitoring\Orc.Monitoring.csproj", "{E8B6643B-A592-401B-9ABE-71C3B827628C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EE152991-BD7D-46B9-911E-A9B57AFF2E4B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "misc", "misc", "{7FC547A9-22CB-4609-AFB3-6FF16D0C90CB}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.analyzers.props = Directory.Build.analyzers.props
+		Directory.Build.implicitusings.props = Directory.Build.implicitusings.props
+		Directory.Build.nullable.props = Directory.Build.nullable.props
+		Directory.Build.props = Directory.Build.props
+		Directory.Build.shared.explicit.props = Directory.Build.shared.explicit.props
+		Directory.Build.shared.implicit.props = Directory.Build.shared.implicit.props
+		Directory.Build.shared.mat.props = Directory.Build.shared.mat.props
+		Directory.Build.shared.tests.props = Directory.Build.shared.tests.props
+		Directory.Build.shared.tools.props = Directory.Build.shared.tools.props
+		Directory.Build.shared.xamltools.props = Directory.Build.shared.xamltools.props
+		Directory.Build.targets = Directory.Build.targets
+		global.json = global.json
+		SolutionAssemblyInfo.cs = SolutionAssemblyInfo.cs
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.Tests", "Orc.Monitoring.Tests\Orc.Monitoring.Tests.csproj", "{76172641-DAAB-4807-9924-45F4B0A25680}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.Benchmarks", "Orc.Monitoring.Benchmarks\Orc.Monitoring.Benchmarks.csproj", "{39A7B12A-2C9D-49C7-84A1-6D3134662082}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Orc.Monitoring.Examples", "Orc.Monitoring.Examples\Orc.Monitoring.Examples.csproj", "{D5A6FA79-F4F6-41F3-A5C2-A954630807D9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{E29D99FE-7061-462A-96D6-BE688290E9FE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{3D15B798-F1D3-423B-96C2-44DA6A2B71FD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{199C3FF9-7D2C-4A9B-931F-AD1210A201C9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Orc.Monitoring.TestUtilities", "Orc.Monitoring.TestUtilities\Orc.Monitoring.TestUtilities.csproj", "{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E8B6643B-A592-401B-9ABE-71C3B827628C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8B6643B-A592-401B-9ABE-71C3B827628C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8B6643B-A592-401B-9ABE-71C3B827628C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8B6643B-A592-401B-9ABE-71C3B827628C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76172641-DAAB-4807-9924-45F4B0A25680}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76172641-DAAB-4807-9924-45F4B0A25680}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76172641-DAAB-4807-9924-45F4B0A25680}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76172641-DAAB-4807-9924-45F4B0A25680}.Release|Any CPU.Build.0 = Release|Any CPU
+		{39A7B12A-2C9D-49C7-84A1-6D3134662082}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{39A7B12A-2C9D-49C7-84A1-6D3134662082}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{39A7B12A-2C9D-49C7-84A1-6D3134662082}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{39A7B12A-2C9D-49C7-84A1-6D3134662082}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5A6FA79-F4F6-41F3-A5C2-A954630807D9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5A6FA79-F4F6-41F3-A5C2-A954630807D9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5A6FA79-F4F6-41F3-A5C2-A954630807D9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5A6FA79-F4F6-41F3-A5C2-A954630807D9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E8B6643B-A592-401B-9ABE-71C3B827628C} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
+		{76172641-DAAB-4807-9924-45F4B0A25680} = {E29D99FE-7061-462A-96D6-BE688290E9FE}
+		{39A7B12A-2C9D-49C7-84A1-6D3134662082} = {3D15B798-F1D3-423B-96C2-44DA6A2B71FD}
+		{D5A6FA79-F4F6-41F3-A5C2-A954630807D9} = {199C3FF9-7D2C-4A9B-931F-AD1210A201C9}
+		{E29D99FE-7061-462A-96D6-BE688290E9FE} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
+		{3D15B798-F1D3-423B-96C2-44DA6A2B71FD} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
+		{199C3FF9-7D2C-4A9B-931F-AD1210A201C9} = {EE152991-BD7D-46B9-911E-A9B57AFF2E4B}
+		{9C89F88B-B627-409E-AB4F-E22DA29B5FE4} = {E29D99FE-7061-462A-96D6-BE688290E9FE}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D2551B40-153E-4B5D-987F-0F958BBD65D9}
+	EndGlobalSection
+EndGlobal

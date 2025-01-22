@@ -1,0 +1,35 @@
+﻿<Project Sdk="MSBuild.Sdk.Extras">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <AssemblyName>Orc.Monitoring.TestUtilities</AssemblyName>
+    <RootNamespace>Orc.Monitoring.TestUtilities</RootNamespace>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <PackageId>Orc.Monitoring.TestUtilities</PackageId>
+    <PackageVersion>1.0.0-alpha0001</PackageVersion>
+    <Description></Description>
+    <PackageTags></PackageTags>
+    <SonarQubeExclude>true</SonarQubeExclude>
+    <Nullable>annotations</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Moq.AutoMock" Version="3.5.0" />
+    <PackageReference Include="NUnit" Version="4.3.2" PrivateAssets="all" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" PrivateAssets="all" />
+    <PackageReference Include="PublicApiGenerator" Version="11.3.0" PrivateAssets="all" />
+    <PackageReference Include="Verify.NUnit" Version="28.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Orc.Monitoring\Orc.Monitoring.csproj" />
+  </ItemGroup>
+
+  <!-- MethodTimer not used -->
+  <ItemGroup>
+    <Compile Remove="..\MethodTimeLogger.cs" />
+  </ItemGroup>
+
+  <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.explicit.props')" />
+  <Import Project="$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props" Condition="Exists('$(MSBuildProjectDirectory)\..\Directory.build.shared.mat.props')" />
+</Project>
