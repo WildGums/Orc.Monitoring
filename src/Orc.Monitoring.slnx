@@ -1,0 +1,30 @@
+<Solution>
+  <Folder Name="/misc/">
+    <File Path="Directory.Build.analyzers.props" />
+    <File Path="Directory.Build.implicitusings.props" />
+    <File Path="Directory.Build.nullable.props" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.shared.explicit.props" />
+    <File Path="Directory.Build.shared.implicit.props" />
+    <File Path="Directory.Build.shared.mat.props" />
+    <File Path="Directory.Build.shared.tests.props" />
+    <File Path="Directory.Build.shared.tools.props" />
+    <File Path="Directory.Build.shared.xamltools.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="global.json" />
+    <File Path="SolutionAssemblyInfo.cs" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="Orc.Monitoring/Orc.Monitoring.csproj" />
+  </Folder>
+  <Folder Name="/src/benchmarks/">
+    <Project Path="Orc.Monitoring.Benchmarks/Orc.Monitoring.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/examples/">
+    <Project Path="Orc.Monitoring.Examples/Orc.Monitoring.Examples.csproj" />
+  </Folder>
+  <Folder Name="/src/tests/">
+    <Project Path="Orc.Monitoring.Tests/Orc.Monitoring.Tests.csproj" />
+    <Project Path="Orc.Monitoring.TestUtilities/Orc.Monitoring.TestUtilities.csproj" />
+  </Folder>
+</Solution>
